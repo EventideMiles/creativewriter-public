@@ -6,7 +6,7 @@
 > 
 > This repository is automatically synced from the main development repository and contains the latest version of CreativeWriter 2.
 
-> **🐳 Docker Images Status:** Main application image is published (`ghcr.io/marcodroll/creativewriter-public:latest`). Supporting services (nginx, proxies) need local building.
+> **🐳 Docker Images Status:** All Docker images are now published and ready to use! No local building required.
 
 [![Docker](https://img.shields.io/badge/Docker-Ready-brightgreen)](https://github.com/MarcoDroll/creativewriter-public)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
@@ -22,23 +22,15 @@ Your support helps keep this project free and open-source for the self-hosting c
 
 ## 🚀 Quick Start for Self-Hosters
 
-### Build and Deploy Locally
+### Zero-Configuration Deployment
 
-1. **Clone the repository**
+1. **Create a directory and download compose file**
    ```bash
-   git clone https://github.com/MarcoDroll/creativewriter-public.git
-   cd creativewriter-public
+   mkdir creativewriter && cd creativewriter
+   curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
    ```
 
-2. **Build the Docker images**
-   ```bash
-   docker build -t ghcr.io/marcodroll/creativewriter-public:latest .
-   docker build -t ghcr.io/marcodroll/creativewriter-public-nginx:latest -f Dockerfile.nginx .
-   docker build -t ghcr.io/marcodroll/creativewriter-public-proxy:latest -f Dockerfile.proxy .
-   docker build -t ghcr.io/marcodroll/creativewriter-public-gemini-proxy:latest -f Dockerfile.gemini-proxy .
-   ```
-
-3. **Start the application**
+2. **Start the application**
    ```bash
    docker compose up -d
    ```
@@ -52,11 +44,15 @@ Your support helps keep this project free and open-source for the self-hosting c
    - Add your OpenRouter, Google Gemini, or Replicate API keys
    - Start writing with AI assistance!
 
-### Future: Zero-Configuration Deployment (Coming Soon)
-Once pre-built images are available, you'll be able to:
+### Alternative: Build Locally (Optional)
+If you prefer to build images yourself:
 ```bash
-mkdir creativewriter && cd creativewriter
-curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
+git clone https://github.com/MarcoDroll/creativewriter-public.git
+cd creativewriter-public
+docker build -t ghcr.io/marcodroll/creativewriter-public:latest .
+docker build -t ghcr.io/marcodroll/creativewriter-public-nginx:latest -f Dockerfile.nginx .
+docker build -t ghcr.io/marcodroll/creativewriter-public-proxy:latest -f Dockerfile.proxy .
+docker build -t ghcr.io/marcodroll/creativewriter-public-gemini-proxy:latest -f Dockerfile.gemini-proxy .
 docker compose up -d
 ```
 
@@ -65,35 +61,31 @@ docker compose up -d
 Run multiple isolated instances on the same host:
 
 ```bash
-# Clone and build once
-git clone https://github.com/MarcoDroll/creativewriter-public.git
-cd creativewriter-public
-docker build -t ghcr.io/marcodroll/creativewriter-public:latest .
-docker build -t ghcr.io/marcodroll/creativewriter-public-nginx:latest -f Dockerfile.nginx .
-docker build -t ghcr.io/marcodroll/creativewriter-public-proxy:latest -f Dockerfile.proxy .
-docker build -t ghcr.io/marcodroll/creativewriter-public-gemini-proxy:latest -f Dockerfile.gemini-proxy .
-
-# Instance 1
+# Instance 1 - Personal Writing
+mkdir writer-personal && cd writer-personal
+curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
 echo "PORT=3080" > .env
 docker compose -p writer-personal up -d
 
-# Instance 2  
+# Instance 2 - Work Projects (different directory)
+mkdir ../writer-work && cd ../writer-work
+curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
 echo "PORT=3081" > .env
 docker compose -p writer-work up -d
 ```
 
 ## 📦 Docker Images
 
-> **Current Status:** Partial availability - main app is published, supporting services coming soon.
+> **✅ All Images Published:** Complete set of pre-built images available on GitHub Container Registry.
 
-| Image | Status | How to Get |
-|-------|--------|------------|
+| Image | Status | Pull Command |
+|-------|--------|--------------|
 | Main Application | ✅ Published | `docker pull ghcr.io/marcodroll/creativewriter-public:latest` |
-| Nginx Proxy | ⚠️ Build locally | `docker build -t ghcr.io/marcodroll/creativewriter-public-nginx:latest -f Dockerfile.nginx .` |
-| Replicate Proxy | ⚠️ Build locally | `docker build -t ghcr.io/marcodroll/creativewriter-public-proxy:latest -f Dockerfile.proxy .` |
-| Gemini Proxy | ⚠️ Build locally | `docker build -t ghcr.io/marcodroll/creativewriter-public-gemini-proxy:latest -f Dockerfile.gemini-proxy .` |
+| Nginx Proxy | ✅ Published | `docker pull ghcr.io/marcodroll/creativewriter-public-nginx:latest` |
+| Replicate Proxy | ✅ Published | `docker pull ghcr.io/marcodroll/creativewriter-public-proxy:latest` |
+| Gemini Proxy | ✅ Published | `docker pull ghcr.io/marcodroll/creativewriter-public-gemini-proxy:latest` |
 
-Full pre-built images will be available soon via GitHub Container Registry.
+All images are automatically built and published for multiple architectures (AMD64 + ARM64).
 
 ## 🔧 Configuration
 

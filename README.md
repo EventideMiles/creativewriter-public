@@ -116,11 +116,21 @@ CreativeWriter is built with modern web technologies:
 
 ### Quick Start with Docker
 
-> **⚠️ Note:** Currently only the main application image is published (`ghcr.io/marcodroll/creativewriter-public:latest`). The nginx, proxy, and gemini-proxy images still need to be built locally.
+> **🎉 All images are now published!** Use the simple docker-compose setup from the public repository.
 
-#### Option 1: Build Images Locally (Required for complete setup)
+#### Option 1: Use Pre-built Images (Recommended)
 ```bash
-# Clone the repository
+# No cloning required! Just download and run:
+mkdir creativewriter && cd creativewriter
+curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
+docker compose up -d
+
+# Access at http://localhost:3080
+```
+
+#### Option 2: Development Setup (Local Build)
+For development or customization:
+```bash
 git clone https://github.com/MarcoDroll/creativewriter2.git
 cd creativewriter2
 
@@ -130,20 +140,8 @@ docker build -t ghcr.io/marcodroll/creativewriter2-nginx:latest -f Dockerfile.ng
 docker build -t ghcr.io/marcodroll/creativewriter2-proxy:latest -f Dockerfile.proxy .
 docker build -t ghcr.io/marcodroll/creativewriter2-gemini-proxy:latest -f Dockerfile.gemini-proxy .
 
-# Start the application
-docker compose up -d
-
-# Access at http://localhost:3080
-```
-
-#### Option 2: Mixed Approach (Coming Soon)
-Once all images are published:
-```bash
-mkdir creativewriter && cd creativewriter
-curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
 docker compose up -d
 ```
-Note: This will work once all supporting service images are published.
 
 Then configure your AI providers in Settings with your API keys.
 
@@ -240,14 +238,14 @@ See [README-MULTI-INSTANCE.md](README-MULTI-INSTANCE.md) for detailed multi-inst
 
 ## 📦 Docker Images
 
-> **Current Status:** Main application image is published. Supporting service images coming soon.
+> **✅ All Images Available:** Complete set of pre-built Docker images ready for production use.
 
 | Image | Status | Registry Path |
 |-------|--------|--------------|
 | Main Application | ✅ Published | `ghcr.io/marcodroll/creativewriter-public:latest` |
-| Nginx Proxy | ⚠️ Build locally | Use `Dockerfile.nginx` |
-| Replicate Proxy | ⚠️ Build locally | Use `Dockerfile.proxy` |
-| Gemini Proxy | ⚠️ Build locally | Use `Dockerfile.gemini-proxy` |
+| Nginx Proxy | ✅ Published | `ghcr.io/marcodroll/creativewriter-public-nginx:latest` |
+| Replicate Proxy | ✅ Published | `ghcr.io/marcodroll/creativewriter-public-proxy:latest` |
+| Gemini Proxy | ✅ Published | `ghcr.io/marcodroll/creativewriter-public-gemini-proxy:latest` |
 
 ## 🛠️ Development
 
