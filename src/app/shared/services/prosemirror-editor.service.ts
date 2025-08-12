@@ -150,7 +150,9 @@ export class ProseMirrorEditorService {
           updatedAt: { default: '' },
           wordCount: { default: 400 },
           beatType: { default: 'story' },
-          model: { default: '' }
+          model: { default: '' },
+          selectedScenes: { default: '' },
+          includeStoryOutline: { default: null }
         },
         group: 'block',
         atom: true,
@@ -166,7 +168,9 @@ export class ProseMirrorEditorService {
             'data-updated': node.attrs['updatedAt'] || '',
             'data-word-count': node.attrs['wordCount'] || 400,
             'data-beat-type': node.attrs['beatType'] || 'story',
-            'data-model': node.attrs['model'] || ''
+            'data-model': node.attrs['model'] || '',
+            'data-selected-scenes': node.attrs['selectedScenes'] || '',
+            'data-include-story-outline': node.attrs['includeStoryOutline'] !== null ? node.attrs['includeStoryOutline'] : ''
           };
           
           // Create content to make the beat visible in saved HTML
