@@ -60,7 +60,7 @@ interface SceneContext {
               *ngIf="beatData.isEditing || !beatData.prompt" 
               class="action-btn outline-btn"
               [class.active]="includeStoryOutline"
-              (click)="includeStoryOutline = !includeStoryOutline; $event.stopPropagation()"
+              (click)="toggleStoryOutline(); $event.stopPropagation()"
               title="Include/exclude story overview">
               <ion-icon name="reader-outline"></ion-icon>
             </button>
@@ -94,7 +94,7 @@ interface SceneContext {
             <ion-label>Story Overview</ion-label>
             <ion-icon 
               name="close-outline" 
-              (click)="includeStoryOutline = false; $event.stopPropagation()">
+              (click)="removeStoryOutline(); $event.stopPropagation()">
             </ion-icon>
           </ion-chip>
           <ion-chip *ngFor="let scene of selectedScenes" [color]="scene.sceneId === sceneId ? 'primary' : 'medium'">
@@ -1343,6 +1343,11 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       }
     }
     
+    // Load saved scene selection and story outline setting
+    if (this.beatData.includeStoryOutline !== undefined) {
+      this.includeStoryOutline = this.beatData.includeStoryOutline;
+    }
+    
     // Load available models and set default
     this.loadAvailableModels();
     this.setDefaultModel();
@@ -1434,13 +1439,13 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     this.editorView.dispatch(tr);
   }
   
-  startEditing(): void {
+  async startEditing(): Promise<void> {
     this.beatData.isEditing = true;
     this.currentPrompt = this.beatData.prompt;
     this.beatFocus.emit();
     
     // Restore all persisted settings when switching back to edit mode
-    this.restorePersistedSettings();
+    await this.restorePersistedSettings();
     
     // Destroy existing editor if it exists (DOM element will be recreated by *ngIf)
     if (this.editorView) {
@@ -1463,12 +1468,12 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     }, 100);
   }
   
-  cancelEditing(): void {
+  async cancelEditing(): Promise<void> {
     this.beatData.isEditing = false;
     this.currentPrompt = this.beatData.prompt;
     
     // Restore all persisted settings when canceling
-    this.restorePersistedSettings();
+    await this.restorePersistedSettings();
     
     // Destroy editor when canceling
     if (this.editorView) {
@@ -1486,6 +1491,14 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     this.beatData.updatedAt = new Date();
     this.beatData.wordCount = this.getActualWordCount();
     this.beatData.model = this.selectedModel;
+    this.beatData.beatType = this.selectedBeatType;
+    
+    // Persist the selected scenes and story outline setting
+    this.beatData.selectedScenes = this.selectedScenes.map(scene => ({
+      sceneId: scene.sceneId,
+      chapterId: scene.chapterId
+    }));
+    this.beatData.includeStoryOutline = this.includeStoryOutline;
     
     // Build custom context from selected scenes
     const customContext = await this.buildCustomContext();
@@ -1512,6 +1525,14 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     this.beatData.isGenerating = true;
     this.beatData.wordCount = this.getActualWordCount();
     this.beatData.model = this.selectedModel;
+    this.beatData.beatType = this.selectedBeatType;
+    
+    // Persist the selected scenes and story outline setting
+    this.beatData.selectedScenes = this.selectedScenes.map(scene => ({
+      sceneId: scene.sceneId,
+      chapterId: scene.chapterId
+    }));
+    this.beatData.includeStoryOutline = this.includeStoryOutline;
     
     // Build custom context from selected scenes
     const customContext = await this.buildCustomContext();
@@ -1648,7 +1669,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  private restorePersistedSettings(): void {
+  private async restorePersistedSettings(): Promise<void> {
     // Restore the persisted model
     this.setDefaultModel();
     
@@ -1673,6 +1694,34 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     // Restore the persisted beat type
     if (this.beatData.beatType) {
       this.selectedBeatType = this.beatData.beatType;
+    }
+    
+    // Restore the persisted story outline setting
+    if (this.beatData.includeStoryOutline !== undefined) {
+      this.includeStoryOutline = this.beatData.includeStoryOutline;
+    }
+    
+    // Restore the persisted selected scenes
+    if (this.beatData.selectedScenes && this.beatData.selectedScenes.length > 0 && this.story) {
+      // Clear current selection
+      this.selectedScenes = [];
+      
+      // Restore each persisted scene
+      for (const persistedScene of this.beatData.selectedScenes) {
+        const chapter = this.story.chapters.find(c => c.id === persistedScene.chapterId);
+        const scene = chapter?.scenes.find(s => s.id === persistedScene.sceneId);
+        
+        if (chapter && scene) {
+          this.selectedScenes.push({
+            chapterId: chapter.id,
+            sceneId: scene.id,
+            chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
+            sceneTitle: `S${scene.sceneNumber || scene.order}:${scene.title}`,
+            content: this.extractFullTextFromScene(scene),
+            selected: true
+          });
+        }
+      }
     }
   }
 
@@ -1918,30 +1967,51 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     const freshStory = await this.storyService.getStory(this.storyId);
     if (!freshStory) return;
     
-    const chapter = freshStory.chapters.find(c => c.id === this.chapterId);
-    const scene = chapter?.scenes.find(s => s.id === this.sceneId);
-    
-    if (chapter && scene) {
-      // Add current scene as default context
-      const currentSceneContent = this.extractFullTextFromScene(scene);
-      
-      // If current scene has no content, try to find the previous scene with content
-      let contentToUse = currentSceneContent;
-      if (!contentToUse.trim()) {
-        const previousScene = this.findPreviousSceneWithContent(chapter, scene);
-        if (previousScene.scene) {
-          contentToUse = this.extractFullTextFromScene(previousScene.scene);
+    // Check if there are persisted selected scenes to restore
+    if (this.beatData.selectedScenes && this.beatData.selectedScenes.length > 0) {
+      // Restore persisted selected scenes
+      for (const persistedScene of this.beatData.selectedScenes) {
+        const chapter = freshStory.chapters.find(c => c.id === persistedScene.chapterId);
+        const scene = chapter?.scenes.find(s => s.id === persistedScene.sceneId);
+        
+        if (chapter && scene) {
+          this.selectedScenes.push({
+            chapterId: chapter.id,
+            sceneId: scene.id,
+            chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
+            sceneTitle: `S${scene.sceneNumber || scene.order}:${scene.title}`,
+            content: this.extractFullTextFromScene(scene),
+            selected: true
+          });
         }
       }
+    } else {
+      // Set up default context if no persisted scenes
+      const chapter = freshStory.chapters.find(c => c.id === this.chapterId);
+      const scene = chapter?.scenes.find(s => s.id === this.sceneId);
       
-      this.selectedScenes.push({
-        chapterId: chapter.id,
-        sceneId: scene.id,
-        chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
-        sceneTitle: `S${scene.sceneNumber || scene.order}:${scene.title}`,
-        content: contentToUse,
-        selected: true
-      });
+      if (chapter && scene) {
+        // Add current scene as default context
+        const currentSceneContent = this.extractFullTextFromScene(scene);
+        
+        // If current scene has no content, try to find the previous scene with content
+        let contentToUse = currentSceneContent;
+        if (!contentToUse.trim()) {
+          const previousScene = this.findPreviousSceneWithContent(chapter, scene);
+          if (previousScene.scene) {
+            contentToUse = this.extractFullTextFromScene(previousScene.scene);
+          }
+        }
+        
+        this.selectedScenes.push({
+          chapterId: chapter.id,
+          sceneId: scene.id,
+          chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
+          sceneTitle: `S${scene.sceneNumber || scene.order}:${scene.title}`,
+          content: contentToUse,
+          selected: true
+        });
+      }
     }
   }
 
@@ -2003,6 +2073,9 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
         });
       }
     }
+    
+    // Persist the selected scenes
+    this.persistContextSettings();
   }
 
   isSceneSelected(sceneId: string): boolean {
@@ -2014,6 +2087,9 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     if (index > -1) {
       this.selectedScenes.splice(index, 1);
     }
+    
+    // Persist the updated selected scenes
+    this.persistContextSettings();
   }
 
   getFilteredScenes(chapter: Chapter): Scene[] {
@@ -2166,6 +2242,29 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     }
     
     document.body.removeChild(textArea);
+  }
+
+  toggleStoryOutline(): void {
+    this.includeStoryOutline = !this.includeStoryOutline;
+    this.persistContextSettings();
+  }
+
+  removeStoryOutline(): void {
+    this.includeStoryOutline = false;
+    this.persistContextSettings();
+  }
+
+  private persistContextSettings(): void {
+    // Update the beat data with current settings
+    this.beatData.selectedScenes = this.selectedScenes.map(scene => ({
+      sceneId: scene.sceneId,
+      chapterId: scene.chapterId
+    }));
+    this.beatData.includeStoryOutline = this.includeStoryOutline;
+    this.beatData.updatedAt = new Date();
+    
+    // Emit the change to trigger saving
+    this.contentUpdate.emit(this.beatData);
   }
   
 

@@ -150,7 +150,9 @@ export class ProseMirrorEditorService {
           updatedAt: { default: '' },
           wordCount: { default: 400 },
           beatType: { default: 'story' },
-          model: { default: '' }
+          model: { default: '' },
+          selectedScenes: { default: '' },
+          includeStoryOutline: { default: true }
         },
         group: 'block',
         atom: true,
@@ -166,7 +168,9 @@ export class ProseMirrorEditorService {
             'data-updated': node.attrs['updatedAt'] || '',
             'data-word-count': node.attrs['wordCount'] || 400,
             'data-beat-type': node.attrs['beatType'] || 'story',
-            'data-model': node.attrs['model'] || ''
+            'data-model': node.attrs['model'] || '',
+            'data-selected-scenes': node.attrs['selectedScenes'] || '',
+            'data-include-story-outline': node.attrs['includeStoryOutline'] !== undefined ? node.attrs['includeStoryOutline'] : 'true'
           };
           
           // Create content to make the beat visible in saved HTML
@@ -183,6 +187,9 @@ export class ProseMirrorEditorService {
         parseDOM: [{
           tag: 'div.beat-ai-node',
           getAttrs: (dom: HTMLElement) => {
+            const selectedScenesStr = dom.getAttribute('data-selected-scenes') || '';
+            const includeStoryOutlineStr = dom.getAttribute('data-include-story-outline') || '';
+            
             const attrs = {
               id: dom.getAttribute('data-id') || '',
               prompt: dom.getAttribute('data-prompt') || '',
@@ -193,7 +200,9 @@ export class ProseMirrorEditorService {
               updatedAt: dom.getAttribute('data-updated') || '',
               wordCount: parseInt(dom.getAttribute('data-word-count') || '400', 10),
               beatType: dom.getAttribute('data-beat-type') || 'story',
-              model: dom.getAttribute('data-model') || ''
+              model: dom.getAttribute('data-model') || '',
+              selectedScenes: selectedScenesStr || '',
+              includeStoryOutline: includeStoryOutlineStr !== '' ? (includeStoryOutlineStr === 'true') : true
             };
             
             return attrs;
@@ -580,7 +589,8 @@ export class ProseMirrorEditorService {
         updatedAt: beatData.updatedAt.toISOString(),
         wordCount: beatData.wordCount,
         beatType: beatData.beatType,
-        model: beatData.model || ''
+        model: beatData.model || '',
+        includeStoryOutline: beatData.includeStoryOutline
       });
       
       let tr;
