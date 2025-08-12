@@ -186,7 +186,9 @@ export class BeatAINodeView implements NodeView {
       updatedAt: attrs['updatedAt'] ? new Date(attrs['updatedAt']) : new Date(),
       wordCount: attrs['wordCount'] || 400,
       beatType: attrs['beatType'] || 'story',
-      model: attrs['model'] || ''
+      model: attrs['model'] || '',
+      selectedScenes: attrs['selectedScenes'] ? JSON.parse(attrs['selectedScenes']) : undefined,
+      includeStoryOutline: attrs['includeStoryOutline'] !== undefined ? attrs['includeStoryOutline'] : undefined
     };
   }
 
@@ -194,7 +196,7 @@ export class BeatAINodeView implements NodeView {
     const pos = this.getPos();
     if (pos === undefined) return;
 
-    const tr = this.view.state.tr.setNodeMarkup(pos, undefined, {
+    const attrs: Record<string, unknown> = {
       id: beatData.id,
       prompt: beatData.prompt,
       generatedContent: beatData.generatedContent,
@@ -205,8 +207,17 @@ export class BeatAINodeView implements NodeView {
       wordCount: beatData.wordCount || 400,
       beatType: beatData.beatType || 'story',
       model: beatData.model || ''
-    });
+    };
 
+    // Add selectedScenes and includeStoryOutline if they exist
+    if (beatData.selectedScenes !== undefined) {
+      attrs['selectedScenes'] = JSON.stringify(beatData.selectedScenes);
+    }
+    if (beatData.includeStoryOutline !== undefined) {
+      attrs['includeStoryOutline'] = beatData.includeStoryOutline;
+    }
+
+    const tr = this.view.state.tr.setNodeMarkup(pos, undefined, attrs);
     this.view.dispatch(tr);
   }
 
