@@ -9,6 +9,8 @@ export interface BeatAI {
   wordCount?: number;
   beatType?: 'story' | 'scene'; // Default is 'story' for backwards compatibility
   model?: string; // AI model used for generation
+  selectedScenes?: { sceneId: string; chapterId: string; }[]; // Persisted selected scene contexts
+  includeStoryOutline?: boolean; // Persisted story outline setting
 }
 
 export interface BeatAIGenerationEvent {
