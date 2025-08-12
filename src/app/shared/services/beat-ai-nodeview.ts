@@ -188,7 +188,7 @@ export class BeatAINodeView implements NodeView {
       beatType: attrs['beatType'] || 'story',
       model: attrs['model'] || '',
       selectedScenes: attrs['selectedScenes'] ? JSON.parse(attrs['selectedScenes']) : undefined,
-      includeStoryOutline: attrs['includeStoryOutline'] !== undefined ? attrs['includeStoryOutline'] : undefined
+      includeStoryOutline: attrs['includeStoryOutline'] !== undefined ? attrs['includeStoryOutline'] : true
     };
   }
 

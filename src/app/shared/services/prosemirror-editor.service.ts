@@ -152,7 +152,7 @@ export class ProseMirrorEditorService {
           beatType: { default: 'story' },
           model: { default: '' },
           selectedScenes: { default: '' },
-          includeStoryOutline: { default: null }
+          includeStoryOutline: { default: true }
         },
         group: 'block',
         atom: true,
@@ -170,7 +170,7 @@ export class ProseMirrorEditorService {
             'data-beat-type': node.attrs['beatType'] || 'story',
             'data-model': node.attrs['model'] || '',
             'data-selected-scenes': node.attrs['selectedScenes'] || '',
-            'data-include-story-outline': node.attrs['includeStoryOutline'] !== null ? node.attrs['includeStoryOutline'] : ''
+            'data-include-story-outline': node.attrs['includeStoryOutline'] !== undefined ? node.attrs['includeStoryOutline'] : 'true'
           };
           
           // Create content to make the beat visible in saved HTML
@@ -202,7 +202,7 @@ export class ProseMirrorEditorService {
               beatType: dom.getAttribute('data-beat-type') || 'story',
               model: dom.getAttribute('data-model') || '',
               selectedScenes: selectedScenesStr || '',
-              includeStoryOutline: includeStoryOutlineStr !== '' ? (includeStoryOutlineStr === 'true') : null
+              includeStoryOutline: includeStoryOutlineStr !== '' ? (includeStoryOutlineStr === 'true') : true
             };
             
             return attrs;
@@ -589,7 +589,8 @@ export class ProseMirrorEditorService {
         updatedAt: beatData.updatedAt.toISOString(),
         wordCount: beatData.wordCount,
         beatType: beatData.beatType,
-        model: beatData.model || ''
+        model: beatData.model || '',
+        includeStoryOutline: beatData.includeStoryOutline
       });
       
       let tr;
