@@ -570,7 +570,8 @@ export class BeatAIService {
       createdAt: new Date(),
       updatedAt: new Date(),
       wordCount: 400,
-      beatType: beatType
+      beatType: beatType,
+      includeStoryOutline: true
     };
   }
 
