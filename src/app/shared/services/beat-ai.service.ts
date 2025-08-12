@@ -279,49 +279,49 @@ export class BeatAIService {
     // Parse the structured prompt to extract messages
     const messages = this.parseStructuredPrompt(prompt);
     
-    return this.ollamaApi.generateText(prompt, {
+    let accumulatedContent = '';
+    
+    return this.ollamaApi.generateTextStream(prompt, {
       model: options.model,
       maxTokens: maxTokens,
       temperature: options.temperature,
       topP: options.topP,
+      wordCount: wordCount,
       requestId: requestId,
       messages: messages
     }).pipe(
-      tap((response: { response?: string; message?: { content: string } }) => {
-        // Handle both generate and chat response formats
-        const text = 'response' in response ? response.response || '' : response.message?.content || '';
-        
-        // For non-streaming responses, emit all content at once
+      tap((chunk: string) => {
+        // Emit each chunk as it arrives
+        accumulatedContent += chunk;
         this.generationSubject.next({
           beatId,
-          chunk: text,
+          chunk: chunk,
           isComplete: false
         });
       }),
-      map((response: { response?: string; message?: { content: string } }) => {
-        // Extract text from response
-        const text = 'response' in response ? response.response || '' : response.message?.content || '';
-        
-        // Post-process to remove duplicate character analyses
-        const processedContent = this.removeDuplicateCharacterAnalyses(text);
-        
-        // Emit completion
-        this.generationSubject.next({
-          beatId,
-          chunk: '',
-          isComplete: true
-        });
-        
-        // Clean up active generation
-        this.activeGenerations.delete(beatId);
-        
-        // Signal streaming stopped if no more active generations
-        if (this.activeGenerations.size === 0) {
-          this.isStreamingSubject.next(false);
+      scan((acc, chunk) => acc + chunk, ''), // Accumulate chunks
+      tap({
+        complete: () => {
+          // Post-process to remove duplicate character analyses
+          accumulatedContent = this.removeDuplicateCharacterAnalyses(accumulatedContent);
+          
+          // Emit completion
+          this.generationSubject.next({
+            beatId,
+            chunk: '',
+            isComplete: true
+          });
+          
+          // Clean up active generation
+          this.activeGenerations.delete(beatId);
+          
+          // Signal streaming stopped if no more active generations
+          if (this.activeGenerations.size === 0) {
+            this.isStreamingSubject.next(false);
+          }
         }
-        
-        return processedContent;
-      })
+      }),
+      map(() => accumulatedContent) // Return full content at the end
     );
   }
 
