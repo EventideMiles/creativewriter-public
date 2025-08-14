@@ -43,12 +43,11 @@ import { ImageCropperComponent, ImageCroppedEvent, ImageTransform, LoadedImage }
           [transform]="transform"
           [alignImage]="'center'"
           [backgroundColor]="'#000'"
-          [format]="'webp'"
+          [format]="'png'"
           [autoCrop]="true"
           [hideResizeSquares]="isMobile && aspectRatio > 0"
           [onlyScaleDown]="true"
-          [resizeToWidth]="1920"
-          [imageQuality]="85"
+          [imageQuality]="95"
           (imageCropped)="imageCropped($event)"
           (imageLoaded)="imageLoaded($event)"
           (cropperReady)="cropperReady()"
@@ -321,7 +320,11 @@ export class ImageCropperModalComponent implements OnInit {
     this.compressionRatio = this.originalImageSize.bytes > 0 
       ? Math.round((this.croppedImageSize.bytes / this.originalImageSize.bytes) * 100) 
       : 0;
-    console.log('Cropped image size updated:', this.croppedImageSize, 'Compression ratio:', this.compressionRatio);
+    console.log('🔍 Cropped image size updated:');
+    console.log('  Original:', this.formatFileSize(this.originalImageSize));
+    console.log('  Cropped:', this.formatFileSize(this.croppedImageSize));
+    console.log('  Ratio:', this.compressionRatio + '% of original');
+    console.log('  Reduction:', (100 - this.compressionRatio) + '%');
   }
 
   imageLoaded(image: LoadedImage) {
