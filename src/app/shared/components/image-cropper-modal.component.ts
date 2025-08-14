@@ -2,7 +2,7 @@ import { Component, Input, ViewChild, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { 
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, 
-  IonContent, IonIcon, ModalController, IonFooter
+  IonContent, IonIcon, ModalController, IonFooter, Platform
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, checkmarkOutline, cropOutline } from 'ionicons/icons';
@@ -41,9 +41,14 @@ import { ImageCropperComponent, ImageCroppedEvent, ImageTransform, LoadedImage }
           [roundCropper]="false"
           [canvasRotation]="canvasRotation"
           [transform]="transform"
-          [alignImage]="'left'"
+          [alignImage]="'center'"
           [backgroundColor]="'#000'"
-          [format]="'png'"
+          [format]="'webp'"
+          [autoCrop]="false"
+          [hideResizeSquares]="isMobile"
+          [onlyScaleDown]="true"
+          [resizeToWidth]="1920"
+          [imageQuality]="85"
           (imageCropped)="imageCropped($event)"
           (imageLoaded)="imageLoaded($event)"
           (cropperReady)="cropperReady()"
@@ -165,8 +170,10 @@ export class ImageCropperModalComponent implements OnInit {
   aspectRatio = 3/4;
   isReady = false;
   showCropper = false;
+  isMobile = false;
 
   private modalCtrl = inject(ModalController);
+  private platform = inject(Platform);
 
   constructor() {
     addIcons({ closeOutline, checkmarkOutline, cropOutline });
@@ -174,6 +181,8 @@ export class ImageCropperModalComponent implements OnInit {
 
   ngOnInit() {
     this.aspectRatio = this.initialAspectRatio;
+    this.isMobile = this.platform.is('mobile') || this.platform.is('tablet');
+    
     // Show cropper after a short delay to ensure proper initialization
     setTimeout(() => {
       this.showCropper = true;
@@ -201,11 +210,6 @@ export class ImageCropperModalComponent implements OnInit {
   imageLoaded(image: LoadedImage) {
     console.log('Image loaded:', image);
     this.isReady = true;
-    // Trigger initial crop
-    setTimeout(() => {
-      const event = new Event('crop');
-      document.querySelector('image-cropper')?.dispatchEvent(event);
-    }, 200);
   }
 
   cropperReady() {
@@ -223,15 +227,19 @@ export class ImageCropperModalComponent implements OnInit {
   }
 
   confirmCrop() {
-    console.log('Confirm crop clicked, croppedImage:', this.croppedImage);
+    console.log('Confirm crop clicked');
     
-    // If no cropped image yet, try to get it from the cropper
-    if (!this.croppedImage && this.imageCropper) {
-      console.log('Trying to crop manually');
+    // Since autoCrop is disabled, manually trigger the crop
+    if (this.imageCropper) {
+      console.log('Manually triggering crop');
       const event = this.imageCropper.crop();
       console.log('Manual crop event:', event);
+      
       if (event?.base64) {
         this.croppedImage = event.base64;
+        this.modalCtrl.dismiss({
+          croppedImage: this.croppedImage
+        });
       } else if (event?.blob) {
         // Convert blob to base64 for compatibility
         const reader = new FileReader();
@@ -245,15 +253,14 @@ export class ImageCropperModalComponent implements OnInit {
         return; // Exit early to wait for FileReader
       } else if (event?.objectUrl) {
         this.croppedImage = event.objectUrl;
+        this.modalCtrl.dismiss({
+          croppedImage: this.croppedImage
+        });
+      } else {
+        console.error('No crop result available');
       }
-    }
-    
-    if (this.croppedImage) {
-      this.modalCtrl.dismiss({
-        croppedImage: this.croppedImage
-      });
     } else {
-      console.error('No cropped image available');
+      console.error('Image cropper not available');
     }
   }
 
