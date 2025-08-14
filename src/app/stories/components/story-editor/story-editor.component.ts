@@ -10,7 +10,7 @@ import { addIcons } from 'ionicons';
 import { 
   arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
   saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
-  chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline
+  chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, cafe
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { Story, Scene } from '../../models/story.interface';
@@ -133,7 +133,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     addIcons({ 
       arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
       saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
-      chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline
+      chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, cafe
     });
   }
 
@@ -436,12 +436,11 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Right actions (status chips for desktop)
     this.rightActions = [
       {
-        icon: this.hasUnsavedChanges ? 'save-outline' : 'checkmark-circle-outline',
-        chipContent: this.hasUnsavedChanges ? 'Not saved' : 'Saved',
-        chipColor: this.hasUnsavedChanges ? 'warning' : 'success',
-        action: () => { /* No action needed for save status indicator */ },
+        icon: 'cafe',
+        action: () => window.open('https://www.buymeacoffee.com/nostramo83', '_blank'),
         showOnMobile: false,
-        showOnDesktop: true
+        showOnDesktop: true,
+        tooltip: 'Support the project ☕'
       },
       {
         icon: 'stats-chart-outline',
