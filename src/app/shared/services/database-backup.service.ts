@@ -20,18 +20,39 @@ export class DatabaseBackupService {
   async exportDatabase(): Promise<string> {
     const db = await this.databaseService.getDatabase();
     
-    // Get all documents from the database, including attachments
-    const result = await db.allDocs({ 
-      include_docs: true,
-      attachments: true,
-      binary: false // Get attachments as base64 strings
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any); // Cast to bypass TypeScript restrictions for attachments option
-    
-    // Filter out design documents and internal documents
-    const documents = result.rows
+    // First, get all document IDs
+    const allDocsResult = await db.allDocs();
+    const docIds = allDocsResult.rows
       .filter(row => !row.id.startsWith('_design/'))
-      .map(row => row.doc);
+      .map(row => row.id);
+    
+    // Then fetch each document individually with attachments
+    const documents = [];
+    
+    for (const docId of docIds) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const doc = await (db.get as any)(docId, { 
+          attachments: true, 
+          binary: false // Get as base64
+        });
+        documents.push(doc);
+      } catch (error) {
+        console.warn(`Failed to export document ${docId}:`, error);
+        // Try to get without attachments as fallback
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const docWithoutAttachments = await db.get(docId) as any;
+          // Remove attachment references to avoid stub issues
+          if (docWithoutAttachments['_attachments']) {
+            delete docWithoutAttachments['_attachments'];
+          }
+          documents.push(docWithoutAttachments);
+        } catch (fallbackError) {
+          console.error(`Failed to export document ${docId} even without attachments:`, fallbackError);
+        }
+      }
+    }
     
     const backupData: BackupData = {
       metadata: {
@@ -93,11 +114,26 @@ export class DatabaseBackupService {
     
     // Process each batch
     for (const batch of batches) {
-      // Clean documents for import (remove _rev to avoid conflicts)
+      // Clean documents for import (remove _rev to avoid conflicts and handle attachments)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cleanDocs = batch.map((doc: any) => {
         const cleanDoc = { ...doc };
         delete cleanDoc['_rev']; // Remove revision for fresh import
+        
+        // Handle attachment stubs - if attachments exist but don't have data, remove them
+        if (cleanDoc['_attachments']) {
+          const attachments = cleanDoc['_attachments'];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const hasValidAttachments = Object.values(attachments).some((att: any) => 
+            att.data || att.content_type && att.length
+          );
+          
+          if (!hasValidAttachments) {
+            console.warn(`Removing invalid attachment stubs from document ${cleanDoc['_id']}`);
+            delete cleanDoc['_attachments'];
+          }
+        }
+        
         return cleanDoc;
       });
       
@@ -111,7 +147,20 @@ export class DatabaseBackupService {
             await db.put(doc);
           } catch (docError) {
             console.warn(`Failed to import document ${doc['_id']}:`, docError);
-            // Continue with next document even if one fails
+            
+            // If it's an attachment error, try without attachments
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const error = docError as any;
+            if (error.name === 'missing_stub' || error.message?.includes('stub') || error.message?.includes('attachment')) {
+              try {
+                const docWithoutAttachments = { ...doc };
+                delete docWithoutAttachments['_attachments'];
+                await db.put(docWithoutAttachments);
+                console.warn(`Successfully imported document ${doc['_id']} without attachments`);
+              } catch (finalError) {
+                console.error(`Failed to import document ${doc['_id']} even without attachments:`, finalError);
+              }
+            }
           }
         }
       }

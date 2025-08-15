@@ -449,7 +449,7 @@ This action CANNOT be undone! Make sure you have exported your current database 
       const fileContent = await this.readFileContent(this.selectedFile);
       await this.backupService.importDatabase(fileContent);
       
-      this.showToast('Database imported successfully!', 'success');
+      this.showToast('Database imported successfully! Check console for any attachment warnings.', 'success');
       this.selectedFile = null;
       
       // Refresh database info after import
