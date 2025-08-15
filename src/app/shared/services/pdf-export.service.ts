@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 import { BackgroundService } from './background.service';
 import { SyncedCustomBackgroundService } from './synced-custom-background.service';
 import { Story } from '../../stories/models/story.interface';
+import { BehaviorSubject } from 'rxjs';
 
 interface PDFExportOptions {
   filename?: string;
@@ -17,6 +18,12 @@ interface PDFExportOptions {
   };
 }
 
+export interface PDFExportProgress {
+  phase: 'initializing' | 'background' | 'content' | 'finalizing';
+  progress: number; // 0-100
+  message: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -25,7 +32,22 @@ export class PDFExportService {
   private customBackgroundService = inject(SyncedCustomBackgroundService);
   private currentYPosition = 0;
 
+  // Progress tracking
+  private progressSubject = new BehaviorSubject<PDFExportProgress>({
+    phase: 'initializing',
+    progress: 0,
+    message: 'Initializing PDF export...'
+  });
+  
+  public progress$ = this.progressSubject.asObservable();
+
+  private updateProgress(phase: PDFExportProgress['phase'], progress: number, message: string): void {
+    this.progressSubject.next({ phase, progress, message });
+  }
+
   async exportStoryToPDF(story: Story, options: PDFExportOptions = {}): Promise<void> {
+    // Reset progress
+    this.updateProgress('initializing', 0, 'Starting PDF export...');
     const defaultOptions: Required<PDFExportOptions> = {
       filename: `${story.title?.trim() || 'Untitled Story'}.pdf`,
       includeBackground: true,
@@ -43,6 +65,7 @@ export class PDFExportService {
 
     try {
       console.log('Starting PDF export for story:', story.title);
+      this.updateProgress('initializing', 10, 'Creating PDF document...');
       
       // Create PDF
       const pdf = new jsPDF({
@@ -52,6 +75,7 @@ export class PDFExportService {
       });
 
       console.log('jsPDF instance created successfully');
+      this.updateProgress('initializing', 20, 'PDF document created');
 
       // Get page dimensions
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -62,16 +86,24 @@ export class PDFExportService {
       // Add background if enabled
       if (config.includeBackground) {
         console.log('Adding background to PDF');
+        this.updateProgress('background', 30, 'Adding background...');
         await this.addBackgroundToPDF(pdf, pageWidth, pageHeight);
+        this.updateProgress('background', 40, 'Background added');
+      } else {
+        this.updateProgress('content', 40, 'Skipping background');
       }
 
       // Add text content directly to PDF
       console.log('Adding text content to PDF');
+      this.updateProgress('content', 50, 'Processing story content...');
       await this.addTextContentToPDF(pdf, story, config);
+      this.updateProgress('content', 90, 'Content processing complete');
 
       // Save the PDF
       console.log('Saving PDF with filename:', config.filename);
+      this.updateProgress('finalizing', 95, 'Saving PDF file...');
       pdf.save(config.filename);
+      this.updateProgress('finalizing', 100, 'PDF export completed successfully');
       console.log('PDF export completed successfully');
       
     } catch (error) {
@@ -81,9 +113,11 @@ export class PDFExportService {
       // Try a simplified fallback approach
       try {
         console.log('Attempting fallback PDF export');
+        this.updateProgress('initializing', 30, 'Trying fallback method...');
         await this.fallbackPDFExport(story, config);
       } catch (fallbackError) {
         console.error('Fallback PDF export also failed:', fallbackError);
+        this.updateProgress('finalizing', 0, 'PDF export failed');
         throw new Error(`Failed to export story to PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
@@ -125,7 +159,13 @@ export class PDFExportService {
     currentY += 10; // Extra space after title
     
     // Process chapters and scenes
-    for (const chapter of story.chapters || []) {
+    const totalChapters = story.chapters?.length || 0;
+    for (let chapterIndex = 0; chapterIndex < totalChapters; chapterIndex++) {
+      const chapter = story.chapters![chapterIndex];
+      
+      // Update progress for chapter processing
+      const chapterProgress = 50 + (chapterIndex / totalChapters) * 35; // Progress from 50% to 85%
+      this.updateProgress('content', Math.round(chapterProgress), `Processing chapter ${chapterIndex + 1} of ${totalChapters}...`);
       // Check if we need a new page for chapter
       if (currentY > bottomMargin - 20) {
         pdf.addPage();
@@ -533,6 +573,7 @@ export class PDFExportService {
 
   private async fallbackPDFExport(story: Story, config: Required<PDFExportOptions>): Promise<void> {
     console.log('Using fallback PDF export method');
+    this.updateProgress('initializing', 40, 'Creating simplified PDF...');
     
     // Create a simple PDF without backgrounds or complex formatting
     const pdf = new jsPDF({
@@ -546,6 +587,8 @@ export class PDFExportService {
     const rightMargin = config.margins.right;
     const maxWidth = pageWidth - leftMargin - rightMargin;
     let currentY = config.margins.top;
+    
+    this.updateProgress('content', 50, 'Adding story content...');
 
     // Set basic font
     pdf.setFont('helvetica', 'normal');
@@ -566,7 +609,13 @@ export class PDFExportService {
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(12);
 
-    for (const chapter of story.chapters || []) {
+    const totalChapters = story.chapters?.length || 0;
+    for (let chapterIndex = 0; chapterIndex < totalChapters; chapterIndex++) {
+      const chapter = story.chapters![chapterIndex];
+      
+      // Update progress for fallback chapter processing
+      const chapterProgress = 50 + (chapterIndex / totalChapters) * 40; // Progress from 50% to 90%
+      this.updateProgress('content', Math.round(chapterProgress), `Processing chapter ${chapterIndex + 1} of ${totalChapters} (simplified)...`);
       // Add chapter title
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(16);
@@ -621,7 +670,9 @@ export class PDFExportService {
     }
 
     // Save the PDF
+    this.updateProgress('finalizing', 95, 'Saving simplified PDF...');
     pdf.save(config.filename);
+    this.updateProgress('finalizing', 100, 'Simplified PDF export completed successfully');
     console.log('Fallback PDF export completed successfully');
   }
 }
