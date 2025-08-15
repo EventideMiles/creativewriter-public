@@ -20,10 +20,12 @@ export class DatabaseBackupService {
   async exportDatabase(): Promise<string> {
     const db = await this.databaseService.getDatabase();
     
-    // Get all documents from the database
+    // Get all documents from the database, including attachments
     const result = await db.allDocs({ 
-      include_docs: true
-    });
+      include_docs: true,
+      attachments: true,
+      binary: false // Get attachments as base64 strings
+    } as PouchDB.Core.AllDocsOptions); // Cast to PouchDB options type
     
     // Filter out design documents and internal documents
     const documents = result.rows
@@ -62,6 +64,24 @@ export class DatabaseBackupService {
       throw new Error('Backup file contains no documents to import.');
     }
     
+    // Step 1: Clear the current database completely
+    console.log('Clearing current database...');
+    const existingDocs = await db.allDocs();
+    const docsToDelete = existingDocs.rows
+      .filter(row => !row.id.startsWith('_design/')) // Keep design documents
+      .map(row => ({
+        _id: row.id,
+        _rev: row.value.rev,
+        _deleted: true
+      }));
+    
+    if (docsToDelete.length > 0) {
+      await db.bulkDocs(docsToDelete);
+    }
+    
+    // Step 2: Import all documents from backup
+    console.log(`Importing ${backupData.documents.length} documents...`);
+    
     // Import documents in batches for better performance
     const batchSize = 100;
     const batches = [];
@@ -72,8 +92,30 @@ export class DatabaseBackupService {
     
     // Process each batch
     for (const batch of batches) {
-      await db.bulkDocs(batch);
+      // Clean documents for import (remove _rev to avoid conflicts)
+      const cleanDocs = batch.map((doc: Record<string, unknown>) => {
+        const cleanDoc = { ...doc };
+        delete cleanDoc._rev; // Remove revision for fresh import
+        return cleanDoc;
+      });
+      
+      try {
+        await db.bulkDocs(cleanDocs);
+      } catch (error) {
+        console.warn('Bulk import failed, trying individual documents:', error);
+        // If bulk import fails, try importing each document individually
+        for (const doc of cleanDocs) {
+          try {
+            await db.put(doc);
+          } catch (docError) {
+            console.warn(`Failed to import document ${doc._id}:`, docError);
+            // Continue with next document even if one fails
+          }
+        }
+      }
     }
+    
+    console.log('Database import completed successfully');
   }
 
   async getDatabaseInfo(): Promise<{ totalDocs: number; dbName: string; lastUpdated?: Date }> {

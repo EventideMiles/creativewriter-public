@@ -68,7 +68,7 @@ import { DatabaseBackupService } from '../services/database-backup.service';
         <div class="backup-section">
           <h3>Import Database</h3>
           <p class="section-description">
-            Restore from a previously exported database backup. This will merge the imported data with your existing database.
+            Restore from a previously exported database backup. This will completely replace your current database with the backup data.
           </p>
           
           <div class="import-controls">
@@ -127,9 +127,11 @@ import { DatabaseBackupService } from '../services/database-backup.service';
               <h3>Important Notes</h3>
               <ul>
                 <li>Exports are saved as JSON files on your device</li>
-                <li>Imports will merge with existing data (no data is deleted)</li>
-                <li>Always keep regular backups of your work</li>
+                <li>Imports will REPLACE ALL existing data with backup data</li>
+                <li>Always export your current database before importing</li>
                 <li>Large databases may take several minutes to export/import</li>
+                <li>Documents with images/attachments are fully supported</li>
+                <li>Import will continue even if some documents fail</li>
               </ul>
             </ion-label>
           </ion-item>
@@ -412,15 +414,22 @@ export class DatabaseBackupComponent {
 
   async showImportConfirmation(): Promise<void> {
     const alert = await this.alertController.create({
-      header: 'Confirm Database Import',
-      message: 'This will import data from the backup file into your current database. The imported data will be merged with existing data. This action cannot be undone.',
+      header: '⚠️ COMPLETE DATABASE REPLACEMENT',
+      message: `This will COMPLETELY REPLACE your current database with the backup data. 
+
+🗑️ ALL current data will be DELETED
+📥 Only the backup data will remain
+📎 Documents with attachments (images) are fully supported
+
+This action CANNOT be undone! Make sure you have exported your current database first if you want to keep it.`,
       buttons: [
         {
           text: 'Cancel',
           role: 'cancel'
         },
         {
-          text: 'Import',
+          text: 'Replace Database',
+          role: 'destructive',
           handler: () => {
             this.importDatabase();
           }
