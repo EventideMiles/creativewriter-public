@@ -690,20 +690,30 @@
     }
     
     .generate-btn, .cancel-btn {
-      padding: 0.5rem 1rem;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 20px;
-      font-size: 0.85rem;
-      font-weight: 600;
+      padding: 0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      backdrop-filter: blur(24px) saturate(200%);
-      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
       position: relative;
       overflow: hidden;
-      min-width: 90px;
-      text-align: center;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-text-size-adjust: none;
     }
     
     .generate-btn::before, .cancel-btn::before {
@@ -728,34 +738,32 @@
     .generate-btn.primary {
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.08) 0%,
-        rgba(255, 255, 255, 0.04) 100%
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(255, 255, 255, 0.03) 100%
       );
       color: rgba(255, 255, 255, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      font-weight: 600;
     }
     
     .generate-btn.secondary {
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.05) 0%,
-        rgba(255, 255, 255, 0.02) 100%
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(255, 255, 255, 0.03) 100%
       );
       color: rgba(255, 255, 255, 0.75);
-      padding: 0.4rem 0.8rem;
-      min-width: auto;
-      border: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     .generate-btn.primary:hover:not(:disabled) {
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.12) 0%,
-        rgba(255, 255, 255, 0.06) 100%
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.03) 50%,
+        rgba(255, 255, 255, 0.05) 100%
       );
-      border-color: rgba(255, 255, 255, 0.2);
-      box-shadow: 0 3px 12px rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
     }
     
     .generate-btn.primary:hover:not(:disabled)::before {
@@ -766,11 +774,12 @@
     .generate-btn.secondary:hover:not(:disabled) {
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.08) 0%,
-        rgba(255, 255, 255, 0.04) 100%
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.03) 50%,
+        rgba(255, 255, 255, 0.05) 100%
       );
-      border-color: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 3px 12px rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
     }
     
     .generate-btn.secondary:hover:not(:disabled)::before {
@@ -788,26 +797,35 @@
     .cancel-btn {
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.05) 0%,
-        rgba(255, 255, 255, 0.02) 100%
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(255, 255, 255, 0.03) 100%
       );
       color: rgba(255, 255, 255, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     .cancel-btn:hover {
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.08) 0%,
-        rgba(255, 255, 255, 0.04) 100%
+        rgba(255, 255, 255, 0.06) 0%,
+        rgba(255, 255, 255, 0.03) 50%,
+        rgba(255, 255, 255, 0.05) 100%
       );
-      border-color: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 3px 12px rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
     }
     
     .cancel-btn:hover::before {
       opacity: 0.9;
       transform: scale(1.1);
+    }
+    
+    .generate-btn ion-icon, .cancel-btn ion-icon {
+      font-size: 0.9rem;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+      transition: all 0.3s ease;
+      z-index: 2;
+      position: relative;
     }
     
     .prompt-display {
@@ -1033,10 +1051,11 @@
       }
       
       .generate-btn, .cancel-btn {
-        padding: 0.6rem 1.25rem;
-        font-size: 0.85rem;
-        min-width: 100px;
-        border-radius: 20px;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
+        border-radius: 12px;
       }
       
       
