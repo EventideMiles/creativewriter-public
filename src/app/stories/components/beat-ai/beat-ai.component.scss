@@ -733,6 +733,11 @@
         rgba(255, 255, 255, 0.03) 100%
       );
       color: rgba(255, 255, 255, 0.85);
+      
+      ion-icon {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1rem;
+      }
     }
     
     .generate-btn.secondary {
@@ -743,6 +748,11 @@
         rgba(255, 255, 255, 0.03) 100%
       );
       color: rgba(255, 255, 255, 0.75);
+      
+      ion-icon {
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 1rem;
+      }
     }
     
     .generate-btn.primary:hover:not(:disabled) {
@@ -757,6 +767,10 @@
         0 4px 20px rgba(64, 192, 87, 0.4),
         0 0 30px rgba(81, 207, 102, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        
+      ion-icon {
+        color: #ffffff;
+      }
     }
     
     .generate-btn.primary:hover:not(:disabled)::before {
@@ -776,6 +790,10 @@
         0 3px 16px rgba(255, 193, 7, 0.3),
         0 0 25px rgba(255, 235, 59, 0.2),
         inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        
+      ion-icon {
+        color: #ffffff;
+      }
     }
     
     .generate-btn.secondary:hover:not(:disabled)::before {
