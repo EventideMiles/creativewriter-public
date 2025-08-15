@@ -25,7 +25,8 @@ export class DatabaseBackupService {
       include_docs: true,
       attachments: true,
       binary: false // Get attachments as base64 strings
-    } as PouchDB.Core.AllDocsOptions); // Cast to PouchDB options type
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any); // Cast to bypass TypeScript restrictions for attachments option
     
     // Filter out design documents and internal documents
     const documents = result.rows
@@ -93,9 +94,10 @@ export class DatabaseBackupService {
     // Process each batch
     for (const batch of batches) {
       // Clean documents for import (remove _rev to avoid conflicts)
-      const cleanDocs = batch.map((doc: Record<string, unknown>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cleanDocs = batch.map((doc: any) => {
         const cleanDoc = { ...doc };
-        delete cleanDoc._rev; // Remove revision for fresh import
+        delete cleanDoc['_rev']; // Remove revision for fresh import
         return cleanDoc;
       });
       
@@ -108,7 +110,7 @@ export class DatabaseBackupService {
           try {
             await db.put(doc);
           } catch (docError) {
-            console.warn(`Failed to import document ${doc._id}:`, docError);
+            console.warn(`Failed to import document ${doc['_id']}:`, docError);
             // Continue with next document even if one fails
           }
         }
