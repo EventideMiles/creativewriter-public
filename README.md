@@ -136,16 +136,35 @@ CreativeWriter is built with modern web technologies:
 
 ## 🚀 Getting Started
 
+### ⚠️ CRITICAL: Persistent Storage Required!
+
+> **WARNING: Without persistent volume mounting, you WILL lose ALL your stories when the Docker container restarts!**
+> 
+> The database MUST be mounted to a persistent directory on your host system. The default configuration uses `./data` for storage.
+> 
+> **Never run CreativeWriter without ensuring the data directory exists and is properly mounted!**
+
 ### Quick Start with Docker
 
 > **🎉 All images are now published!** Use the simple docker-compose setup from the public repository.
 
 #### Option 1: Use Pre-built Images (Recommended)
 ```bash
-# No cloning required! Just download and run:
+# Create directory AND persistent storage
 mkdir creativewriter && cd creativewriter
+
+# CRITICAL: Create data directory for database persistence
+mkdir -p data
+chmod 755 data
+
+# Download docker-compose configuration
 curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
+
+# Start with persistent storage
 docker compose up -d
+
+# Verify data persistence is working
+ls -la ./data/couchdb-data/  # Should contain database files after first run
 
 # Access at http://localhost:3080
 ```
@@ -156,13 +175,21 @@ For development or customization:
 git clone https://github.com/MarcoDroll/creativewriter2.git
 cd creativewriter2
 
+# CRITICAL: Create data directory for database persistence
+mkdir -p data
+chmod 755 data
+
 # Build all Docker images
 docker build -t ghcr.io/marcodroll/creativewriter2:latest .
 docker build -t ghcr.io/marcodroll/creativewriter2-nginx:latest -f Dockerfile.nginx .
 docker build -t ghcr.io/marcodroll/creativewriter2-proxy:latest -f Dockerfile.proxy .
 docker build -t ghcr.io/marcodroll/creativewriter2-gemini-proxy:latest -f Dockerfile.gemini-proxy .
 
+# Start with persistent storage
 docker compose up -d
+
+# Verify data persistence
+ls -la ./data/couchdb-data/  # Should contain database files after first run
 ```
 
 Then configure your AI providers in Settings with your API keys.
