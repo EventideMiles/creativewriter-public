@@ -37,7 +37,6 @@
               <ion-icon name="refresh-outline"></ion-icon>
             </button>
             <button 
-              *ngIf="beatData.generatedContent && !beatData.isGenerating" 
               class="action-btn delete-btn"
               (click)="deleteContentAfterBeat(); $event.stopPropagation()"
               title="Delete text after this beat">
