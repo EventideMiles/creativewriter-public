@@ -37,7 +37,6 @@
               <ion-icon name="refresh-outline"></ion-icon>
             </button>
             <button 
-              *ngIf="beatData.generatedContent && !beatData.isGenerating" 
               class="action-btn delete-btn"
               (click)="deleteContentAfterBeat(); $event.stopPropagation()"
               title="Delete text after this beat">
@@ -172,15 +171,16 @@
             <button 
               class="generate-btn primary"
               (click)="generateContent(); $event.stopPropagation()"
-              [disabled]="!currentPrompt.trim() || beatData.isGenerating || !selectedModel">
-              Generate
+              [disabled]="!currentPrompt.trim() || beatData.isGenerating || !selectedModel || isSaving"
+              title="Generate content">
+              <ion-icon name="color-wand-outline" style="color: #28a745;"></ion-icon>
             </button>
             <button 
               class="generate-btn primary"
               (click)="showPromptPreview(); $event.stopPropagation()"
-              [disabled]="!currentPrompt.trim()"
+              [disabled]="!currentPrompt.trim() || isSaving"
               title="Show prompt preview">
-              Preview
+              <ion-icon name="eye-outline" style="color: #ffc107;"></ion-icon>
             </button>
             <button 
               class="generate-btn secondary"
@@ -192,8 +192,9 @@
             <button 
               *ngIf="beatData.prompt && beatData.isEditing"
               class="cancel-btn"
-              (click)="cancelEditing(); $event.stopPropagation()">
-              Cancel
+              (click)="cancelEditing(); $event.stopPropagation()"
+              title="Cancel editing">
+              <ion-icon name="close-outline" style="color: #dc3545;"></ion-icon>
             </button>
           </div>
         </div>

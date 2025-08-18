@@ -38,7 +38,7 @@
           </ion-chip>
           <ion-chip color="medium" class="meta-chip" *ngIf="log.itemCount !== undefined">
             <ion-icon name="sync-outline"></ion-icon>
-            <ion-label>{{ log.itemCount }} Elemente</ion-label>
+            <ion-label>{{ log.itemCount }} Items</ion-label>
           </ion-chip>
           <ion-chip color="medium" class="meta-chip" *ngIf="log.duration">
             <ion-icon name="time-outline"></ion-icon>
@@ -67,7 +67,7 @@
   <ion-card *ngIf="logs.length === 0" class="no-logs-card">
     <ion-card-content class="ion-text-center">
       <ion-text color="medium">
-        <p>Noch keine Synchronisations-Logs vorhanden.</p>
+        <p>No synchronization logs available yet.</p>
       </ion-text>
     </ion-card-content>
   </ion-card>

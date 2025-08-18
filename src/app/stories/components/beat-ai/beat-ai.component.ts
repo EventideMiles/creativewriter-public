@@ -7,7 +7,7 @@ import {
   IonButton, IonButtons, IonToolbar, IonTitle, IonHeader, IonContent, IonList, IonItem
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { logoGoogle, globeOutline, createOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline } from 'ionicons/icons';
+import { logoGoogle, globeOutline, createOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline, sparklesOutline, eyeOutline } from 'ionicons/icons';
 import { BeatAIModalService } from '../../../shared/services/beat-ai-modal.service';
 import { TokenInfoPopoverComponent } from '../../../shared/components/token-info-popover.component';
 import { TokenCounterService, SupportedModel } from '../../../shared/services/token-counter.service';
@@ -21,6 +21,7 @@ import { ProseMirrorEditorService, SimpleEditorConfig } from '../../../shared/se
 import { EditorView } from 'prosemirror-view';
 import { StoryService } from '../../services/story.service';
 import { Story, Scene, Chapter } from '../../models/story.interface';
+import { DatabaseService, SyncStatus } from '../../../core/services/database.service';
 
 interface SceneContext {
   chapterId: string;
@@ -52,11 +53,13 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
   private popoverController = inject(PopoverController);
   private tokenCounter = inject(TokenCounterService);
   private modalService = inject(BeatAIModalService);
+  private databaseService = inject(DatabaseService);
 
   @Input() beatData!: BeatAI;
   @Input() storyId?: string;
   @Input() chapterId?: string;
   @Input() sceneId?: string;
+  @Input() isSaving = false;
   @Output() promptSubmit = new EventEmitter<BeatAIPromptEvent>();
   currentTextColor = '#e0e0e0';
   @Output() contentUpdate = new EventEmitter<BeatAI>();
@@ -96,6 +99,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     { value: 'custom', label: 'Custom amount...' }
   ];
   copyButtonText = 'Copy';
+  isSync = false;
   
   // Context selection properties
   story: Story | null = null;
@@ -110,7 +114,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
   
   constructor() {
     // Register icons
-    addIcons({ logoGoogle, globeOutline, createOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline });
+    addIcons({ logoGoogle, globeOutline, createOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline, sparklesOutline, eyeOutline });
   }
   
   ngOnInit(): void {
@@ -180,6 +184,13 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
           // Note: Streaming text is handled directly in the editor via ProseMirror service
           // The component just tracks the generation state
         }
+      })
+    );
+    
+    // Subscribe to sync status
+    this.subscription.add(
+      this.databaseService.syncStatus$.subscribe((status: SyncStatus) => {
+        this.isSync = status.isSync;
       })
     );
   }
@@ -577,33 +588,29 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       customContext: customContext
     }).toPromise();
 
-    // Map the selected model to SupportedModel type
-    // Handle formats like "gemini:gemini-1.5-pro" or "openrouter:anthropic/claude-3-haiku"
-    let modelToMap = this.selectedModel;
-    if (modelToMap.includes(':')) {
-      const parts = modelToMap.split(':');
-      modelToMap = parts[1] || modelToMap;
+    // Find the selected model in our available models to get its metadata
+    const selectedModelOption = this.availableModels.find(model => model.id === this.selectedModel);
+    
+    // Map the model based on its label/name instead of trying to parse the ID
+    let mappedModel: SupportedModel = 'custom';
+    
+    if (selectedModelOption) {
+      const modelLabel = selectedModelOption.label.toLowerCase();
+      
+      // Map based on the human-readable model name
+      if (modelLabel.includes('claude 3.7') || modelLabel.includes('claude-3.7') || 
+          modelLabel.includes('claude 3.5 sonnet v2') || modelLabel.includes('sonnet v2')) {
+        mappedModel = 'claude-3.7-sonnet';
+      } else if (modelLabel.includes('claude 3.5') || modelLabel.includes('claude-3.5')) {
+        mappedModel = 'claude-3.5-sonnet';
+      } else if (modelLabel.includes('gemini 1.5') || modelLabel.includes('gemini-1.5')) {
+        mappedModel = 'gemini-1.5-pro';
+      } else if (modelLabel.includes('gemini 2.5') || modelLabel.includes('gemini-2.5')) {
+        mappedModel = 'gemini-2.5-pro';
+      } else if (modelLabel.includes('grok')) {
+        mappedModel = 'grok-3';
+      }
     }
-    if (modelToMap.includes('/')) {
-      modelToMap = modelToMap.split('/').pop() || modelToMap;
-    }
-
-    const modelMapping: Record<string, SupportedModel> = {
-      'claude-3-5-sonnet-20241022': 'claude-3.5-sonnet',
-      'claude-3-5-sonnet': 'claude-3.5-sonnet',
-      'claude-3.5-sonnet': 'claude-3.5-sonnet',
-      'claude-3-5-sonnet-v2': 'claude-3.7-sonnet',
-      'claude-3.7-sonnet': 'claude-3.7-sonnet',
-      'claude-3-haiku': 'claude-3.5-sonnet', // Map haiku to closest available
-      'gemini-1.5-pro': 'gemini-1.5-pro',
-      'gemini-1.5-pro-latest': 'gemini-1.5-pro',
-      'gemini-2.0-flash-thinking-exp': 'gemini-2.5-pro',
-      'gemini-2.5-pro': 'gemini-2.5-pro',
-      'grok-beta': 'grok-3',
-      'grok-3': 'grok-3'
-    };
-
-    const mappedModel = modelMapping[modelToMap] || 'custom';
 
     const popover = await this.popoverController.create({
       component: TokenInfoPopoverComponent,

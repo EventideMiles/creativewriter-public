@@ -1,0 +1,7 @@
+# Keep review files but ignore temporary files
+*.tmp
+*.log
+# Allow markdown review files
+!*.md
+# Keep this .gitignore file
+!.gitignore
