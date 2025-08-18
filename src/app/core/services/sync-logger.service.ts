@@ -117,7 +117,7 @@ export class SyncLoggerService {
 
   // Helper methods for common sync operations
   logUpload(itemCount: number, userId: string, duration?: number): string {
-    return this.logSync('upload', `${itemCount} Elemente hochgeladen`, undefined, {
+    return this.logSync('upload', `${itemCount} items uploaded`, undefined, {
       userId,
       itemCount,
       duration,
@@ -126,7 +126,7 @@ export class SyncLoggerService {
   }
 
   logDownload(itemCount: number, userId: string, duration?: number): string {
-    return this.logSync('download', `${itemCount} Elemente heruntergeladen`, undefined, {
+    return this.logSync('download', `${itemCount} items downloaded`, undefined, {
       userId,
       itemCount,
       duration,
@@ -135,14 +135,14 @@ export class SyncLoggerService {
   }
 
   logConflict(details: string, userId: string): string {
-    return this.logSync('conflict', 'Synchronisationskonflikt', details, {
+    return this.logSync('conflict', 'Synchronization conflict', details, {
       userId,
       status: 'warning'
     });
   }
 
   logError(error: string, userId?: string): string {
-    return this.logSync('error', 'Synchronisationsfehler', error, {
+    return this.logSync('error', 'Synchronization error', error, {
       userId,
       status: 'error'
     });

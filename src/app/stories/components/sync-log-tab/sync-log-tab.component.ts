@@ -48,7 +48,7 @@ export class SyncLogTabComponent implements OnInit, OnDestroy {
       })
     );
 
-    // Demo-Logs zum Testen (später entfernen)
+    // Demo logs for testing (remove later)
     if (this.logs.length === 0) {
       this.addDemoLogs();
     }
@@ -112,11 +112,11 @@ export class SyncLogTabComponent implements OnInit, OnDestroy {
   }
 
   private addDemoLogs(): void {
-    // Beispiel-Logs für Demonstrationszwecke
+    // Example logs for demonstration purposes
     this.syncLoggerService.logUpload(5, 'user123', 1234);
     this.syncLoggerService.logDownload(3, 'user123', 567);
-    this.syncLoggerService.logConflict('Konflikt bei Story "Meine Geschichte": Lokale und Remote-Version unterscheiden sich', 'user123');
-    this.syncLoggerService.logError('Netzwerkfehler: Verbindung zum Server unterbrochen', 'user123');
-    this.syncLoggerService.logInfo('Synchronisation gestartet', 'Automatische Synchronisation alle 5 Minuten', 'user123');
+    this.syncLoggerService.logConflict('Conflict in story "My Story": Local and remote versions differ', 'user123');
+    this.syncLoggerService.logError('Network error: Connection to server interrupted', 'user123');
+    this.syncLoggerService.logInfo('Synchronization started', 'Automatic synchronization every 5 minutes', 'user123');
   }
 }
