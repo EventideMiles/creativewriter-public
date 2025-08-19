@@ -30,7 +30,8 @@ services:
   couchdb:
     image: couchdb:3.3
     restart: unless-stopped
-    # No ports exposed directly - only through nginx
+    ports:
+      - "127.0.0.1:5984:5984"  # Local admin access only - not exposed externally
     environment:
       - COUCHDB_USER=${COUCHDB_USER:-admin}
       - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-password}  # Change this in production!
