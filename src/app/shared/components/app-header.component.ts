@@ -198,11 +198,16 @@ export interface BurgerMenuItem {
     }
 
     /* Title Styling */
+    ion-title {
+      overflow: visible !important;
+    }
+    
     .title-content {
       display: flex;
       align-items: center;
       gap: 12px;
       justify-content: center;
+      overflow: visible;
     }
     
     .header-logo {
@@ -210,6 +215,7 @@ export interface BurgerMenuItem {
       height: 40px;
       object-fit: contain;
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+      flex-shrink: 0;
     }
     
     .app-title {
