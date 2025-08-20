@@ -704,6 +704,24 @@ import { ModelService } from '../../core/services/model.service';
       background: rgba(255, 255, 255, 0.05);
     }
 
+    .card-header-content ion-button {
+      --color: #8bb4f8;
+      --background: transparent;
+    }
+
+    .card-header-content ion-button:hover {
+      --color: #ffffff;
+    }
+
+    .card-header-content ion-icon {
+      color: #8bb4f8;
+      font-size: 1.2rem;
+    }
+
+    .card-header-content ion-button:hover ion-icon {
+      color: #ffffff;
+    }
+
     @media (max-width: 768px) {
       .settings-row {
         grid-template-columns: 1fr;
