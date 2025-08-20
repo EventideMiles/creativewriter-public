@@ -22,10 +22,15 @@ import { ModelService } from '../../core/services/model.service';
   template: `
     <!-- Global Model Selection -->
     <ion-card>
-      <ion-card-header>
-        <ion-card-title>AI Model Selection</ion-card-title>
+      <ion-card-header (click)="isModelSelectionCollapsed = !isModelSelectionCollapsed" style="cursor: pointer;">
+        <div class="card-header-content">
+          <ion-card-title>AI Model Selection</ion-card-title>
+          <ion-button fill="clear" size="small">
+            <ion-icon [name]="isModelSelectionCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
+          </ion-button>
+        </div>
       </ion-card-header>
-      <ion-card-content>
+      <ion-card-content [class.collapsed]="isModelSelectionCollapsed">
         <div class="model-selection-wrapper">
           <div class="model-selection-container">
             <div class="model-header">
@@ -88,10 +93,15 @@ import { ModelService } from '../../core/services/model.service';
 
     <!-- OpenRouter Settings -->
     <ion-card>
-      <ion-card-header>
-        <ion-card-title>OpenRouter API</ion-card-title>
+      <ion-card-header (click)="isOpenRouterCollapsed = !isOpenRouterCollapsed" style="cursor: pointer;">
+        <div class="card-header-content">
+          <ion-card-title>OpenRouter API</ion-card-title>
+          <ion-button fill="clear" size="small">
+            <ion-icon [name]="isOpenRouterCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
+          </ion-button>
+        </div>
       </ion-card-header>
-      <ion-card-content>
+      <ion-card-content [class.collapsed]="isOpenRouterCollapsed">
         <ion-item>
           <ion-label>Enable OpenRouter</ion-label>
           <ion-toggle 
@@ -151,10 +161,15 @@ import { ModelService } from '../../core/services/model.service';
 
     <!-- Replicate Settings -->
     <ion-card>
-      <ion-card-header>
-        <ion-card-title>Replicate API</ion-card-title>
+      <ion-card-header (click)="isReplicateCollapsed = !isReplicateCollapsed" style="cursor: pointer;">
+        <div class="card-header-content">
+          <ion-card-title>Replicate API</ion-card-title>
+          <ion-button fill="clear" size="small">
+            <ion-icon [name]="isReplicateCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
+          </ion-button>
+        </div>
       </ion-card-header>
-      <ion-card-content>
+      <ion-card-content [class.collapsed]="isReplicateCollapsed">
         <ion-item>
           <ion-label>Enable Replicate</ion-label>
           <ion-toggle 
@@ -234,10 +249,15 @@ import { ModelService } from '../../core/services/model.service';
 
     <!-- Ollama Settings -->
     <ion-card>
-      <ion-card-header>
-        <ion-card-title>Ollama (Local AI)</ion-card-title>
+      <ion-card-header (click)="isOllamaCollapsed = !isOllamaCollapsed" style="cursor: pointer;">
+        <div class="card-header-content">
+          <ion-card-title>Ollama (Local AI)</ion-card-title>
+          <ion-button fill="clear" size="small">
+            <ion-icon [name]="isOllamaCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
+          </ion-button>
+        </div>
       </ion-card-header>
-      <ion-card-content>
+      <ion-card-content [class.collapsed]="isOllamaCollapsed">
         <ion-item>
           <ion-label>Enable Ollama</ion-label>
           <ion-toggle 
@@ -326,10 +346,15 @@ import { ModelService } from '../../core/services/model.service';
 
     <!-- Google Gemini Settings -->
     <ion-card>
-      <ion-card-header>
-        <ion-card-title>Google Gemini API</ion-card-title>
+      <ion-card-header (click)="isGeminiCollapsed = !isGeminiCollapsed" style="cursor: pointer;">
+        <div class="card-header-content">
+          <ion-card-title>Google Gemini API</ion-card-title>
+          <ion-button fill="clear" size="small">
+            <ion-icon [name]="isGeminiCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
+          </ion-button>
+        </div>
       </ion-card-header>
-      <ion-card-content>
+      <ion-card-content [class.collapsed]="isGeminiCollapsed">
         <ion-item>
           <ion-label>Enable Google Gemini</ion-label>
           <ion-toggle 
@@ -660,6 +685,25 @@ import { ModelService } from '../../core/services/model.service';
       color: #8bb4f8;
     }
 
+    .card-header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    ion-card-content.collapsed {
+      display: none;
+    }
+
+    ion-card-header {
+      transition: all 0.3s ease;
+    }
+
+    ion-card-header:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
     @media (max-width: 768px) {
       .settings-row {
         grid-template-columns: 1fr;
@@ -688,6 +732,13 @@ export class ApiSettingsComponent {
   
   testingOllamaConnection = false;
   ollamaConnectionStatus: 'success' | 'error' | null = null;
+
+  // Collapsible card states
+  isModelSelectionCollapsed = false;
+  isOpenRouterCollapsed = false;
+  isReplicateCollapsed = true;
+  isOllamaCollapsed = true;
+  isGeminiCollapsed = true;
 
   formatContextLength(length: number): string {
     if (length >= 1000000) {
