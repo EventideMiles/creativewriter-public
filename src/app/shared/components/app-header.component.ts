@@ -217,8 +217,8 @@ export interface BurgerMenuItem {
     }
     
     .header-logo {
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       object-fit: contain;
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
       flex-shrink: 0;
