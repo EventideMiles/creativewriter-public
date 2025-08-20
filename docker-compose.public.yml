@@ -28,20 +28,16 @@ services:
       - couchdb
 
   couchdb:
-    image: couchdb:3.3
+    image: ghcr.io/marcodroll/creativewriter2-couchdb:latest
     restart: unless-stopped
     # No ports exposed directly - only through nginx
     environment:
       - COUCHDB_USER=${COUCHDB_USER:-admin}
       - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-password}  # Change this in production!
       - COUCHDB_SECRET=${COUCHDB_SECRET:-mysecret}    # Change this in production!
-      # Increase CouchDB limits for large documents
-      - COUCHDB_MAX_DOCUMENT_SIZE=104857600  # 100MB in bytes
-      - COUCHDB_MAX_HTTP_REQUEST_SIZE=4294967296  # 4GB in bytes
     volumes:
       - ${DATA_PATH:-./data}/couchdb-data:/opt/couchdb/data
       - ${DATA_PATH:-./data}/log/couchdb_log:/opt/couchdb/var/log
-      - ./couchdb/local.ini:/opt/couchdb/etc/local.d/local.ini
     networks:
       - creativewriter-network
 
