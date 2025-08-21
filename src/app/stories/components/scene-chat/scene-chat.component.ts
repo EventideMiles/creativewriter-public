@@ -25,6 +25,7 @@ import { AIRequestLoggerService } from '../../../core/services/ai-request-logger
 import { ModelService } from '../../../core/services/model.service';
 import { OpenRouterIconComponent } from '../../../shared/components/openrouter-icon.component';
 import { ClaudeIconComponent } from '../../../shared/components/claude-icon.component';
+import { ReplicateIconComponent } from '../../../shared/components/replicate-icon.component';
 import { Story, Scene, Chapter } from '../../models/story.interface';
 import { ModelOption } from '../../../core/models/model.interface';
 import { StoryRole } from '../../models/codex.interface';
@@ -66,7 +67,7 @@ interface PresetPrompt {
     IonContent, IonFooter, IonItem, IonLabel, IonTextarea, IonList,
     IonChip, IonAvatar, IonSearchbar, IonModal, IonCheckbox, IonItemDivider,
     IonButton, IonIcon, IonButtons, IonToolbar, IonTitle, IonHeader,
-    OpenRouterIconComponent, ClaudeIconComponent
+    OpenRouterIconComponent, ClaudeIconComponent, ReplicateIconComponent
   ],
   templateUrl: './scene-chat.component.html',
   styleUrls: ['./scene-chat.component.scss']
@@ -971,7 +972,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
       case 'ollama':
         return 'hardware-chip';
       case 'replicate':
-        return 'cloud-upload-outline';
+        return 'replicate-custom';
       default:
         return 'globe-outline';
     }

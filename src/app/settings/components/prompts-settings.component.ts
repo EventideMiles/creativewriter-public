@@ -437,7 +437,7 @@ export class PromptsSettingsComponent {
       case 'ollama':
         return 'hardware-chip';
       case 'replicate':
-        return 'cloud-upload-outline';
+        return 'replicate-custom';
       default:
         return 'globe-outline';
     }

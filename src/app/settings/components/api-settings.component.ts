@@ -13,6 +13,7 @@ import { ClaudeApiService } from '../../core/services/claude-api.service';
 import { ModelService } from '../../core/services/model.service';
 import { OpenRouterIconComponent } from '../../shared/components/openrouter-icon.component';
 import { ClaudeIconComponent } from '../../shared/components/claude-icon.component';
+import { ReplicateIconComponent } from '../../shared/components/replicate-icon.component';
 
 @Component({
   selector: 'app-api-settings',
@@ -22,7 +23,8 @@ import { ClaudeIconComponent } from '../../shared/components/claude-icon.compone
     IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonInput, IonToggle,
     IonItem, IonLabel, IonSelect, IonSelectOption, IonButton, IonIcon,
     OpenRouterIconComponent,
-    ClaudeIconComponent
+    ClaudeIconComponent,
+    ReplicateIconComponent
   ],
   template: `
     <!-- Global Model Selection -->
@@ -79,13 +81,19 @@ import { ClaudeIconComponent } from '../../shared/components/claude-icon.compone
                       class="provider-icon claude"
                       [title]="getProviderTooltip(item.provider)">
                     </app-claude-icon>
+                    <app-replicate-icon 
+                      *ngIf="item.provider === 'replicate'"
+                      size="18" 
+                      color="#9c27b0" 
+                      class="provider-icon replicate"
+                      [title]="getProviderTooltip(item.provider)">
+                    </app-replicate-icon>
                     <ion-icon 
-                      *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude'"
+                      *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude' && item.provider !== 'replicate'"
                       [name]="getProviderIcon(item.provider)" 
                       class="provider-icon" 
                       [class.gemini]="item.provider === 'gemini'" 
                       [class.ollama]="item.provider === 'ollama'"
-                      [class.replicate]="item.provider === 'replicate'"
                       [title]="getProviderTooltip(item.provider)"></ion-icon>
                     <span class="model-label">{{ item.label }}</span>
                   </div>
@@ -187,7 +195,7 @@ import { ClaudeIconComponent } from '../../shared/components/claude-icon.compone
       <ion-card-header (click)="isReplicateCollapsed = !isReplicateCollapsed" style="cursor: pointer;">
         <div class="card-header-content">
           <ion-card-title>
-            <ion-icon name="cloud-upload-outline" class="provider-icon replicate" style="margin-right: 8px;"></ion-icon>
+            <app-replicate-icon size="20" color="#9c27b0" style="margin-right: 8px;"></app-replicate-icon>
             Replicate API
           </ion-card-title>
           <span style="color: #8bb4f8; font-size: 1.5rem; margin-left: auto; padding: 0.5rem;">
@@ -1040,7 +1048,7 @@ export class ApiSettingsComponent {
       case 'ollama':
         return 'hardware-chip'; // Perfect for local inference
       case 'replicate':
-        return 'cloud-upload-outline'; // Better for cloud ML platform
+        return 'replicate-custom'; // Official Replicate logo
       default:
         return 'globe-outline';
     }

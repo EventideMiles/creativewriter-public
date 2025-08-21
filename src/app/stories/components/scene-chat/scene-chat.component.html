@@ -33,8 +33,14 @@
               color="#C15F3C" 
               class="provider-icon-inline claude">
             </app-claude-icon>
+            <app-replicate-icon 
+              *ngIf="item.provider === 'replicate'"
+              size="16" 
+              color="#9c27b0" 
+              class="provider-icon-inline replicate">
+            </app-replicate-icon>
             <ion-icon 
-              *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude'"
+              *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude' && item.provider !== 'replicate'"
               [name]="getProviderIcon(item.provider)" 
               class="provider-icon-inline" 
               [class.gemini]="item.provider === 'gemini'">
