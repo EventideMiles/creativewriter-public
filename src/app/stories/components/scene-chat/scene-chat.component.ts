@@ -24,6 +24,7 @@ import { CodexService } from '../../services/codex.service';
 import { AIRequestLoggerService } from '../../../core/services/ai-request-logger.service';
 import { ModelService } from '../../../core/services/model.service';
 import { OpenRouterIconComponent } from '../../../shared/components/openrouter-icon.component';
+import { ClaudeIconComponent } from '../../../shared/components/claude-icon.component';
 import { Story, Scene, Chapter } from '../../models/story.interface';
 import { ModelOption } from '../../../core/models/model.interface';
 import { StoryRole } from '../../models/codex.interface';
@@ -65,7 +66,7 @@ interface PresetPrompt {
     IonContent, IonFooter, IonItem, IonLabel, IonTextarea, IonList,
     IonChip, IonAvatar, IonSearchbar, IonModal, IonCheckbox, IonItemDivider,
     IonButton, IonIcon, IonButtons, IonToolbar, IonTitle, IonHeader,
-    OpenRouterIconComponent
+    OpenRouterIconComponent, ClaudeIconComponent
   ],
   templateUrl: './scene-chat.component.html',
   styleUrls: ['./scene-chat.component.scss']
@@ -966,7 +967,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
       case 'openrouter':
         return 'git-network-outline';
       case 'claude':
-        return 'chatbubble-outline';
+        return 'claude-custom';
       case 'ollama':
         return 'hardware-chip';
       case 'replicate':

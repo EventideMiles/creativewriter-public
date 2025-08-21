@@ -27,8 +27,14 @@
               color="#6467f2" 
               class="provider-icon-inline openrouter">
             </app-openrouter-icon>
+            <app-claude-icon 
+              *ngIf="item.provider === 'claude'"
+              size="16" 
+              color="#C15F3C" 
+              class="provider-icon-inline claude">
+            </app-claude-icon>
             <ion-icon 
-              *ngIf="item.provider !== 'openrouter'"
+              *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude'"
               [name]="getProviderIcon(item.provider)" 
               class="provider-icon-inline" 
               [class.gemini]="item.provider === 'gemini'">

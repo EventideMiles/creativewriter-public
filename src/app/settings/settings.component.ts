@@ -580,7 +580,7 @@ import { PromptsSettingsComponent } from './components/prompts-settings.componen
     }
 
     .provider-icon.claude {
-      color: #ff6b47; /* Anthropic Orange */
+      color: #C15F3C; /* Claude Crail */
     }
 
     .provider-icon.ollama {

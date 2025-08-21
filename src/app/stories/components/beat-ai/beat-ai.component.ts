@@ -23,6 +23,7 @@ import { StoryService } from '../../services/story.service';
 import { Story, Scene, Chapter } from '../../models/story.interface';
 import { DatabaseService, SyncStatus } from '../../../core/services/database.service';
 import { OpenRouterIconComponent } from '../../../shared/components/openrouter-icon.component';
+import { ClaudeIconComponent } from '../../../shared/components/claude-icon.component';
 
 interface SceneContext {
   chapterId: string;
@@ -39,7 +40,8 @@ interface SceneContext {
   imports: [
     CommonModule, FormsModule, NgSelectModule, IonIcon, IonModal, IonChip, IonLabel, 
     IonSearchbar, IonCheckbox, IonItemDivider, IonButton, IonButtons, IonToolbar, 
-    IonTitle, IonHeader, IonContent, IonList, IonItem, OpenRouterIconComponent
+    IonTitle, IonHeader, IonContent, IonList, IonItem, OpenRouterIconComponent,
+    ClaudeIconComponent
   ],
   templateUrl: './beat-ai.component.html',
   styleUrls: ['./beat-ai.component.scss'],
@@ -652,7 +654,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       case 'openrouter':
         return 'openrouter-custom';
       case 'claude':
-        return 'chatbubble-outline';
+        return 'claude-custom';
       case 'ollama':
         return 'hardware-chip';
       case 'replicate':

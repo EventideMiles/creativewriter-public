@@ -433,7 +433,7 @@ export class PromptsSettingsComponent {
       case 'openrouter':
         return 'openrouter-custom';
       case 'claude':
-        return 'chatbubble-outline';
+        return 'claude-custom';
       case 'ollama':
         return 'hardware-chip';
       case 'replicate':

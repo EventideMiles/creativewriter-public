@@ -12,6 +12,7 @@ import { OllamaApiService } from '../../core/services/ollama-api.service';
 import { ClaudeApiService } from '../../core/services/claude-api.service';
 import { ModelService } from '../../core/services/model.service';
 import { OpenRouterIconComponent } from '../../shared/components/openrouter-icon.component';
+import { ClaudeIconComponent } from '../../shared/components/claude-icon.component';
 
 @Component({
   selector: 'app-api-settings',
@@ -20,7 +21,8 @@ import { OpenRouterIconComponent } from '../../shared/components/openrouter-icon
     CommonModule, FormsModule, NgSelectModule,
     IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonInput, IonToggle,
     IonItem, IonLabel, IonSelect, IonSelectOption, IonButton, IonIcon,
-    OpenRouterIconComponent
+    OpenRouterIconComponent,
+    ClaudeIconComponent
   ],
   template: `
     <!-- Global Model Selection -->
@@ -70,13 +72,19 @@ import { OpenRouterIconComponent } from '../../shared/components/openrouter-icon
                       class="provider-icon openrouter"
                       [title]="getProviderTooltip(item.provider)">
                     </app-openrouter-icon>
+                    <app-claude-icon 
+                      *ngIf="item.provider === 'claude'"
+                      size="18" 
+                      color="#C15F3C" 
+                      class="provider-icon claude"
+                      [title]="getProviderTooltip(item.provider)">
+                    </app-claude-icon>
                     <ion-icon 
-                      *ngIf="item.provider !== 'openrouter'"
+                      *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude'"
                       [name]="getProviderIcon(item.provider)" 
                       class="provider-icon" 
                       [class.gemini]="item.provider === 'gemini'" 
                       [class.ollama]="item.provider === 'ollama'"
-                      [class.claude]="item.provider === 'claude'"
                       [class.replicate]="item.provider === 'replicate'"
                       [title]="getProviderTooltip(item.provider)"></ion-icon>
                     <span class="model-label">{{ item.label }}</span>
@@ -522,7 +530,7 @@ import { OpenRouterIconComponent } from '../../shared/components/openrouter-icon
       <ion-card-header (click)="isClaudeCollapsed = !isClaudeCollapsed" style="cursor: pointer;">
         <div class="card-header-content">
           <ion-card-title>
-            <ion-icon name="chatbubble-outline" class="provider-icon claude" style="margin-right: 8px;"></ion-icon>
+            <app-claude-icon size="20" color="#C15F3C" style="margin-right: 8px;"></app-claude-icon>
             Claude API (Anthropic)
           </ion-card-title>
           <span style="color: #8bb4f8; font-size: 1.5rem; margin-left: auto; padding: 0.5rem;">
@@ -718,7 +726,7 @@ import { OpenRouterIconComponent } from '../../shared/components/openrouter-icon
     }
 
     .provider-icon.claude {
-      color: #ff6b35;
+      color: #C15F3C;
     }
 
     .model-label {
@@ -1028,7 +1036,7 @@ export class ApiSettingsComponent {
       case 'openrouter':
         return 'openrouter-custom'; // Custom OpenRouter logo
       case 'claude':
-        return 'chatbubble-outline'; // Better icon for conversational AI
+        return 'claude-custom'; // Official Claude logo
       case 'ollama':
         return 'hardware-chip'; // Perfect for local inference
       case 'replicate':

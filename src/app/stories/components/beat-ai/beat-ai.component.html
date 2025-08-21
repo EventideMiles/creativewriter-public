@@ -142,7 +142,8 @@
                   <ng-template ng-label-tmp let-item="item">
                     <div class="model-option-inline">
                       <app-openrouter-icon *ngIf="item.provider === 'openrouter'" size="16" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
-                      <ion-icon *ngIf="item.provider !== 'openrouter'" [name]="getProviderIcon(item.provider)" class="provider-icon-inline" [class.gemini]="item.provider === 'gemini'"></ion-icon>
+                      <app-claude-icon *ngIf="item.provider === 'claude'" size="16" color="#C15F3C" class="provider-icon-inline claude"></app-claude-icon>
+                      <ion-icon *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude'" [name]="getProviderIcon(item.provider)" class="provider-icon-inline" [class.gemini]="item.provider === 'gemini'"></ion-icon>
                       <span class="model-label">{{ item.label }}</span>
                       <button class="favorite-toggle"
                               (click)="toggleFavorite($event, item)"
@@ -155,7 +156,8 @@
                   <ng-template ng-option-tmp let-item="item">
                     <div class="model-option-inline">
                       <app-openrouter-icon *ngIf="item.provider === 'openrouter'" size="16" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
-                      <ion-icon *ngIf="item.provider !== 'openrouter'" [name]="getProviderIcon(item.provider)" class="provider-icon-inline" [class.gemini]="item.provider === 'gemini'"></ion-icon>
+                      <app-claude-icon *ngIf="item.provider === 'claude'" size="16" color="#C15F3C" class="provider-icon-inline claude"></app-claude-icon>
+                      <ion-icon *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude'" [name]="getProviderIcon(item.provider)" class="provider-icon-inline" [class.gemini]="item.provider === 'gemini'"></ion-icon>
                       <span class="model-label">{{ item.label }}</span>
                       <button class="favorite-toggle"
                               (click)="toggleFavorite($event, item)"
