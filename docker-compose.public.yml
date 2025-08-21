@@ -28,7 +28,7 @@ services:
       - couchdb
 
   couchdb:
-    image: ghcr.io/marcodroll/creativewriter2-couchdb:latest
+    image: ghcr.io/marcodroll/creativewriter-public-couchdb:latest
     restart: unless-stopped
     # No ports exposed directly - only through nginx
     environment:

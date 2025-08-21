@@ -1,7 +1,24 @@
 FROM couchdb:3.3
 
+# Set labels for better image management (2025 best practice)
+LABEL maintainer="marcodroll/creativewriter"
+LABEL version="1.0"
+LABEL description="CouchDB with custom configuration for CreativeWriter"
+
 # Copy custom CouchDB configuration with increased limits
 COPY couchdb/local.ini /opt/couchdb/etc/local.d/local.ini
+
+# Ensure proper permissions for configuration file
+USER root
+RUN chown couchdb:couchdb /opt/couchdb/etc/local.d/local.ini \
+    && chmod 644 /opt/couchdb/etc/local.d/local.ini
+
+# Switch back to couchdb user for security (2025 best practice)
+USER couchdb
+
+# Add healthcheck for container orchestration (2025 best practice)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5984/_up || exit 1
 
 # Expose standard CouchDB port
 EXPOSE 5984
