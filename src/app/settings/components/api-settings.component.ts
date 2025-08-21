@@ -62,13 +62,14 @@ import { ModelService } from '../../core/services/model.service';
                 <div class="model-option">
                   <div class="model-option-header">
                     <ion-icon 
-                      [name]="item.provider === 'gemini' ? 'logo-google' : item.provider === 'ollama' ? 'hardware-chip' : item.provider === 'claude' ? 'library-outline' : 'globe-outline'" 
+                      [name]="getProviderIcon(item.provider)" 
                       class="provider-icon" 
                       [class.gemini]="item.provider === 'gemini'" 
                       [class.openrouter]="item.provider === 'openrouter'"
                       [class.ollama]="item.provider === 'ollama'"
                       [class.claude]="item.provider === 'claude'"
-                      [class.replicate]="item.provider === 'replicate'"></ion-icon>
+                      [class.replicate]="item.provider === 'replicate'"
+                      [title]="getProviderTooltip(item.provider)"></ion-icon>
                     <span class="model-label">{{ item.label }}</span>
                   </div>
                   <div class="model-option-details">
@@ -994,5 +995,39 @@ export class ApiSettingsComponent {
         console.error('Claude connection test failed:', error);
       }
     });
+  }
+
+  getProviderIcon(provider: string): string {
+    switch (provider) {
+      case 'gemini':
+        return 'logo-google';
+      case 'openrouter':
+        return 'swap-horizontal-outline'; // Better icon for routing
+      case 'claude':
+        return 'chatbubble-outline'; // Better icon for conversational AI
+      case 'ollama':
+        return 'hardware-chip'; // Perfect for local inference
+      case 'replicate':
+        return 'cloud-upload-outline'; // Better for cloud ML platform
+      default:
+        return 'globe-outline';
+    }
+  }
+
+  getProviderTooltip(provider: string): string {
+    switch (provider) {
+      case 'gemini':
+        return 'Google Gemini - Advanced multimodal AI from Google';
+      case 'openrouter':
+        return 'OpenRouter - Access to multiple AI models through unified API';
+      case 'claude':
+        return 'Claude - Anthropic\'s helpful, harmless, and honest AI assistant';
+      case 'ollama':
+        return 'Ollama - Run large language models locally on your machine';
+      case 'replicate':
+        return 'Replicate - Cloud platform for running machine learning models';
+      default:
+        return 'AI Provider';
+    }
   }
 }

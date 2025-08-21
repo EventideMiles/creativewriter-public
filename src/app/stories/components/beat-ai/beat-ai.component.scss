@@ -617,11 +617,23 @@
     }
     
     .provider-icon-inline.gemini {
-      color: #4285f4;
+      color: #4285f4; /* Google Blue */
     }
     
     .provider-icon-inline.openrouter {
-      color: #00a67e;
+      color: #00a67e; /* OpenRouter Green */
+    }
+    
+    .provider-icon-inline.claude {
+      color: #ff6b47; /* Anthropic Orange */
+    }
+    
+    .provider-icon-inline.ollama {
+      color: #9333ea; /* Purple for local inference */
+    }
+    
+    .provider-icon-inline.replicate {
+      color: #f59e0b; /* Amber for cloud ML */
     }
 
     .beat-type-option {

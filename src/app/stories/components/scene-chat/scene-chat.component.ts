@@ -14,7 +14,7 @@ import {
   arrowBack, sendOutline, peopleOutline, documentTextOutline, 
   addOutline, checkmarkOutline, closeOutline, sparklesOutline,
   personOutline, locationOutline, cubeOutline, readerOutline,
-  copyOutline, logoGoogle, globeOutline
+  copyOutline, logoGoogle, globeOutline, chatbubbleOutline, swapHorizontalOutline, cloudUploadOutline, hardwareChip
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { SettingsService } from '../../../core/services/settings.service';
@@ -114,7 +114,7 @@ export class SceneChatComponent implements OnInit, OnDestroy {
       arrowBack, sendOutline, peopleOutline, documentTextOutline, 
       addOutline, checkmarkOutline, closeOutline, sparklesOutline,
       personOutline, locationOutline, cubeOutline, readerOutline,
-      copyOutline, logoGoogle, globeOutline
+      copyOutline, logoGoogle, globeOutline, chatbubbleOutline, swapHorizontalOutline, cloudUploadOutline, hardwareChip
     });
     
     this.initializePresetPrompts();

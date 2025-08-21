@@ -110,12 +110,14 @@ import { ModelOption } from '../../core/models/model.interface';
                 <div class="model-option">
                   <div class="model-option-header">
                     <ion-icon 
-                      [name]="item.provider === 'gemini' ? 'logo-google' : item.provider === 'ollama' ? 'hardware-chip' : 'globe-outline'" 
+                      [name]="getProviderIcon(item.provider)" 
                       class="provider-icon" 
                       [class.gemini]="item.provider === 'gemini'" 
                       [class.openrouter]="item.provider === 'openrouter'"
                       [class.ollama]="item.provider === 'ollama'"
-                      [class.replicate]="item.provider === 'replicate'"></ion-icon>
+                      [class.claude]="item.provider === 'claude'"
+                      [class.replicate]="item.provider === 'replicate'"
+                      [title]="getProviderTooltip(item.provider)"></ion-icon>
                     <span class="model-label">{{ item.label }}</span>
                   </div>
                   <div class="model-option-details">
@@ -222,12 +224,14 @@ import { ModelOption } from '../../core/models/model.interface';
                 <div class="model-option">
                   <div class="model-option-header">
                     <ion-icon 
-                      [name]="item.provider === 'gemini' ? 'logo-google' : item.provider === 'ollama' ? 'hardware-chip' : 'globe-outline'" 
+                      [name]="getProviderIcon(item.provider)" 
                       class="provider-icon" 
                       [class.gemini]="item.provider === 'gemini'" 
                       [class.openrouter]="item.provider === 'openrouter'"
                       [class.ollama]="item.provider === 'ollama'"
-                      [class.replicate]="item.provider === 'replicate'"></ion-icon>
+                      [class.claude]="item.provider === 'claude'"
+                      [class.replicate]="item.provider === 'replicate'"
+                      [title]="getProviderTooltip(item.provider)"></ion-icon>
                     <span class="model-label">{{ item.label }}</span>
                   </div>
                   <div class="model-description" *ngIf="item.description">{{ item.description }}</div>
@@ -420,5 +424,39 @@ export class PromptsSettingsComponent {
     const defaultPrompt = 'Create a summary of the following scene:\n\nTitle: {sceneTitle}\n\nContent:\n{sceneContent}\n\nThe summary should capture the most important plot points and character developments. Write a complete and comprehensive summary with at least 3-5 sentences.';
     this.settings.sceneSummaryGeneration.customPrompt = defaultPrompt;
     this.settingsChange.emit();
+  }
+
+  getProviderIcon(provider: string): string {
+    switch (provider) {
+      case 'gemini':
+        return 'logo-google';
+      case 'openrouter':
+        return 'swap-horizontal-outline';
+      case 'claude':
+        return 'chatbubble-outline';
+      case 'ollama':
+        return 'hardware-chip';
+      case 'replicate':
+        return 'cloud-upload-outline';
+      default:
+        return 'globe-outline';
+    }
+  }
+
+  getProviderTooltip(provider: string): string {
+    switch (provider) {
+      case 'gemini':
+        return 'Google Gemini - Advanced multimodal AI from Google';
+      case 'openrouter':
+        return 'OpenRouter - Access to multiple AI models through unified API';
+      case 'claude':
+        return 'Claude - Anthropic\'s helpful, harmless, and honest AI assistant';
+      case 'ollama':
+        return 'Ollama - Run large language models locally on your machine';
+      case 'replicate':
+        return 'Replicate - Cloud platform for running machine learning models';
+      default:
+        return 'AI Provider';
+    }
   }
 }

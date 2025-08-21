@@ -8,7 +8,7 @@ import {
   IonChip, IonLabel
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip } from 'ionicons/icons';
+import { arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip, chatbubbleOutline, swapHorizontalOutline, cloudUploadOutline } from 'ionicons/icons';
 import { SettingsService } from '../core/services/settings.service';
 import { ModelService } from '../core/services/model.service';
 import { Settings } from '../core/models/settings.interface';
@@ -572,11 +572,23 @@ import { PromptsSettingsComponent } from './components/prompts-settings.componen
     }
 
     .provider-icon.gemini {
-      color: #4285f4;
+      color: #4285f4; /* Google Blue */
     }
 
     .provider-icon.openrouter {
-      color: #00a67e;
+      color: #00a67e; /* OpenRouter Green */
+    }
+
+    .provider-icon.claude {
+      color: #ff6b47; /* Anthropic Orange */
+    }
+
+    .provider-icon.ollama {
+      color: #9333ea; /* Purple for local inference */
+    }
+
+    .provider-icon.replicate {
+      color: #f59e0b; /* Amber for cloud ML */
     }
 
     .model-label {
@@ -852,7 +864,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   constructor() {
     this.settings = this.settingsService.getSettings();
     // Register Ionic icons
-    addIcons({ arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip });
+    addIcons({ arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip, chatbubbleOutline, swapHorizontalOutline, cloudUploadOutline });
   }
 
   ngOnInit(): void {
