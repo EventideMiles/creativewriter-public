@@ -210,9 +210,13 @@ export class CodexComponent implements OnInit, OnDestroy {
     if (!storyId || !categoryId) return;
 
     try {
-      // Check if this is a character category
+      // Check if this is a character category (case-insensitive and handles variations)
       const category = this.selectedCategory();
-      const isCharacterCategory = category?.title === 'Characters';
+      const categoryTitle = category?.title?.toLowerCase() || '';
+      const isCharacterCategory = categoryTitle === 'characters' || 
+                                  categoryTitle === 'character' ||
+                                  categoryTitle.includes('character') ||
+                                  category?.icon === '👤';
       
       // Create default custom fields for character entries
       const defaultCharacterFields: CustomField[] = isCharacterCategory ? [
@@ -369,7 +373,12 @@ export class CodexComponent implements OnInit, OnDestroy {
 
   isCharacterEntry(): boolean {
     const category = this.selectedCategory();
-    return category?.title === 'Characters' || false;
+    const categoryTitle = category?.title?.toLowerCase() || '';
+    return categoryTitle === 'characters' || 
+           categoryTitle === 'character' ||
+           categoryTitle.includes('character') ||
+           category?.icon === '👤' || 
+           false;
   }
 
   addCustomField() {
