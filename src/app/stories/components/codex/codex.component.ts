@@ -210,11 +210,37 @@ export class CodexComponent implements OnInit, OnDestroy {
     if (!storyId || !categoryId) return;
 
     try {
+      // Check if this is a character category
+      const category = this.selectedCategory();
+      const isCharacterCategory = category?.title === 'Characters';
+      
+      // Create default custom fields for character entries
+      const defaultCharacterFields: CustomField[] = isCharacterCategory ? [
+        {
+          id: Date.now().toString(),
+          name: 'Physical Appearance',
+          value: ''
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          name: 'Backstory',
+          value: ''
+        },
+        {
+          id: (Date.now() + 2).toString(),
+          name: 'Personality',
+          value: ''
+        }
+      ] : [];
+      
       // Create a new entry with default values
       const newEntry = {
         title: 'New Entry',
         content: '',
-        tags: []
+        tags: [],
+        metadata: isCharacterCategory ? {
+          customFields: defaultCharacterFields
+        } : {}
       };
       
       const createdEntry = await this.codexService.addEntry(storyId, categoryId, newEntry);
