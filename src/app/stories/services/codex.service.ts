@@ -164,6 +164,11 @@ export class CodexService {
     
     if (!codex) {
       codex = await this.createCodex(storyId);
+    } else {
+      // Migrate German category names to English if needed
+      await this.migrateCategoryNamesToEnglish(storyId);
+      // Refresh codex after potential migration
+      codex = this.codexMap.get(storyId) || codex;
     }
     
     return codex;
@@ -548,5 +553,55 @@ export class CodexService {
         const categoryB = codex.categories.find(c => c.title === b.category);
         return (categoryA?.order || 0) - (categoryB?.order || 0);
       });
+  }
+
+  // Migrate German category names to English
+  async migrateCategoryNamesToEnglish(storyId: string): Promise<void> {
+    const codex = this.codexMap.get(storyId);
+    if (!codex) return;
+
+    const categoryMapping = {
+      // German -> English
+      'charaktere': 'Characters',
+      'charakter': 'Characters', 
+      'figuren': 'Characters',
+      'figur': 'Characters',
+      'personen': 'Characters',
+      'person': 'Characters',
+      'orte': 'Locations',
+      'ort': 'Locations',
+      'schauplätze': 'Locations',
+      'schauplatz': 'Locations',
+      'objekte': 'Objects',
+      'objekt': 'Objects',
+      'gegenstände': 'Objects',
+      'gegenstand': 'Objects',
+      'notizen': 'Notes',
+      'notiz': 'Notes',
+      'anmerkungen': 'Notes',
+      'anmerkung': 'Notes'
+    };
+
+    let hasChanges = false;
+    const updatedCategories = codex.categories.map(category => {
+      const lowerTitle = category.title.toLowerCase();
+      const englishTitle = categoryMapping[lowerTitle as keyof typeof categoryMapping];
+      
+      if (englishTitle && category.title !== englishTitle) {
+        hasChanges = true;
+        return { ...category, title: englishTitle, updatedAt: new Date() };
+      }
+      return category;
+    });
+
+    if (hasChanges) {
+      const updatedCodex: Codex = {
+        ...codex,
+        categories: updatedCategories,
+        updatedAt: new Date()
+      };
+      
+      await this.saveToDatabase(updatedCodex);
+    }
   }
 }

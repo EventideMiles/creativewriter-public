@@ -212,11 +212,7 @@ export class CodexComponent implements OnInit, OnDestroy {
     try {
       // Check if this is a character category (case-insensitive and handles variations)
       const category = this.selectedCategory();
-      const categoryTitle = category?.title?.toLowerCase() || '';
-      const isCharacterCategory = categoryTitle === 'characters' || 
-                                  categoryTitle === 'character' ||
-                                  categoryTitle.includes('character') ||
-                                  category?.icon === '👤';
+      const isCharacterCategory = this.isCharacterCategory(category);
       
       // Create default custom fields for character entries
       const defaultCharacterFields: CustomField[] = isCharacterCategory ? [
@@ -373,12 +369,37 @@ export class CodexComponent implements OnInit, OnDestroy {
 
   isCharacterEntry(): boolean {
     const category = this.selectedCategory();
-    const categoryTitle = category?.title?.toLowerCase() || '';
-    return categoryTitle === 'characters' || 
-           categoryTitle === 'character' ||
-           categoryTitle.includes('character') ||
-           category?.icon === '👤' || 
-           false;
+    return this.isCharacterCategory(category);
+  }
+
+  private isCharacterCategory(category: CodexCategory | null): boolean {
+    if (!category) return false;
+    const categoryTitle = category.title?.toLowerCase() || '';
+    
+    // Check for English terms
+    if (categoryTitle === 'characters' || 
+        categoryTitle === 'character' ||
+        categoryTitle.includes('character')) {
+      return true;
+    }
+    
+    // Check for German terms
+    if (categoryTitle === 'charaktere' ||
+        categoryTitle === 'charakter' ||
+        categoryTitle.includes('charakter') ||
+        categoryTitle === 'figuren' ||
+        categoryTitle.includes('figur') ||
+        categoryTitle === 'personen' ||
+        categoryTitle.includes('person')) {
+      return true;
+    }
+    
+    // Check for icon
+    if (category.icon === '👤') {
+      return true;
+    }
+    
+    return false;
   }
 
   addCustomField() {
