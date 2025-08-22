@@ -6,7 +6,6 @@ export interface CodexEntry {
   tags?: string[];
   imageUrl?: string;
   metadata?: Record<string, unknown>;
-  customFields?: CustomField[];
   storyRole?: StoryRole | '';
   alwaysInclude?: boolean;
   order: number;

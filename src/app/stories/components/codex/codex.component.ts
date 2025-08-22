@@ -52,7 +52,7 @@ export class CodexComponent implements OnInit, OnDestroy {
 
   // Form data
   newCategory = { title: '', icon: '', description: '' };
-  editingEntry: Partial<CodexEntry> = {};
+  editingEntry: Partial<CodexEntry> & { customFields?: CustomField[] } = {};
   tagInput = '';
   
   // Story roles

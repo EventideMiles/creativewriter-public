@@ -287,7 +287,6 @@ export class CodexService {
         tags: entry.tags || [],
         imageUrl: entry.imageUrl,
         metadata: entry.metadata || {},
-        customFields: entry.customFields || [],
         order: category.entries.length,
         createdAt: now,
         updatedAt: now
@@ -328,7 +327,6 @@ export class CodexService {
           tags: entry.tags || [],
           imageUrl: entry.imageUrl,
           metadata: entry.metadata || {},
-          customFields: entry.customFields || [],
           order: category.entries.length,
           createdAt: now,
           updatedAt: now
