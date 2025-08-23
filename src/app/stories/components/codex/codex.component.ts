@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgSelectModule } from '@ng-select/ng-select';
@@ -30,7 +30,8 @@ import { Codex, CodexCategory, CodexEntry, STORY_ROLES, CustomField, StoryRole }
     IonSelect, IonSelectOption, IonToggle
   ],
   templateUrl: './codex.component.html',
-  styleUrls: ['./codex.component.scss']
+  styleUrls: ['./codex.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CodexComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
@@ -102,6 +103,7 @@ export class CodexComponent implements OnInit, OnDestroy {
         const storyId = params['id'];
         this.storyId.set(storyId);
         this.loadCodex(storyId);
+        this.cdr.markForCheck();
       })
     );
     
@@ -119,7 +121,7 @@ export class CodexComponent implements OnInit, OnDestroy {
           }
           
           // Force change detection
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
         }
       })
     );

@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, OnDestroy, TemplateRef, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, OnDestroy, TemplateRef, inject, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -71,7 +71,8 @@ interface PresetPrompt {
     OpenRouterIconComponent, ClaudeIconComponent, ReplicateIconComponent, OllamaIconComponent
   ],
   templateUrl: './scene-chat.component.html',
-  styleUrls: ['./scene-chat.component.scss']
+  styleUrls: ['./scene-chat.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SceneChatComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
@@ -84,6 +85,7 @@ export class SceneChatComponent implements OnInit, OnDestroy {
   private aiLogger = inject(AIRequestLoggerService);
   private modelService = inject(ModelService);
   private sanitizer = inject(DomSanitizer);
+  private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('scrollContainer') scrollContainer!: ElementRef;
   @ViewChild('messageInput') messageInput!: ElementRef;
@@ -254,6 +256,7 @@ export class SceneChatComponent implements OnInit, OnDestroy {
       ).subscribe({
         next: (chunk) => {
           accumulatedResponse = chunk;
+          this.cdr.markForCheck();
         },
         complete: () => {
           this.messages.push({
@@ -264,6 +267,7 @@ export class SceneChatComponent implements OnInit, OnDestroy {
           });
           this.isGenerating = false;
           this.scrollToBottom();
+          this.cdr.markForCheck();
         },
         error: (error) => {
           console.error('Error generating response:', error);
@@ -937,6 +941,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
     this.subscriptions.add(
       this.settingsService.settings$.subscribe(() => {
         this.reloadModels();
+        this.cdr.markForCheck();
       })
     );
     this.reloadModels();
@@ -949,6 +954,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
         if (models.length > 0 && !this.selectedModel) {
           this.setDefaultModel();
         }
+        this.cdr.markForCheck();
       })
     );
   }

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, AfterViewInit, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, AfterViewInit, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectorRef, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -30,7 +30,8 @@ import { Subscription } from 'rxjs';
     IonChip, IonTextarea, IonSelect, IonSelectOption, IonBadge
   ],
   templateUrl: './story-structure.component.html',
-  styleUrls: ['./story-structure.component.scss']
+  styleUrls: ['./story-structure.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   private storyService = inject(StoryService);
@@ -259,13 +260,13 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     }
     
     this.isGeneratingSummary.add(sceneId);
-    this.cdr.detectChanges(); // Force change detection for mobile
+    this.cdr.markForCheck(); // Force change detection for mobile
     
     // Set a timeout to clear busy state if request takes too long
     const timeoutId = setTimeout(() => {
       if (this.isGeneratingSummary.has(sceneId)) {
         this.isGeneratingSummary.delete(sceneId);
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
         alert('Summary generation is taking too long. Please try again.');
       }
     }, 30000); // 30 second timeout
@@ -359,7 +360,7 @@ The summary should capture the most important plot points and character developm
             }
             
             // Force change detection before service update
-            this.cdr.detectChanges();
+            this.cdr.markForCheck();
             
             // Update in service
             await this.updateSceneSummary(chapterId, sceneId, summary);
@@ -376,7 +377,7 @@ The summary should capture the most important plot points and character developm
           }
           clearTimeout(timeoutId); // Clear timeout on success
           this.isGeneratingSummary.delete(sceneId);
-          this.cdr.detectChanges(); // Force change detection
+          this.cdr.markForCheck(); // Force change detection
           
           // Ensure textarea is properly resized and updated after content update
           setTimeout(() => {
@@ -384,7 +385,7 @@ The summary should capture the most important plot points and character developm
               this.updateTextareaValue(sceneId, scene.summary);
             }
             this.resizeTextareaForScene(sceneId);
-            this.cdr.detectChanges();
+            this.cdr.markForCheck();
           }, 150);
         },
         error: (error) => {
@@ -394,7 +395,7 @@ The summary should capture the most important plot points and character developm
           const errorMessage = 'Error generating summary.';
           alert(errorMessage);
           this.isGeneratingSummary.delete(sceneId);
-          this.cdr.detectChanges(); // Force change detection
+          this.cdr.markForCheck(); // Force change detection
         }
       });
     } else if (useOpenRouter) {
@@ -425,7 +426,7 @@ The summary should capture the most important plot points and character developm
           }
           
           // Force change detection before service update
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
           
           // Update in service
           await this.updateSceneSummary(chapterId, sceneId, summary);
@@ -442,7 +443,7 @@ The summary should capture the most important plot points and character developm
         }
         clearTimeout(timeoutId); // Clear timeout on success
         this.isGeneratingSummary.delete(sceneId);
-        this.cdr.detectChanges(); // Force change detection
+        this.cdr.markForCheck(); // Force change detection
         
         // Ensure textarea is properly resized and updated after content update
         setTimeout(() => {
@@ -450,7 +451,7 @@ The summary should capture the most important plot points and character developm
             this.updateTextareaValue(sceneId, scene.summary);
           }
           this.resizeTextareaForScene(sceneId);
-          this.cdr.detectChanges();
+          this.cdr.markForCheck();
         }, 150);
       },
       error: (error) => {
@@ -476,7 +477,7 @@ The summary should capture the most important plot points and character developm
         
         alert(errorMessage);
         this.isGeneratingSummary.delete(sceneId);
-        this.cdr.detectChanges(); // Force change detection
+        this.cdr.markForCheck(); // Force change detection
         }
       });
     }
@@ -530,13 +531,13 @@ The summary should capture the most important plot points and character developm
     }
     
     this.isGeneratingTitle.add(sceneId);
-    this.cdr.detectChanges(); // Force change detection for mobile
+    this.cdr.markForCheck(); // Force change detection for mobile
     
     // Set a timeout to clear busy state if request takes too long
     const timeoutId = setTimeout(() => {
       if (this.isGeneratingTitle.has(sceneId)) {
         this.isGeneratingTitle.delete(sceneId);
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
         alert('Title generation is taking too long. Please try again.');
       }
     }, 30000); // 30 second timeout
@@ -638,7 +639,7 @@ Respond only with the title, without further explanations or quotation marks.`;
           }
           clearTimeout(timeoutId); // Clear timeout on success
           this.isGeneratingTitle.delete(sceneId);
-          this.cdr.detectChanges(); // Force change detection
+          this.cdr.markForCheck(); // Force change detection
         },
         error: (error) => {
           console.error('Error generating scene title:', error);
@@ -647,7 +648,7 @@ Respond only with the title, without further explanations or quotation marks.`;
           const errorMessage = 'Error generating title.';
           alert(errorMessage);
           this.isGeneratingTitle.delete(sceneId);
-          this.cdr.detectChanges(); // Force change detection
+          this.cdr.markForCheck(); // Force change detection
         }
       });
     } else if (useOpenRouter) {
@@ -676,7 +677,7 @@ Respond only with the title, without further explanations or quotation marks.`;
           }
           clearTimeout(timeoutId); // Clear timeout on success
           this.isGeneratingTitle.delete(sceneId);
-          this.cdr.detectChanges(); // Force change detection
+          this.cdr.markForCheck(); // Force change detection
         },
       error: (error) => {
         console.error('Error generating scene title:', error);
@@ -701,7 +702,7 @@ Respond only with the title, without further explanations or quotation marks.`;
         
         alert(errorMessage);
         this.isGeneratingTitle.delete(sceneId);
-        this.cdr.detectChanges(); // Force change detection
+        this.cdr.markForCheck(); // Force change detection
         }
       });
     }
@@ -733,7 +734,7 @@ Respond only with the title, without further explanations or quotation marks.`;
         // Refresh prompt manager when scene summary changes
         this.promptManager.refresh();
         // Force change detection to update UI
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       }
     }
   }
@@ -797,6 +798,7 @@ Respond only with the title, without further explanations or quotation marks.`;
         if (models.length > 0 && !this.selectedModel) {
           this.setDefaultModel();
         }
+        this.cdr.markForCheck();
       })
     );
     

@@ -1,4 +1,4 @@
-import { Component, OnInit, TemplateRef, ViewChild, inject } from '@angular/core';
+import { Component, OnInit, TemplateRef, ViewChild, inject, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -30,7 +30,8 @@ import { VersionService } from '../../../core/services/version.service';
     SyncStatusComponent, LoginComponent, AppHeaderComponent
   ],
   templateUrl: './story-list.component.html',
-  styleUrls: ['./story-list.component.scss']
+  styleUrls: ['./story-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StoryListComponent implements OnInit {
   private storyService = inject(StoryService);
@@ -38,6 +39,7 @@ export class StoryListComponent implements OnInit {
   private authService = inject(AuthService);
   private headerNavService = inject(HeaderNavigationService);
   private sanitizer = inject(DomSanitizer);
+  private cdr = inject(ChangeDetectorRef);
   versionService = inject(VersionService);
 
   @ViewChild('burgerMenuFooter', { static: true }) burgerMenuFooter!: TemplateRef<unknown>;
@@ -57,6 +59,7 @@ export class StoryListComponent implements OnInit {
     this.loadStories().then(() => {
       // Setup right actions after stories are loaded
       this.setupRightActions();
+      this.cdr.markForCheck();
     });
     
     // Subscribe to user changes
@@ -65,6 +68,7 @@ export class StoryListComponent implements OnInit {
       // Reload stories when user changes (different database)
       this.loadStories().then(() => {
         this.setupRightActions();
+        this.cdr.markForCheck();
       });
     });
     
@@ -72,6 +76,7 @@ export class StoryListComponent implements OnInit {
     this.versionService.version$.subscribe(version => {
       if (version) {
         this.setupRightActions();
+        this.cdr.markForCheck();
       }
     });
     
@@ -114,6 +119,7 @@ export class StoryListComponent implements OnInit {
 
   async loadStories(): Promise<void> {
     this.stories = await this.storyService.getAllStories();
+    this.cdr.markForCheck();
   }
 
   async drop(event: CdkDragDrop<Story[]>): Promise<void> {
@@ -192,6 +198,7 @@ export class StoryListComponent implements OnInit {
     if (confirm('Do you really want to delete this story?')) {
       await this.storyService.deleteStory(storyId);
       await this.loadStories();
+      this.cdr.markForCheck();
     }
   }
 

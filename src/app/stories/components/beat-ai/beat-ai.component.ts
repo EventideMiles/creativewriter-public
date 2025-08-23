@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ViewEncapsulation, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ViewEncapsulation, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgSelectModule } from '@ng-select/ng-select';
@@ -47,7 +47,8 @@ interface SceneContext {
   ],
   templateUrl: './beat-ai.component.html',
   styleUrls: ['./beat-ai.component.scss'],
-  encapsulation: ViewEncapsulation.None
+  encapsulation: ViewEncapsulation.None,
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
   private modelService = inject(ModelService);
@@ -59,6 +60,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
   private tokenCounter = inject(TokenCounterService);
   private modalService = inject(BeatAIModalService);
   private databaseService = inject(DatabaseService);
+  private cdr = inject(ChangeDetectorRef);
 
   @Input() beatData!: BeatAI;
   @Input() storyId?: string;
@@ -188,6 +190,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
           }
           // Note: Streaming text is handled directly in the editor via ProseMirror service
           // The component just tracks the generation state
+          this.cdr.markForCheck();
         }
       })
     );
@@ -196,6 +199,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     this.subscription.add(
       this.databaseService.syncStatus$.subscribe((status: SyncStatus) => {
         this.isSync = status.isSync;
+        this.cdr.markForCheck();
       })
     );
   }
@@ -449,6 +453,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
         
         // Update favorite models
         this.updateFavoriteModels();
+        this.cdr.markForCheck();
       })
     );
     
@@ -466,6 +471,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
         }
         // Update favorite models after loading
         this.updateFavoriteModels();
+        this.cdr.markForCheck();
       })
     );
   }

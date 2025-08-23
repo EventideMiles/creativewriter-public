@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, TemplateRef, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, ChangeDetectionStrategy, TemplateRef, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -48,7 +48,8 @@ import { PDFExportService, PDFExportProgress } from '../../../shared/services/pd
     VideoModalComponent, AppHeaderComponent, StoryStatsComponent, VersionTooltipComponent
   ],
   templateUrl: './story-editor.component.html',
-  styleUrls: ['./story-editor.component.scss']
+  styleUrls: ['./story-editor.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StoryEditorComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
@@ -147,6 +148,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       this.settingsService.settings$.subscribe(settings => {
         this.currentTextColor = settings.appearance?.textColor || '#e0e0e0';
         this.applyTextColorToProseMirror();
+        this.cdr.markForCheck();
       })
     );
     
@@ -181,7 +183,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         this.updateWordCount();
         
         // Trigger change detection to ensure template is updated
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
         
         // Initialize editor after story is loaded and view is available
         setTimeout(() => {
@@ -235,6 +237,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     this.subscription.add(
       this.beatAIService.isStreaming$.subscribe(isStreaming => {
         this.isStreamingActive = isStreaming;
+        this.cdr.markForCheck();
       })
     );
 
@@ -992,7 +995,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Update header actions to reflect the new word count
     this.updateHeaderActions();
     
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
   }
 
   private showSlashDropdownAtCursor(): void {
@@ -1244,7 +1247,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     });
     
     // Force change detection
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
   }
 
   toggleDebugMode(): void {
@@ -1290,7 +1293,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     this.currentImageId = imageId;
     
     // Force change detection to ensure the binding is updated before showing modal
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
     
     console.log('After detectChanges, currentImageId is:', this.currentImageId);
     this.showVideoModal = true;
