@@ -3,7 +3,7 @@ import { StoryService } from '../../stories/services/story.service';
 import { CodexService } from '../../stories/services/codex.service';
 import { Story, Chapter, Scene } from '../../stories/models/story.interface';
 import { CodexEntry } from '../../stories/models/codex.interface';
-import JSZip from 'jszip';
+import JSZip from '@progress/jszip-esm';
 import * as yaml from 'js-yaml';
 
 export interface NovelCrafterCharacter {
@@ -72,7 +72,7 @@ export class NovelCrafterImportService {
       const entryFiles: string[] = [];
       
       for (const [relativePath, zipObject] of Object.entries(zipContent.files)) {
-        const fileObj = zipObject as JSZip.JSZipObject;
+        const fileObj = zipObject;
         if (fileObj.dir) {
           console.log(`Directory: ${relativePath}`);
           continue; // Skip directories

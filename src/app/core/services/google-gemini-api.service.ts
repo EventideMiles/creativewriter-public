@@ -466,7 +466,7 @@ export class GoogleGeminiApiService {
       let accumulatedContent = '';
       let buffer = ''; // Buffer for incomplete JSON chunks
       let aborted = false;
-      let timeoutId: NodeJS.Timeout | number;
+      let timeoutId: number;
       
       // Create AbortController for cancellation
       const abortController = new AbortController();
