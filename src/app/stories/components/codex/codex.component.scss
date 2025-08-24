@@ -21,8 +21,6 @@
       position: relative;
     }
     
-    /* Remove mobile-specific overrides - use same layout as story-list */
-    
     ion-content::part(background) {
       background: transparent !important;
     }
@@ -32,10 +30,6 @@
       padding: 0.125rem;
       max-width: none;
     }
-    
-    /* Card padding now inherited from global :root variables */
-    
-    /* Grid and column spacing now inherited from global :root variables */
 
     .categories-sidebar {
       position: sticky;
@@ -64,19 +58,17 @@
       margin: 2px 0 0 0 !important;
     }
     
-    /* Apply cyberpunk styling to all ion-cards */
     ion-card {
       background: linear-gradient(135deg, rgba(20, 20, 20, 0.3) 0%, rgba(15, 15, 15, 0.3) 100%);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 16px;
       backdrop-filter: blur(8px) saturate(120%);
-      -webkit-backdrop-filter: blur(8px) saturate(120%);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
       transition: all 0.3s ease;
       --color: #f8f9fa;
     }
     
-    ion-card-header {
+    ion-card-header, ion-card-content {
       background: transparent !important;
       --background: transparent !important;
     }
@@ -88,11 +80,6 @@
       font-weight: 600 !important;
     }
     
-    ion-card-content {
-      background: transparent !important;
-      --background: transparent !important;
-    }
-    
     ion-card:hover {
       background: linear-gradient(135deg, rgba(25, 25, 25, 0.4) 0%, rgba(20, 20, 20, 0.4) 100%);
       border-color: rgba(71, 118, 230, 0.3);
@@ -101,22 +88,16 @@
     }
     
 
-    /* Make ion-list and ion-items transparent */
-    ion-list {
+    ion-list, ion-item, ion-item::part(native) {
       background: transparent !important;
       --background: transparent !important;
     }
     
     ion-item {
-      --background: transparent !important;
       --background-hover: rgba(255, 255, 255, 0.1) !important;
       --background-focused: rgba(255, 255, 255, 0.1) !important;
       --color: #f8f9fa !important;
       --border-color: rgba(255, 255, 255, 0.1) !important;
-    }
-    
-    ion-item::part(native) {
-      background: transparent !important;
     }
     
     .active-category {
@@ -148,12 +129,9 @@
       min-width: 150px;
     }
     
-    .category-menu ion-item {
-      --background: transparent !important;
-    }
-    
-    .category-menu ion-list {
+    .category-menu ion-item, .category-menu ion-list {
       background: transparent !important;
+      --background: transparent !important;
     }
 
     .entries-main {
@@ -165,7 +143,6 @@
       border: 1px solid rgba(255, 255, 255, 0.1) !important;
       border-radius: 16px !important;
       backdrop-filter: blur(8px) saturate(120%) !important;
-      -webkit-backdrop-filter: blur(8px) saturate(120%) !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
       transition: all 0.3s ease;
       margin-bottom: 0.125rem;
@@ -180,7 +157,6 @@
     .entry-card ion-card-content {
       background: transparent !important;
       --background: transparent !important;
-      /* Padding inherited from global :root variables */
     }
     
     .entry-card ion-card-title {
@@ -217,7 +193,6 @@
       font-size: 0.7rem !important;
       height: 20px !important;
       margin: 1px !important;
-      /* Padding now inherited from global :root variables */
     }
     
     /* Tag chips in search results and entry cards */
@@ -739,7 +714,6 @@
       background: var(--ion-color-medium-shade);
     }
 
-    /* Enhanced content textarea */
     .content-textarea {
       min-height: 120px;
       max-height: 400px;
@@ -756,7 +730,6 @@
       padding-bottom: 12px;
     }
 
-    /* Dark mode is already the default theme - these styles are applied by default */
     .scrollable-textarea::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.2);
     }
@@ -765,7 +738,6 @@
       background: rgba(255, 255, 255, 0.3);
     }
 
-    /* Category Modal Styling - same as entry modal */
     .category-modal {
       --width: 90vw;
       --max-width: 600px;
