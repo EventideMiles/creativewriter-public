@@ -868,7 +868,8 @@ export class BeatAIService {
         }
         
         // Extract keywords from tags - these are crucial for relevance matching
-        const keywords: string[] = entry.tags || [];
+        // Create a copy of tags to avoid mutating the original array
+        const keywords: string[] = entry.tags ? [...entry.tags] : [];
         
         // Also extract important words from the title as additional keywords
         const titleWords = entry.title.split(/\s+/)
