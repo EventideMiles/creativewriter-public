@@ -102,13 +102,14 @@ export class CodexService {
           // Clean up the codex data to ensure no duplicate tags
           const cleanedCodex = this.cleanCodexData(codex);
           
-          // Replace the entire codex content instead of merging
-          // This prevents accumulation of duplicate data
+          // Merge with the latest document, preserving _rev
+          // But use cleaned codex to ensure no duplicate tags
           const updatedDoc = {
+            ...docToUpdate,
+            ...cleanedCodex,
             _id: docId,
-            _rev: docToUpdate._rev, // Preserve revision for conflict resolution
             type: 'codex',
-            ...cleanedCodex
+            _rev: docToUpdate._rev // Preserve revision for conflict resolution
           };
           
           await this.db!.put(updatedDoc);
@@ -138,22 +139,30 @@ export class CodexService {
   }
 
   private cleanCodexData(codex: Codex): Codex {
-    // Deep clone the codex to avoid mutating the original
-    const cleaned = JSON.parse(JSON.stringify(codex));
+    // Only deep clone and process categories if they contain entries with tags
+    // This is more efficient than always doing a full deep clone
     
-    // Process each category and its entries
-    if (cleaned.categories && Array.isArray(cleaned.categories)) {
-      cleaned.categories = cleaned.categories.map((category: CodexCategory) => ({
+    // Check if we need to clean anything
+    const needsCleaning = codex.categories?.some(cat => 
+      cat.entries?.some(entry => entry.tags && entry.tags.length > 0)
+    );
+    
+    if (!needsCleaning) {
+      return codex;
+    }
+    
+    // Process categories and deduplicate tags
+    return {
+      ...codex,
+      categories: codex.categories.map((category: CodexCategory) => ({
         ...category,
         entries: category.entries?.map((entry: CodexEntry) => ({
           ...entry,
           // Deduplicate tags if they exist
           tags: entry.tags ? [...new Set(entry.tags)] : []
         })) || []
-      }));
-    }
-    
-    return cleaned;
+      }))
+    };
   }
 
 
