@@ -77,65 +77,24 @@ export type StoryLanguage = 'en' | 'de' | 'fr' | 'es' | 'custom';
     </ion-content>
   `,
   styles: [`
-    ion-header {
-      --background: rgba(45, 45, 45, 0.95);
-    }
-    
-    ion-toolbar {
-      --background: transparent;
-      --color: #f8f9fa;
-    }
-    
-    ion-content {
-      --background: rgba(25, 25, 25, 0.95);
-    }
-    
     .description {
       margin: 16px 0;
-      color: #f8f9fa;
+      color: var(--ion-color-medium);
     }
-    
     .button-container {
       margin-top: 24px;
     }
-    
-    ion-list {
-      background: transparent;
-    }
-    
     ion-item {
-      --background: rgba(40, 40, 40, 0.5);
-      --color: #f8f9fa;
       --padding-start: 16px;
       margin-bottom: 8px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
-    ion-item:hover {
-      --background: rgba(50, 50, 50, 0.6);
-    }
-    
     ion-label h2 {
       font-weight: 600;
       margin-bottom: 4px;
-      color: #f8f9fa;
     }
-    
     ion-label p {
       font-size: 0.875rem;
-      color: #adb5bd;
-    }
-    
-    ion-radio {
-      --color: #4776e6;
-      --color-checked: #8bb4f8;
-    }
-    
-    ion-button {
-      --background: #4776e6;
-      --color: white;
-      font-weight: 600;
+      color: var(--ion-color-medium);
     }
   `]
 })
