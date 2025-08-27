@@ -26,7 +26,7 @@ export type StoryLanguage = 'en' | 'de' | 'fr' | 'es' | 'custom';
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding">
+    <ion-content class="dialog-padding">
       <p class="description">
         Choose the language for your story. This will set the AI assistant's language for generating content.
       </p>
@@ -83,6 +83,13 @@ export type StoryLanguage = 'en' | 'de' | 'fr' | 'es' | 'custom';
     
     ion-content {
       --background: rgba(20, 20, 20, 0.95);
+    }
+    
+    .dialog-padding {
+      --padding-start: 24px;
+      --padding-end: 24px;
+      --padding-top: 20px;
+      --padding-bottom: 24px;
     }
     
     .description {
