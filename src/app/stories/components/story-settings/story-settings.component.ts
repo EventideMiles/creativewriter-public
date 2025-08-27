@@ -104,11 +104,6 @@ export class StorySettingsComponent implements OnInit {
           ? { ...this.story.settings } 
           : { ...DEFAULT_STORY_SETTINGS };
         
-        // If settings don't have a language or have outdated templates, load fresh ones
-        if (!this.settings.language || this.isUsingOldTemplate()) {
-          await this.loadLanguageSpecificTemplates();
-        }
-        
         this.originalSettings = { ...this.settings };
       } else {
         this.router.navigate(['/']);
@@ -141,19 +136,11 @@ export class StorySettingsComponent implements OnInit {
   async resetToDefaults(): Promise<void> {
     if (confirm('Do you really want to reset the settings to default values?')) {
       this.settings = { ...DEFAULT_STORY_SETTINGS };
-      // Load fresh templates for the story's language
-      await this.loadLanguageSpecificTemplates();
       this.onSettingsChange();
     }
   }
 
-  private isUsingOldTemplate(): boolean {
-    // Check if the current system message is still the old short version
-    const oldSystemMessage = 'You are a creative writing assistant that helps with writing stories. Maintain the style and tone of the existing story.';
-    return this.settings.systemMessage === oldSystemMessage;
-  }
-
-  private async loadLanguageSpecificTemplates(): Promise<void> {
+  async refreshTemplates(): Promise<void> {
     const language = (this.settings.language as StoryLanguage) || 'en';
     
     try {
@@ -169,14 +156,11 @@ export class StorySettingsComponent implements OnInit {
       if (!this.settings.language) {
         this.settings.language = 'en';
       }
+      
+      this.onSettingsChange();
     } catch (error) {
       console.error('Error loading language-specific templates:', error);
     }
-  }
-
-  async refreshTemplates(): Promise<void> {
-    await this.loadLanguageSpecificTemplates();
-    this.onSettingsChange();
   }
 
   goBack(): void {
