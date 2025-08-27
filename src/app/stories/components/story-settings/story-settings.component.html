@@ -68,20 +68,29 @@
         <ion-card class="settings-section">
           <ion-card-header>
             <ion-card-title>AI System Message</ion-card-title>
+            <ion-button 
+              slot="end" 
+              fill="clear" 
+              size="small"
+              (click)="refreshTemplates()"
+              color="primary">
+              <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
+            </ion-button>
           </ion-card-header>
           <ion-card-content>
             <ion-text color="medium">
               <p>This message defines the context and personality of the AI assistant for this story.</p>
+              <p><small><strong>Language:</strong> {{ settings.language || 'en' | uppercase }}</small></p>
             </ion-text>
             <ion-textarea
               [(ngModel)]="settings.systemMessage"
               (ionInput)="onSettingsChange()"
-              placeholder="Geben Sie die System-Nachricht ein..."
+              placeholder="Enter the system message..."
               rows="6"
               class="settings-textarea"
               auto-grow="true">
             </ion-textarea>
-            <ion-note class="char-count">{{ settings.systemMessage.length }} Zeichen</ion-note>
+            <ion-note class="char-count">{{ settings.systemMessage.length }} characters</ion-note>
           </ion-card-content>
         </ion-card>
         

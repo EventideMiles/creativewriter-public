@@ -20,6 +20,8 @@ import {
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { Story, StorySettings, DEFAULT_STORY_SETTINGS } from '../../models/story.interface';
+import { getSystemMessage, getBeatGenerationTemplate } from '../../../shared/resources/system-messages';
+import { StoryLanguage } from '../../../shared/components/language-selection-dialog.component';
 import { SettingsTabsComponent, TabItem } from '../../../shared/components/settings-tabs.component';
 import { SettingsContentComponent } from '../../../shared/components/settings-content.component';
 import { DbMaintenanceService, OrphanedImage, DatabaseStats, DuplicateImage, IntegrityIssue } from '../../../shared/services/db-maintenance.service';
@@ -101,6 +103,12 @@ export class StorySettingsComponent implements OnInit {
         this.settings = this.story.settings 
           ? { ...this.story.settings } 
           : { ...DEFAULT_STORY_SETTINGS };
+        
+        // If settings don't have a language or have outdated templates, load fresh ones
+        if (!this.settings.language || this.isUsingOldTemplate()) {
+          await this.loadLanguageSpecificTemplates();
+        }
+        
         this.originalSettings = { ...this.settings };
       } else {
         this.router.navigate(['/']);
@@ -130,11 +138,45 @@ export class StorySettingsComponent implements OnInit {
     this.hasUnsavedChanges = false;
   }
 
-  resetToDefaults(): void {
+  async resetToDefaults(): Promise<void> {
     if (confirm('Do you really want to reset the settings to default values?')) {
       this.settings = { ...DEFAULT_STORY_SETTINGS };
+      // Load fresh templates for the story's language
+      await this.loadLanguageSpecificTemplates();
       this.onSettingsChange();
     }
+  }
+
+  private isUsingOldTemplate(): boolean {
+    // Check if the current system message is still the old short version
+    const oldSystemMessage = 'You are a creative writing assistant that helps with writing stories. Maintain the style and tone of the existing story.';
+    return this.settings.systemMessage === oldSystemMessage;
+  }
+
+  private async loadLanguageSpecificTemplates(): Promise<void> {
+    const language = (this.settings.language as StoryLanguage) || 'en';
+    
+    try {
+      const [systemMessage, beatTemplate] = await Promise.all([
+        getSystemMessage(language),
+        getBeatGenerationTemplate(language)
+      ]);
+      
+      this.settings.systemMessage = systemMessage;
+      this.settings.beatGenerationTemplate = beatTemplate;
+      
+      // Ensure language is set
+      if (!this.settings.language) {
+        this.settings.language = 'en';
+      }
+    } catch (error) {
+      console.error('Error loading language-specific templates:', error);
+    }
+  }
+
+  async refreshTemplates(): Promise<void> {
+    await this.loadLanguageSpecificTemplates();
+    this.onSettingsChange();
   }
 
   goBack(): void {
