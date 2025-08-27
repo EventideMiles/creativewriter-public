@@ -461,6 +461,17 @@ button:hover {
   --width: 90%;
   --max-width: 500px;
   --border-radius: 12px;
+  --background: rgba(25, 25, 25, 0.85);
+  
+  .modal-wrapper {
+    background: rgba(25, 25, 25, 0.85) !important;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+  }
+  
+  ion-backdrop {
+    background: rgba(0, 0, 0, 0.6) !important;
+  }
 }
 
 /* Mobile keyboard handling */

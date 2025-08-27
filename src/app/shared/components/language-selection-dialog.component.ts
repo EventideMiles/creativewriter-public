@@ -77,6 +77,14 @@ export type StoryLanguage = 'en' | 'de' | 'fr' | 'es' | 'custom';
     </ion-content>
   `,
   styles: [`
+    ion-header {
+      --background: rgba(30, 30, 30, 0.95);
+    }
+    
+    ion-content {
+      --background: rgba(20, 20, 20, 0.95);
+    }
+    
     .description {
       margin: 16px 0;
       color: var(--ion-color-medium);
@@ -84,9 +92,20 @@ export type StoryLanguage = 'en' | 'de' | 'fr' | 'es' | 'custom';
     .button-container {
       margin-top: 24px;
     }
+    ion-list {
+      background: transparent;
+    }
+    
     ion-item {
+      --background: rgba(40, 40, 40, 0.6);
       --padding-start: 16px;
       margin-bottom: 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    ion-item:hover {
+      --background: rgba(50, 50, 50, 0.7);
     }
     ion-label h2 {
       font-weight: 600;
