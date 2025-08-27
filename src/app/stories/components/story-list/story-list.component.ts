@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer } from '@angular/platform-browser';
 import { 
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonChip, IonIcon, IonButton, 
-  IonContent, IonLabel
+  IonContent, IonLabel, ModalController
 } from '@ionic/angular/standalone';
 import { CdkDropList, CdkDrag, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { addIcons } from 'ionicons';
@@ -18,6 +18,7 @@ import { AuthService, User } from '../../../core/services/auth.service';
 import { AppHeaderComponent, BurgerMenuItem, HeaderAction } from '../../../shared/components/app-header.component';
 import { HeaderNavigationService } from '../../../shared/services/header-navigation.service';
 import { VersionService } from '../../../core/services/version.service';
+import { LanguageSelectionDialogComponent } from '../../../shared/components/language-selection-dialog.component';
 
 @Component({
   selector: 'app-story-list',
@@ -40,6 +41,7 @@ export class StoryListComponent implements OnInit {
   private headerNavService = inject(HeaderNavigationService);
   private sanitizer = inject(DomSanitizer);
   private cdr = inject(ChangeDetectorRef);
+  private modalCtrl = inject(ModalController);
   versionService = inject(VersionService);
 
   @ViewChild('burgerMenuFooter', { static: true }) burgerMenuFooter!: TemplateRef<unknown>;
@@ -167,8 +169,20 @@ export class StoryListComponent implements OnInit {
 
   async createNewStory(): Promise<void> {
     this.fabMenuOpen = false;
-    const newStory = await this.storyService.createStory();
-    this.router.navigate(['/stories/editor', newStory.id]);
+    
+    // Show language selection dialog
+    const modal = await this.modalCtrl.create({
+      component: LanguageSelectionDialogComponent,
+      cssClass: 'language-selection-modal'
+    });
+    
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss();
+    
+    if (role === 'confirm' && data) {
+      const newStory = await this.storyService.createStory(data);
+      this.router.navigate(['/stories/editor', newStory.id]);
+    }
   }
 
   openStory(storyId: string): void {

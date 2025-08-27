@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Story, Chapter, Scene, DEFAULT_STORY_SETTINGS } from '../models/story.interface';
 import { DatabaseService } from '../../core/services/database.service';
+import { getSystemMessage, getBeatGenerationTemplate } from '../../shared/resources/system-messages';
+import { StoryLanguage } from '../../shared/components/language-selection-dialog.component';
 
 @Injectable({
   providedIn: 'root'
@@ -112,7 +114,7 @@ export class StoryService {
     }
   }
 
-  async createStory(): Promise<Story> {
+  async createStory(language: StoryLanguage = 'en'): Promise<Story> {
     this.db = await this.databaseService.getDatabase();
     
     const firstChapter: Chapter = {
@@ -139,7 +141,12 @@ export class StoryService {
       id: storyId,
       title: '',
       chapters: [firstChapter],
-      settings: { ...DEFAULT_STORY_SETTINGS },
+      settings: {
+        ...DEFAULT_STORY_SETTINGS,
+        systemMessage: getSystemMessage(language),
+        beatGenerationTemplate: getBeatGenerationTemplate(language),
+        language: language
+      },
       // Don't set order here - let it be undefined so it appears at top with latest updatedAt
       createdAt: new Date(),
       updatedAt: new Date()
