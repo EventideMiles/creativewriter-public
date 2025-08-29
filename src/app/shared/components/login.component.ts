@@ -60,12 +60,26 @@ import { AuthService } from '../../core/services/auth.service';
         </form>
         
         <div class="login-info">
-          <h3>ℹ️ Notes:</h3>
+          <h3>ℹ️ Sign in benefits:</h3>
           <ul>
             <li>No registration required - just enter username</li>
-            <li>Your stories are automatically synced across all your devices</li>
-            <li>Without signing in, data is only stored locally</li>
+            <li>Your stories sync automatically across all your devices</li>
+            <li>Access your stories from phone, tablet, and computer</li>
             <li>The username is used for the database (only a-z, 0-9, _, -)</li>
+          </ul>
+        </div>
+        
+        <div class="divider-with-text">
+          <span>OR</span>
+        </div>
+        
+        <div class="local-info">
+          <h3>💾 Work locally instead:</h3>
+          <ul>
+            <li>Stories saved only on this device</li>
+            <li>No sync between devices</li>
+            <li>Data persists across browser sessions</li>
+            <li>You can sign in later to enable sync</li>
           </ul>
         </div>
         
@@ -227,6 +241,53 @@ import { AuthService } from '../../core/services/auth.service';
     
     .login-info li {
       margin-bottom: 0.3rem;
+    }
+    
+    .local-info {
+      margin: 1rem 0;
+      padding: 1rem;
+      background: #1a1a1a;
+      border-radius: 4px;
+      border-left: 4px solid #ffa500;
+      border: 1px solid rgba(255, 165, 0, 0.3);
+    }
+    
+    .local-info h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      color: #e0e0e0;
+    }
+    
+    .local-info ul {
+      margin: 0;
+      padding-left: 1.2rem;
+      font-size: 0.85rem;
+      color: #adb5bd;
+    }
+    
+    .local-info li {
+      margin-bottom: 0.3rem;
+    }
+    
+    .divider-with-text {
+      display: flex;
+      align-items: center;
+      margin: 1.5rem 0;
+      color: #6c757d;
+      font-size: 0.9rem;
+    }
+    
+    .divider-with-text::before,
+    .divider-with-text::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #404040;
+    }
+    
+    .divider-with-text span {
+      padding: 0 1rem;
+      font-weight: 500;
     }
   `]
 })
