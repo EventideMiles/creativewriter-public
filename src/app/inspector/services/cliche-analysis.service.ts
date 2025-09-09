@@ -167,14 +167,43 @@ export class ClicheAnalysisService {
   }
 
   private parseJson(text: string): unknown | null {
-    // Try direct parse
-    try { return JSON.parse(text); } catch { /* ignore and try fallback */ }
-    // Fallback: extract first {...} block
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
+    if (!text) return null;
+    const cleaned = this.stripCodeFences(text).trim();
+    // 1) Try direct parse
+    try { return JSON.parse(cleaned); } catch { /* ignore: try fallbacks */ }
+    // 2) Balanced braces extraction (first object)
+    const obj = this.extractFirstJsonObject(cleaned);
+    if (obj) {
+      try { return JSON.parse(obj); } catch { /* ignore: try next */ }
+    }
+    // 3) Fallback: first-to-last brace slice
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
     if (start >= 0 && end > start) {
-      const slice = text.slice(start, end + 1);
-      try { return JSON.parse(slice); } catch { /* still invalid */ }
+      const slice = cleaned.slice(start, end + 1);
+      try { return JSON.parse(slice); } catch { /* give up */ }
+    }
+    return null;
+  }
+
+  private stripCodeFences(s: string): string {
+    // Remove ```json ... ``` or ``` ... ``` fences
+    return s.replace(/```[a-zA-Z]*\n([\s\S]*?)```/g, '$1');
+  }
+
+  private extractFirstJsonObject(s: string): string | null {
+    const start = s.indexOf('{');
+    if (start < 0) return null;
+    let depth = 0;
+    for (let i = start; i < s.length; i++) {
+      const ch = s[i];
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          return s.slice(start, i + 1);
+        }
+      }
     }
     return null;
   }
