@@ -25,8 +25,8 @@ export class HeaderNavigationService {
     this.router.navigate(['/stories/image-generation']);
   }
 
-  goToStoryInspector(): void {
-    this.router.navigate(['/inspector']);
+  goToStoryInspector(storyId: string): void {
+    this.router.navigate(['/stories/inspector', storyId]);
   }
 
   goToNovelCrafterImport(): void {
@@ -54,11 +54,6 @@ export class HeaderNavigationService {
   // Get common burger menu items
   getCommonBurgerMenuItems(): BurgerMenuItem[] {
     return [
-      {
-        icon: 'search',
-        label: 'Story Inspector',
-        action: () => this.goToStoryInspector()
-      },
       {
         icon: 'stats-chart',
         label: 'AI Logs',

@@ -13,37 +13,37 @@
     <ion-card>
       <ion-card-header>
         <ion-card-title>
-          Klischee Analyser
+          Cliché Analyzer
         </ion-card-title>
       </ion-card-header>
       <ion-card-content>
         <ion-item lines="none">
-          <ion-label position="stacked">Text eingeben</ion-label>
+          <ion-label position="stacked">Text</ion-label>
           <ion-textarea
             [autoGrow]="true"
             [rows]="8"
-            placeholder="Füge hier deinen Text ein…"
+            placeholder="Paste or edit the extracted story text…"
             [(ngModel)]="text">
           </ion-textarea>
         </ion-item>
 
         <div class="actions">
-          <ion-button color="primary" (click)="analyse()">
+          <ion-button color="primary" (click)="analyze()">
             <ion-icon slot="start" name="search"></ion-icon>
-            Analysieren
+            Analyze
           </ion-button>
         </div>
 
         <div class="results" *ngIf="findings.length > 0">
-          <h4>Funde</h4>
+          <h4>Findings</h4>
           <ion-list>
             <ion-item *ngFor="let f of findings">
               <ion-badge [color]="f.type === 'cliche' ? 'warning' : 'tertiary'" slot="start">
-                {{ f.type === 'cliche' ? 'Klischee' : 'Wiederholung' }}
+                {{ f.type === 'cliche' ? 'Cliché' : 'Repetition' }}
               </ion-badge>
               <ion-label>
                 <div class="snippet">{{ f.snippet }}</div>
-                <div class="meta" *ngIf="f.count">Vorkommen: {{ f.count }}</div>
+                <div class="meta" *ngIf="f.count">Occurrences: {{ f.count }}</div>
               </ion-label>
             </ion-item>
           </ion-list>

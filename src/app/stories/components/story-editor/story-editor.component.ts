@@ -10,7 +10,7 @@ import { addIcons } from 'ionicons';
 import { 
   arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
   saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
-  chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart
+  chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { Story, Scene } from '../../models/story.interface';
@@ -135,7 +135,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     addIcons({ 
       arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
       saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
-      chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart
+      chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search
     });
   }
 
@@ -471,6 +471,11 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         color: 'warning'
       },
       {
+        icon: 'search',
+        label: 'Story Inspector',
+        action: () => this.goToInspector()
+      },
+      {
         icon: 'book-outline',
         label: 'Codex',
         action: () => this.goToCodex()
@@ -496,6 +501,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         action: () => this.headerNavService.goToImageGeneration()
       }
     ];
+  }
+
+  goToInspector(): void {
+    this.router.navigate(['/stories/inspector', this.story.id]);
   }
 
   private updateHeaderActions(): void {

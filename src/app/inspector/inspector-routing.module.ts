@@ -1,12 +1,11 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { KlischeeAnalyserComponent } from './components/klischee-analyser/klischee-analyser.component';
+import { ClicheAnalyzerComponent } from './components/cliche-analyzer/cliche-analyzer.component';
 
 const routes: Routes = [
   {
-    path: '',
-    pathMatch: 'full',
-    component: KlischeeAnalyserComponent
+    path: ':id',
+    component: ClicheAnalyzerComponent
   }
 ];
 
@@ -15,4 +14,3 @@ const routes: Routes = [
   exports: [RouterModule]
 })
 export class InspectorRoutingModule {}
-
