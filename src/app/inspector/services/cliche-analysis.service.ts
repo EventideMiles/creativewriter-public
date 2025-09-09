@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { SettingsService } from '../../core/services/settings.service';
 import { OpenRouterApiService } from '../../core/services/openrouter-api.service';
 import { ClaudeApiService } from '../../core/services/claude-api.service';
+import { GoogleGeminiApiService } from '../../core/services/google-gemini-api.service';
+import { OllamaApiService, OllamaResponse, OllamaChatResponse } from '../../core/services/ollama-api.service';
 import { firstValueFrom } from 'rxjs';
 import { ClicheFinding, SceneClicheResult, ClicheFindingType } from '../models/cliche-analysis.interface';
 
@@ -10,6 +12,8 @@ export class ClicheAnalysisService {
   private settings = inject(SettingsService);
   private openrouter = inject(OpenRouterApiService);
   private claude = inject(ClaudeApiService);
+  private gemini = inject(GoogleGeminiApiService);
+  private ollama = inject(OllamaApiService);
 
   async analyzeScene(params: {
     modelId?: string; // format: provider:model
@@ -55,6 +59,32 @@ export class ClicheAnalysisService {
           })
         );
         content = res.content?.[0]?.text || '';
+      } else if (provider === 'gemini') {
+        const res = await firstValueFrom(
+          this.gemini.generateText(prompt, {
+            model,
+            maxTokens: 4000,
+            temperature: 0.1,
+            topP: 0.9
+          })
+        );
+        content = res.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else if (provider === 'ollama') {
+        const res = await firstValueFrom(
+          this.ollama.generateText(prompt, {
+            model,
+            maxTokens: 2000,
+            temperature: 0.1,
+            topP: 0.9
+          })
+        );
+        const maybeGen = res as OllamaResponse;
+        const maybeChat = res as OllamaChatResponse;
+        if (typeof maybeGen.response === 'string') {
+          content = maybeGen.response;
+        } else if (maybeChat.message && typeof maybeChat.message.content === 'string') {
+          content = maybeChat.message.content;
+        } else { content = ''; }
       } else {
         return {
           sceneId,

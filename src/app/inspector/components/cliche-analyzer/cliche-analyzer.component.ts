@@ -144,9 +144,11 @@ export class ClicheAnalyzerComponent implements OnInit {
 
   private loadModels(): void {
     // Load models from multiple providers similar to other components
-    this.modelService.loadAllModels().subscribe(({ openRouter, claude }) => {
+    this.modelService.loadAllModels().subscribe(({ openRouter, gemini, ollama, claude }) => {
       const enriched = [
         ...openRouter.map(m => ({ ...m, id: `openrouter:${m.id}` })),
+        ...gemini.map(m => ({ ...m, id: `gemini:${m.id}` })),
+        ...ollama.map(m => ({ ...m, id: `ollama:${m.id}` })),
         ...claude.map(m => ({ ...m, id: `claude:${m.id}` })),
       ];
       this.availableModels = enriched;
