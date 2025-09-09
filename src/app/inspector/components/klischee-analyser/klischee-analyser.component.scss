@@ -1,0 +1,38 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+ion-content {
+  --background: transparent;
+}
+
+ion-card {
+  margin: 1rem;
+  background: linear-gradient(135deg, rgba(45, 45, 45, 0.4) 0%, rgba(30, 30, 30, 0.4) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(139, 180, 248, 0.2);
+  border-radius: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.results {
+  margin-top: 1rem;
+}
+
+.snippet {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: #e6e6e6;
+}
+
+.meta {
+  color: #9aa0a6;
+  font-size: 0.85rem;
+}
+

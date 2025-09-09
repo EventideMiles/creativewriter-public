@@ -1,0 +1,55 @@
+<div class="ion-page">
+  <app-header
+    [title]="'Story Inspector'"
+    [showBackButton]="true"
+    [backAction]="goBack.bind(this)"
+    [showBurgerMenu]="true"
+    [burgerMenuTitle]="'Navigation'"
+    [burgerMenuItems]="burgerMenuItems"
+    [rightActions]="rightActions">
+  </app-header>
+
+  <ion-content>
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          Klischee Analyser
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item lines="none">
+          <ion-label position="stacked">Text eingeben</ion-label>
+          <ion-textarea
+            [autoGrow]="true"
+            [rows]="8"
+            placeholder="Füge hier deinen Text ein…"
+            [(ngModel)]="text">
+          </ion-textarea>
+        </ion-item>
+
+        <div class="actions">
+          <ion-button color="primary" (click)="analyse()">
+            <ion-icon slot="start" name="search"></ion-icon>
+            Analysieren
+          </ion-button>
+        </div>
+
+        <div class="results" *ngIf="findings.length > 0">
+          <h4>Funde</h4>
+          <ion-list>
+            <ion-item *ngFor="let f of findings">
+              <ion-badge [color]="f.type === 'cliche' ? 'warning' : 'tertiary'" slot="start">
+                {{ f.type === 'cliche' ? 'Klischee' : 'Wiederholung' }}
+              </ion-badge>
+              <ion-label>
+                <div class="snippet">{{ f.snippet }}</div>
+                <div class="meta" *ngIf="f.count">Vorkommen: {{ f.count }}</div>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  </ion-content>
+</div>
+

@@ -25,6 +25,10 @@ export class HeaderNavigationService {
     this.router.navigate(['/stories/image-generation']);
   }
 
+  goToStoryInspector(): void {
+    this.router.navigate(['/inspector']);
+  }
+
   goToNovelCrafterImport(): void {
     this.router.navigate(['/stories/import/novelcrafter']);
   }
@@ -50,6 +54,11 @@ export class HeaderNavigationService {
   // Get common burger menu items
   getCommonBurgerMenuItems(): BurgerMenuItem[] {
     return [
+      {
+        icon: 'search',
+        label: 'Story Inspector',
+        action: () => this.goToStoryInspector()
+      },
       {
         icon: 'stats-chart',
         label: 'AI Logs',
