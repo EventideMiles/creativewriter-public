@@ -103,13 +103,16 @@ export class ClicheAnalyzerComponent implements OnInit {
           const sceneText = this.stripHtmlTags(sc.content || '');
           if (!sceneText) continue;
           const sceneTitle = sc.title || `C${ch.chapterNumber || ch.order}S${sc.sceneNumber || sc.order}`;
-          const res = await this.clicheService.analyzeScene({
-            modelId: this.selectedModel,
-            sceneId: sc.id,
-            sceneTitle,
-            sceneText
-          });
-          results.push(res);
+        const res = await this.clicheService.analyzeScene({
+          modelId: this.selectedModel,
+          sceneId: sc.id,
+          sceneTitle,
+          sceneText
+        });
+        results.push(res);
+          // Update UI incrementally after each scene
+          this.results = [...results];
+          this.overview = this.buildOverview(this.results);
           this.cdr.markForCheck();
         }
       }
