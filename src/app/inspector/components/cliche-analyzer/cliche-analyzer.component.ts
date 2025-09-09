@@ -14,13 +14,13 @@ import { SceneClicheResult, GlobalClicheReport, ClicheFindingType } from '../../
 import { ModelService } from '../../../core/services/model.service';
 import { ModelOption } from '../../../core/models/model.interface';
 import { SettingsService } from '../../../core/services/settings.service';
-import { NgSelectModule } from '@ng-select/ng-select';
+import { ModelSelectorComponent } from '../../../shared/components/model-selector/model-selector.component';
 
 @Component({
   selector: 'app-cliche-analyzer',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, NgSelectModule,
+    CommonModule, FormsModule, ModelSelectorComponent,
     IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge,
     AppHeaderComponent
   ],

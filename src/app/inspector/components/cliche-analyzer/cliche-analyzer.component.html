@@ -18,20 +18,12 @@
       </ion-card-header>
       <ion-card-content>
         <div class="actions" style="display:flex; gap:12px; align-items:center; flex-wrap: wrap;">
-          <ng-select
-            [items]="availableModels"
-            bindLabel="label"
-            bindValue="id"
-            [(ngModel)]="selectedModel"
-            placeholder="Select AI model"
-            [clearable]="false"
-            style="min-width: 260px;">
-          </ng-select>
+          <app-model-selector [(model)]="selectedModel" [placeholder]="'Select AI model'" [appendTo]="'body'"></app-model-selector>
           <ion-button color="primary" (click)="analyze()">
             <ion-icon slot="start" name="search"></ion-icon>
             Analyze Story
           </ion-button>
-          <ion-badge color="medium" *ngIf="overview">Total: {{ (overview?.totals | json) }}</ion-badge>
+          <ion-badge color="medium" *ngIf="overview">Total: {{ (overview.totals | json) }}</ion-badge>
           <ion-badge color="tertiary" *ngIf="isAnalyzing">Analyzing…</ion-badge>
         </div>
 
