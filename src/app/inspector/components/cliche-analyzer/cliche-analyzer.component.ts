@@ -7,6 +7,7 @@ import {
   IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge, IonModal,
   IonSearchbar, IonItemDivider, IonCheckbox, IonChip, IonHeader, IonToolbar, IonTitle, IonButtons
 } from '@ionic/angular/standalone';
+import { IonSpinner, IonProgressBar } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { arrowBack, search, addOutline, closeOutline } from 'ionicons/icons';
 import { AppHeaderComponent, BurgerMenuItem, HeaderAction } from '../../../../app/ui/components/app-header.component';
@@ -23,7 +24,7 @@ import { ModelSelectorComponent } from '../../../shared/components/model-selecto
   standalone: true,
   imports: [
     CommonModule, FormsModule, ModelSelectorComponent,
-    IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge, IonModal, IonSearchbar, IonItemDivider, IonCheckbox, IonChip, IonHeader, IonToolbar, IonTitle, IonButtons,
+    IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge, IonModal, IonSearchbar, IonItemDivider, IonCheckbox, IonChip, IonHeader, IonToolbar, IonTitle, IonButtons, IonSpinner, IonProgressBar,
     AppHeaderComponent
   ],
   templateUrl: './cliche-analyzer.component.html',

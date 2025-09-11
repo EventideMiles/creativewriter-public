@@ -67,6 +67,17 @@ ion-card {
   margin-top: 1rem;
 }
 
+.busy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.busy-text {
+  color: #8bb4f8;
+}
+
 .snippet {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   color: #e6e6e6;
@@ -82,4 +93,8 @@ ion-card {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 8px;
+}
+
+.analyzing-spinner {
+  margin-left: 4px;
 }

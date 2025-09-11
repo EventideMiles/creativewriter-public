@@ -17,6 +17,7 @@
         </ion-card-title>
       </ion-card-header>
       <ion-card-content>
+        <ion-progress-bar *ngIf="isAnalyzing" type="indeterminate" color="tertiary"></ion-progress-bar>
         <!-- Selected scenes chips -->
         <div class="context-chips" *ngIf="selectedScenes.length > 0">
           <ion-chip *ngFor="let s of selectedScenes" color="primary">
@@ -31,6 +32,7 @@
             <ion-icon slot="start" name="search"></ion-icon>
             Analyze Selected
           </ion-button>
+          <ion-spinner *ngIf="isAnalyzing" name="dots" class="analyzing-spinner" color="tertiary"></ion-spinner>
           <ion-badge color="medium" *ngIf="overview">Total: {{ (overview.totals | json) }}</ion-badge>
           <ion-badge color="tertiary" *ngIf="isAnalyzing">Analyzing…</ion-badge>
         </div>
@@ -59,7 +61,11 @@
           </ion-list>
         </div>
         <ng-template #noResults>
-          <div class="meta">No results yet. Select a model and click Analyze.</div>
+          <div class="meta" *ngIf="!isAnalyzing">No results yet. Select scenes and click Analyze.</div>
+          <div class="busy" *ngIf="isAnalyzing">
+            <ion-spinner name="crescent" color="tertiary"></ion-spinner>
+            <div class="busy-text">Analyzing selected scenes…</div>
+          </div>
         </ng-template>
       </ion-card-content>
     </ion-card>
