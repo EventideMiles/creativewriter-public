@@ -31,13 +31,27 @@ ion-card {
 
 @media (max-width: 480px) {
   .actions {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px; /* tighter spacing on mobile */
+    flex-wrap: wrap;
   }
-  .actions app-model-selector,
-  .actions ion-button,
+  .actions app-model-selector {
+    flex: 1 1 180px;
+    min-width: 0; /* allow shrinking */
+  }
+  .actions ion-button {
+    flex: 0 0 auto;
+    margin: 0; /* remove any default spacing */
+  }
   .actions ion-badge {
-    width: 100%;
+    flex: 1 1 100%;
+    margin-top: 4px;
+  }
+
+  /* Remove any unintended spacing from ng-select inside the model selector */
+  :host ::ng-deep app-model-selector .ng-select {
+    margin: 0 !important;
   }
 }
 
