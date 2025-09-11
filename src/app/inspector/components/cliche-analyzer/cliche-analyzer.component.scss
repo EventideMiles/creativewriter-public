@@ -54,3 +54,10 @@ ion-card {
   color: #9aa0a6;
   font-size: 0.85rem;
 }
+
+.context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}

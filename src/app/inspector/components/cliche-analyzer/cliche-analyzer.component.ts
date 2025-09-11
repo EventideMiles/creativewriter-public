@@ -2,9 +2,13 @@ import { Component, ChangeDetectionStrategy, OnInit, inject, NgZone, ChangeDetec
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge } from '@ionic/angular/standalone';
+import { 
+  IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
+  IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge, IonModal,
+  IonSearchbar, IonItemDivider, IonCheckbox, IonChip, IonHeader, IonToolbar, IonTitle, IonButtons
+} from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBack, search } from 'ionicons/icons';
+import { arrowBack, search, addOutline, closeOutline } from 'ionicons/icons';
 import { AppHeaderComponent, BurgerMenuItem, HeaderAction } from '../../../../app/ui/components/app-header.component';
 import { HeaderNavigationService } from '../../../../app/shared/services/header-navigation.service';
 import { StoryService } from '../../../stories/services/story.service';
@@ -19,7 +23,7 @@ import { ModelSelectorComponent } from '../../../shared/components/model-selecto
   standalone: true,
   imports: [
     CommonModule, FormsModule, ModelSelectorComponent,
-    IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge,
+    IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge, IonModal, IonSearchbar, IonItemDivider, IonCheckbox, IonChip, IonHeader, IonToolbar, IonTitle, IonButtons,
     AppHeaderComponent
   ],
   templateUrl: './cliche-analyzer.component.html',
@@ -44,21 +48,41 @@ export class ClicheAnalyzerComponent implements OnInit {
 
   selectedModel = '';
 
+  // Scene selection state (similar to Scene Chat)
+  selectedScenes: {
+    chapterId: string;
+    sceneId: string;
+    chapterTitle: string;
+    sceneTitle: string;
+  }[] = [];
+  showSceneSelector = false;
+  sceneSearchTerm = '';
+
   burgerMenuItems: BurgerMenuItem[] = [];
   rightActions: HeaderAction[] = [];
 
   constructor() {
-    addIcons({ arrowBack, search });
+    addIcons({ arrowBack, search, addOutline, closeOutline });
     // Reuse common items so navigation stays consistent
     this.burgerMenuItems = this.headerNav.getCommonBurgerMenuItems();
-    this.rightActions = [{
-      icon: 'search',
-      label: 'Analyze',
-      action: () => this.runAnalyze(),
-      showOnMobile: true,
-      showOnDesktop: true,
-      tooltip: 'Analyze story for clichés'
-    }];
+    this.rightActions = [
+      {
+        icon: 'add-outline',
+        label: 'Scenes',
+        action: () => this.showSceneSelector = true,
+        showOnMobile: true,
+        showOnDesktop: true,
+        tooltip: 'Select scenes to analyze'
+      },
+      {
+        icon: 'search',
+        label: 'Analyze',
+        action: () => this.runAnalyze(),
+        showOnMobile: true,
+        showOnDesktop: true,
+        tooltip: 'Analyze selected scenes for clichés'
+      }
+    ];
   }
 
   async ngOnInit(): Promise<void> {
@@ -98,18 +122,21 @@ export class ClicheAnalyzerComponent implements OnInit {
     this.cdr.markForCheck();
     const results: SceneClicheResult[] = [];
     try {
+      const selectedIds = this.selectedScenes.map(s => s.sceneId);
+      const analyzeAll = selectedIds.length === 0;
       for (const ch of story.chapters || []) {
         for (const sc of ch.scenes || []) {
+          if (!analyzeAll && !selectedIds.includes(sc.id)) continue;
           const sceneText = this.stripHtmlTags(sc.content || '');
           if (!sceneText) continue;
           const sceneTitle = sc.title || `C${ch.chapterNumber || ch.order}S${sc.sceneNumber || sc.order}`;
-        const res = await this.clicheService.analyzeScene({
-          modelId: this.selectedModel,
-          sceneId: sc.id,
-          sceneTitle,
-          sceneText
-        });
-        results.push(res);
+          const res = await this.clicheService.analyzeScene({
+            modelId: this.selectedModel,
+            sceneId: sc.id,
+            sceneTitle,
+            sceneText
+          });
+          results.push(res);
           // Update UI incrementally after each scene
           this.results = [...results];
           this.overview = this.buildOverview(this.results);
@@ -177,5 +204,51 @@ export class ClicheAnalyzerComponent implements OnInit {
       .slice(0, 10)
       .map(([phrase, count]) => ({ phrase, count }));
     return { totals, topPhrases };
+  }
+
+  // Scene selection helpers
+  toggleSceneSelection(chapterId: string, sceneId: string): void {
+    const idx = this.selectedScenes.findIndex(s => s.sceneId === sceneId);
+    if (idx > -1) {
+      this.selectedScenes.splice(idx, 1);
+    } else {
+      const chapter = this.story?.chapters.find(c => c.id === chapterId);
+      const scene = chapter?.scenes.find(s => s.id === sceneId);
+      if (chapter && scene) {
+        this.selectedScenes.push({
+          chapterId: chapter.id,
+          sceneId: scene.id,
+          chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
+          sceneTitle: `C${chapter.chapterNumber || chapter.order}S${scene.sceneNumber || scene.order}:${scene.title}`
+        });
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  isSceneSelected(sceneId: string): boolean {
+    return this.selectedScenes.some(s => s.sceneId === sceneId);
+  }
+
+  removeSceneContext(sceneId: string): void {
+    const idx = this.selectedScenes.findIndex(s => s.sceneId === sceneId);
+    if (idx > -1) {
+      this.selectedScenes.splice(idx, 1);
+      this.cdr.markForCheck();
+    }
+  }
+
+  getFilteredScenes(chapter: Story['chapters'][number]): Story['chapters'][number]['scenes'] {
+    if (!this.sceneSearchTerm) return chapter.scenes;
+    const term = this.sceneSearchTerm.toLowerCase();
+    return (chapter.scenes || []).filter(scene =>
+      (scene.title || '').toLowerCase().includes(term) ||
+      (scene.content || '').toLowerCase().includes(term)
+    );
+  }
+
+  getScenePreview(html: string): string {
+    const clean = this.stripHtmlTags(html || '');
+    return clean.substring(0, 100) + (clean.length > 100 ? '...' : '');
   }
 }
