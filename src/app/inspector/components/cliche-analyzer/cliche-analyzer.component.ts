@@ -18,6 +18,7 @@ import { ClicheAnalysisService } from '../../services/cliche-analysis.service';
 import { SceneClicheResult, GlobalClicheReport, ClicheFindingType } from '../../models/cliche-analysis.interface';
 import { SettingsService } from '../../../core/services/settings.service';
 import { ModelSelectorComponent } from '../../../shared/components/model-selector/model-selector.component';
+import { ClicheAnalysisCacheService, ClicheAnalysisPersist } from '../../services/cliche-analysis-cache.service';
 
 @Component({
   selector: 'app-cliche-analyzer',
@@ -37,6 +38,7 @@ export class ClicheAnalyzerComponent implements OnInit {
   private storyService = inject(StoryService);
   private router = inject(Router);
   private clicheService = inject(ClicheAnalysisService);
+  private cache = inject(ClicheAnalysisCacheService);
   private settingsService = inject(SettingsService);
   private zone = inject(NgZone);
   private cdr = inject(ChangeDetectorRef);
@@ -93,6 +95,19 @@ export class ClicheAnalyzerComponent implements OnInit {
     // Initialize selected model from global settings if available
     const settings = this.settingsService.getSettings();
     this.selectedModel = settings.selectedModel || this.selectedModel;
+
+    // Try to restore previous analysis state for this story
+    const saved = this.cache.load(this.storyId);
+    if (saved) {
+      // Restore model if available
+      if (saved.modelId) this.selectedModel = saved.modelId;
+      // Restore selected scenes
+      this.selectedScenes = [...(saved.selectedScenes || [])];
+      // Restore results/overview
+      this.results = [...(saved.results || [])];
+      this.overview = saved.overview || null;
+      this.cdr.markForCheck();
+    }
   }
 
   runAnalyze(): void {
@@ -149,6 +164,9 @@ export class ClicheAnalyzerComponent implements OnInit {
           this.results = [...results];
           this.overview = this.buildOverview(this.results);
           this.cdr.markForCheck();
+
+          // Persist progress so users can navigate away and back
+          this.persistState();
         }
       }
       this.results = results;
@@ -156,6 +174,8 @@ export class ClicheAnalyzerComponent implements OnInit {
     } finally {
       this.isAnalyzing = false;
       this.cdr.markForCheck();
+      // Final persist
+      this.persistState();
     }
   }
 
@@ -232,6 +252,8 @@ export class ClicheAnalyzerComponent implements OnInit {
       }
     }
     this.cdr.markForCheck();
+    // Persist selection changes
+    this.persistState();
   }
 
   isSceneSelected(sceneId: string): boolean {
@@ -243,6 +265,7 @@ export class ClicheAnalyzerComponent implements OnInit {
     if (idx > -1) {
       this.selectedScenes.splice(idx, 1);
       this.cdr.markForCheck();
+      this.persistState();
     }
   }
 
@@ -258,5 +281,23 @@ export class ClicheAnalyzerComponent implements OnInit {
   getScenePreview(html: string): string {
     const clean = this.stripHtmlTags(html || '');
     return clean.substring(0, 100) + (clean.length > 100 ? '...' : '');
+  }
+
+  private persistState(): void {
+    if (!this.storyId) return;
+    const payload: ClicheAnalysisPersist = {
+      storyId: this.storyId,
+      modelId: this.selectedModel,
+      selectedScenes: this.selectedScenes.map(s => ({
+        chapterId: s.chapterId,
+        sceneId: s.sceneId,
+        chapterTitle: s.chapterTitle,
+        sceneTitle: s.sceneTitle
+      })),
+      results: this.results,
+      overview: this.overview,
+      updatedAt: Date.now()
+    };
+    this.cache.save(payload);
   }
 }
