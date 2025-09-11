@@ -118,15 +118,22 @@ export class ClicheAnalyzerComponent implements OnInit {
       const settings = this.settingsService.getSettings();
       this.selectedModel = settings.selectedModel || '';
     }
+    // Require explicit scene selection: if none selected, do nothing
+    if (this.selectedScenes.length === 0) {
+      this.results = [];
+      this.overview = null;
+      this.isAnalyzing = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.isAnalyzing = true;
     this.cdr.markForCheck();
     const results: SceneClicheResult[] = [];
     try {
-      const selectedIds = this.selectedScenes.map(s => s.sceneId);
-      const analyzeAll = selectedIds.length === 0;
+      const selectedIds = new Set(this.selectedScenes.map(s => s.sceneId));
       for (const ch of story.chapters || []) {
         for (const sc of ch.scenes || []) {
-          if (!analyzeAll && !selectedIds.includes(sc.id)) continue;
+          if (!selectedIds.has(sc.id)) continue;
           const sceneText = this.stripHtmlTags(sc.content || '');
           if (!sceneText) continue;
           const sceneTitle = sc.title || `C${ch.chapterNumber || ch.order}S${sc.sceneNumber || sc.order}`;
