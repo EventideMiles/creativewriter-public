@@ -8,7 +8,7 @@ Below are two copy-ready options you can paste into your Reddit post. The first 
 
 🚀 Release Update: v1.4.202509121358 is live
 
-- ✨ What’s new: Inspector module with Cliché Analyzer (beta), shared Model Selector, UI refactor to `src/app/ui`, editor and sync improvements.
+- ✨ What’s new: Inspector module with Cliché Analyzer (beta), model selection now available within the Cliché Analyzer (foundation for future broader use), UI refactor to `src/app/ui`, editor and sync improvements.
 - 📦 Images: multi-arch on GHCR; stable tags update shortly after release.
 - 🔗 Release notes: https://github.com/MarcoDroll/creativewriter-public/releases/tag/v1.4.202509121358
 
@@ -42,7 +42,7 @@ This release focuses on writing quality insights and smoother model selection.
 
 ### ✨ What’s New
 - Inspector (beta): Cliché Analyzer for quick stylistic nudges (`src/app/inspector/**`).
-- Model Selector: Easily switch between AI models/providers (`src/app/shared/components/model-selector/*`).
+- Model selection (scoped): Available within the Cliché Analyzer. The underlying Model Selector component (`src/app/shared/components/model-selector/*`) lays groundwork for potential wider app use in future releases.
 - UI refactor: Components consolidated under `src/app/ui`; standalone Angular setup (no `core.module.ts`).
 - Editor & sync: ProseMirror editor refinements and PouchDB sync stability.
 
@@ -73,4 +73,3 @@ No schema migrations or config changes needed.
 
 ### 💬 Feedback
 Tell me which writing assists you value most (style, structure, summaries) and which models/providers to prioritize.
-
