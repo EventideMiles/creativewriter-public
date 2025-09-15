@@ -61,6 +61,7 @@ jobs:
           rm -rf .claude/ || true  # Remove Claude development files
           rm -rf .vscode/ || true  # Remove VS Code settings
           rm -rf .claudescreenshots/ || true  # Remove Claude screenshots
+          rm -rf docs/ || true  # Exclude private docs from public sync
           rm -f docker-compose.public.yml || true  # Remove the public compose file itself
           
           # Move the public workflow back to .github
