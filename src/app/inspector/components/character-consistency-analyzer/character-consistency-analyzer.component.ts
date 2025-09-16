@@ -2,7 +2,7 @@ import { Component, ChangeDetectionStrategy, OnInit, inject, NgZone, ChangeDetec
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { 
+import {
   IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge, IonModal,
   IonSearchbar, IonItemDivider, IonCheckbox, IonChip, IonHeader, IonToolbar, IonTitle, IonButtons
@@ -14,44 +14,49 @@ import { AppHeaderComponent, BurgerMenuItem, HeaderAction } from '../../../../ap
 import { HeaderNavigationService } from '../../../../app/shared/services/header-navigation.service';
 import { StoryService } from '../../../stories/services/story.service';
 import { Story } from '../../../stories/models/story.interface';
-import { ClicheAnalysisService } from '../../services/cliche-analysis.service';
-import { SceneClicheResult, GlobalClicheReport, ClicheFindingType } from '../../models/cliche-analysis.interface';
+import { CharacterConsistencyAnalysisService } from '../../services/character-consistency-analysis.service';
+import { GlobalCharacterConsistencyReport, SceneCharacterConsistencyResult, CharacterInconsistencyType } from '../../models/character-consistency.interface';
 import { SettingsService } from '../../../core/services/settings.service';
 import { ModelSelectorComponent } from '../../../shared/components/model-selector/model-selector.component';
-import { ClicheAnalysisCacheService, ClicheAnalysisPersist } from '../../services/cliche-analysis-cache.service';
+import { CharacterConsistencyCacheService, CharacterConsistencyPersist } from '../../services/character-consistency-cache.service';
+import { CodexService } from '../../../stories/services/codex.service';
+import { Codex, CodexCategory, CodexEntry } from '../../../stories/models/codex.interface';
 
 @Component({
-  selector: 'app-cliche-analyzer',
+  selector: 'app-character-consistency-analyzer',
   standalone: true,
   imports: [
     CommonModule, FormsModule, ModelSelectorComponent,
     IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel, IonButton, IonIcon, IonList, IonBadge, IonModal, IonSearchbar, IonItemDivider, IonCheckbox, IonChip, IonHeader, IonToolbar, IonTitle, IonButtons, IonSpinner, IonProgressBar,
     AppHeaderComponent
   ],
-  templateUrl: './cliche-analyzer.component.html',
-  styleUrls: ['./cliche-analyzer.component.scss'],
+  templateUrl: './character-consistency-analyzer.component.html',
+  styleUrls: ['./character-consistency-analyzer.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ClicheAnalyzerComponent implements OnInit {
+export class CharacterConsistencyAnalyzerComponent implements OnInit {
   private headerNav = inject(HeaderNavigationService);
   private route = inject(ActivatedRoute);
   private storyService = inject(StoryService);
   private router = inject(Router);
-  private clicheService = inject(ClicheAnalysisService);
-  private cache = inject(ClicheAnalysisCacheService);
+  private analyzer = inject(CharacterConsistencyAnalysisService);
+  private cache = inject(CharacterConsistencyCacheService);
   private settingsService = inject(SettingsService);
+  private codexService = inject(CodexService);
   private zone = inject(NgZone);
   private cdr = inject(ChangeDetectorRef);
 
   storyId = '';
   story: Story | null = null;
-  results: SceneClicheResult[] = [];
-  overview: GlobalClicheReport | null = null;
+  codex: Codex | null = null;
+  characterEntries: CodexEntry[] = [];
+
+  results: SceneCharacterConsistencyResult[] = [];
+  overview: GlobalCharacterConsistencyReport | null = null;
   isAnalyzing = false;
 
   selectedModel = '';
 
-  // Scene selection state (similar to Scene Chat)
   selectedScenes: {
     chapterId: string;
     sceneId: string;
@@ -66,16 +71,15 @@ export class ClicheAnalyzerComponent implements OnInit {
 
   constructor() {
     addIcons({ arrowBack, search, addOutline, closeOutline, openOutline, documentTextOutline, swapHorizontal });
-    // Reuse common items so navigation stays consistent
     this.burgerMenuItems = this.headerNav.getCommonBurgerMenuItems();
     this.rightActions = [
       {
         icon: 'swap-horizontal',
-        label: 'Characters',
-        action: () => this.goToCharacters(),
+        label: 'Clichés',
+        action: () => this.goToCliche(),
         showOnMobile: true,
         showOnDesktop: true,
-        tooltip: 'Switch to Character Consistency Analyzer'
+        tooltip: 'Switch to Cliché Analyzer'
       },
       {
         icon: 'add-outline',
@@ -91,7 +95,7 @@ export class ClicheAnalyzerComponent implements OnInit {
         action: () => this.runAnalyze(),
         showOnMobile: true,
         showOnDesktop: true,
-        tooltip: 'Analyze selected scenes for clichés'
+        tooltip: 'Analyze selected scenes for character consistency'
       }
     ];
   }
@@ -100,54 +104,56 @@ export class ClicheAnalyzerComponent implements OnInit {
     this.storyId = this.route.snapshot.paramMap.get('id') || '';
     if (!this.storyId) return;
     this.story = await this.storyService.getStory(this.storyId);
-    // Initialize selected model from global settings if available
+
     const settings = this.settingsService.getSettings();
     this.selectedModel = settings.selectedModel || this.selectedModel;
 
-    // Try to restore previous analysis state for this story
+    await this.loadCodexCharacters();
+
     const saved = this.cache.load(this.storyId);
     if (saved) {
-      // Restore model if available
       if (saved.modelId) this.selectedModel = saved.modelId;
-      // Restore selected scenes
       this.selectedScenes = [...(saved.selectedScenes || [])];
-      // Restore results/overview
       this.results = [...(saved.results || [])];
       this.overview = saved.overview || null;
       this.cdr.markForCheck();
     }
   }
 
+  private async loadCodexCharacters(): Promise<void> {
+    try {
+      const codex = await this.codexService.getOrCreateCodex(this.storyId);
+      this.codex = codex;
+      const charCategory: CodexCategory | undefined = codex.categories.find(c => (c.title || '').toLowerCase() === 'characters');
+      this.characterEntries = charCategory?.entries || [];
+    } catch {
+      this.characterEntries = [];
+    }
+  }
+
   runAnalyze(): void {
-    // Ensure we execute within Angular zone so OnPush detects changes
-    this.zone.run(() => {
-      void this.analyze();
-    });
+    this.zone.run(() => { void this.analyze(); });
   }
 
   goBack(): void {
-    // Navigate back to the story editor if we have a story, else to list
     if (this.storyId) {
       this.router.navigate(['/stories/editor', this.storyId]);
     } else {
-      this.headerNav.goToStoryList();
+      this.router.navigate(['/']);
     }
   }
 
-  goToCharacters(): void {
+  goToCliche(): void {
     if (!this.storyId) return;
-    this.router.navigate(['/stories/inspector', this.storyId, 'characters']);
+    this.router.navigate(['/stories/inspector', this.storyId, 'cliche']);
   }
 
   async analyze(): Promise<void> {
-    const story = this.story;
-    if (!story) { this.results = []; this.overview = null; return; }
+    if (!this.story) return;
     if (!this.selectedModel) {
-      // Fallback to global settings
       const settings = this.settingsService.getSettings();
       this.selectedModel = settings.selectedModel || '';
     }
-    // Require explicit scene selection: if none selected, do nothing
     if (this.selectedScenes.length === 0) {
       this.results = [];
       this.overview = null;
@@ -157,28 +163,26 @@ export class ClicheAnalyzerComponent implements OnInit {
     }
     this.isAnalyzing = true;
     this.cdr.markForCheck();
-    const results: SceneClicheResult[] = [];
+    const results: SceneCharacterConsistencyResult[] = [];
     try {
       const selectedIds = new Set(this.selectedScenes.map(s => s.sceneId));
-      for (const ch of story.chapters || []) {
+      for (const ch of this.story.chapters || []) {
         for (const sc of ch.scenes || []) {
           if (!selectedIds.has(sc.id)) continue;
           const sceneText = this.stripHtmlTags(sc.content || '');
           if (!sceneText) continue;
           const sceneTitle = sc.title || `C${ch.chapterNumber || ch.order}S${sc.sceneNumber || sc.order}`;
-          const res = await this.clicheService.analyzeScene({
+          const res = await this.analyzer.analyzeScene({
             modelId: this.selectedModel,
             sceneId: sc.id,
             sceneTitle,
-            sceneText
+            sceneText,
+            codexCharacters: this.characterEntries
           });
           results.push(res);
-          // Update UI incrementally after each scene
           this.results = [...results];
           this.overview = this.buildOverview(this.results);
           this.cdr.markForCheck();
-
-          // Persist progress so users can navigate away and back
           this.persistState();
         }
       }
@@ -187,33 +191,14 @@ export class ClicheAnalyzerComponent implements OnInit {
     } finally {
       this.isAnalyzing = false;
       this.cdr.markForCheck();
-      // Final persist
       this.persistState();
     }
   }
 
-  private extractPlainText(story: Story | null): string {
-    if (!story) return '';
-    let text = '';
-    // Legacy content
-    const anyStory = story as unknown as { content?: string };
-    if (anyStory.content) {
-      text += this.stripHtmlTags(anyStory.content) + '\n';
-    }
-    // Chapters/scenes
-    if (Array.isArray(story.chapters)) {
-      story.chapters.forEach(ch => {
-        ch.scenes?.forEach(sc => {
-          if (sc.content) text += this.stripHtmlTags(sc.content) + '\n';
-        });
-      });
-    }
-    return text.trim();
-  }
-
   private stripHtmlTags(html: string): string {
     if (!html) return '';
-    const cleanHtml = html.replace(/<div[^>]*class="beat-ai-node"[^>]*>.*?<\/div>/gs, '');
+    // Remove Beat AI helper nodes if present without relying on quoted attributes
+    const cleanHtml = html.replace(/<div[^>]*class=[^>]*beat-ai-node[^>]*>.*?<\/div>/gs, '');
     const parser = new DOMParser();
     const doc = parser.parseFromString(cleanHtml, 'text/html');
     const textContent = doc.body.textContent || '';
@@ -225,29 +210,27 @@ export class ClicheAnalyzerComponent implements OnInit {
       .replace(/\s+/g, ' ');
   }
 
-  private buildOverview(results: SceneClicheResult[]): GlobalClicheReport {
-    const totals: Record<ClicheFindingType, number> = { cliche: 0, idiom: 0, redundancy: 0, buzzword: 0, stereotype: 0 };
-    const phraseCounts = new Map<string, number>();
+  private buildOverview(results: SceneCharacterConsistencyResult[]): GlobalCharacterConsistencyReport {
+    const totals: Record<CharacterInconsistencyType, number> = { name: 0, trait: 0, relationship: 0, timeline: 0, pov: 0, other: 0 };
+    const byCharacterMap = new Map<string, number>();
     for (const r of results) {
       if (!r.summary?.counts) continue;
-      (Object.keys(totals) as ClicheFindingType[]).forEach((k) => {
+      (Object.keys(totals) as CharacterInconsistencyType[]).forEach((k) => {
         const v = r.summary.counts[k] || 0;
         totals[k] = (totals[k] || 0) + v;
       });
-      for (const f of r.findings || []) {
-        const key = f.phrase.toLowerCase();
-        phraseCounts.set(key, (phraseCounts.get(key) || 0) + 1);
+      for (const i of r.issues || []) {
+        const key = (i.character || 'Unknown').toLowerCase();
+        byCharacterMap.set(key, (byCharacterMap.get(key) || 0) + 1);
       }
     }
-    
-    const topPhrases = Array.from(phraseCounts.entries())
+    const byCharacter = Array.from(byCharacterMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
-      .map(([phrase, count]) => ({ phrase, count }));
-    return { totals, topPhrases };
+      .map(([name, count]) => ({ name, count }));
+    return { totals, byCharacter };
   }
 
-  // Scene selection helpers
   toggleSceneSelection(chapterId: string, sceneId: string): void {
     const idx = this.selectedScenes.findIndex(s => s.sceneId === sceneId);
     if (idx > -1) {
@@ -265,7 +248,6 @@ export class ClicheAnalyzerComponent implements OnInit {
       }
     }
     this.cdr.markForCheck();
-    // Persist selection changes
     this.persistState();
   }
 
@@ -296,7 +278,7 @@ export class ClicheAnalyzerComponent implements OnInit {
     return clean.substring(0, 100) + (clean.length > 100 ? '...' : '');
   }
 
-  openInEditor(result: SceneClicheResult, finding: { phrase: string }): void {
+  openInEditor(result: SceneCharacterConsistencyResult): void {
     if (!this.story) return;
     let chapterId = '';
     for (const ch of this.story.chapters) {
@@ -309,15 +291,14 @@ export class ClicheAnalyzerComponent implements OnInit {
     this.router.navigate(['/stories/editor', this.story.id], {
       queryParams: {
         chapterId,
-        sceneId: result.sceneId,
-        phrase: finding.phrase
+        sceneId: result.sceneId
       }
     });
   }
 
   private persistState(): void {
     if (!this.storyId) return;
-    const payload: ClicheAnalysisPersist = {
+    const payload: CharacterConsistencyPersist = {
       storyId: this.storyId,
       modelId: this.selectedModel,
       selectedScenes: this.selectedScenes.map(s => ({
