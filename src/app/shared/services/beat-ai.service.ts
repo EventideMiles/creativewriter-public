@@ -237,13 +237,17 @@ export class BeatAIService {
   }
 
   private callOpenRouterStreamingAPI(prompt: string, options: { model?: string; temperature?: number; topP?: number }, maxTokens: number, wordCount: number, requestId: string, beatId: string): Observable<string> {
+    // Parse the structured prompt to extract messages
+    const messages = this.parseStructuredPrompt(prompt);
+
     let accumulatedContent = '';
     
     return this.openRouterApi.generateTextStream(prompt, {
       model: options.model,
       maxTokens: maxTokens,
       wordCount: wordCount,
-      requestId: requestId
+      requestId: requestId,
+      messages: messages
     }).pipe(
       tap((chunk: string) => {
         // Emit each chunk as it arrives
@@ -644,7 +648,7 @@ export class BeatAIService {
         }
 
         // Build template placeholders
-        const placeholders = {
+        const placeholdersRaw = {
           systemMessage: story.settings!.systemMessage,
           codexEntries: codexText,
           storySoFar: storySoFar,
@@ -656,6 +660,20 @@ export class BeatAIService {
           writingStyle: story.settings!.beatInstruction === 'continue' 
             ? 'Continue the story' 
             : 'Stay in the moment'
+        } as const;
+
+        // Escape only plain-text placeholders that are injected into XML blocks
+        // Keep XML fragments (codexEntries, storySoFar, pointOfView) as-is
+        const placeholders: Record<string, string> = {
+          systemMessage: this.escapeXml(placeholdersRaw.systemMessage),
+          codexEntries: placeholdersRaw.codexEntries,
+          storySoFar: placeholdersRaw.storySoFar,
+          storyTitle: this.escapeXml(placeholdersRaw.storyTitle),
+          sceneFullText: this.escapeXml(placeholdersRaw.sceneFullText),
+          wordCount: placeholdersRaw.wordCount,
+          prompt: this.escapeXml(placeholdersRaw.prompt),
+          pointOfView: placeholdersRaw.pointOfView,
+          writingStyle: this.escapeXml(placeholdersRaw.writingStyle)
         };
 
         // Log the final codex text to debug
