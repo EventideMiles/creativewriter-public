@@ -1,6 +1,7 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { StoryEditorComponent } from './components/story-editor/story-editor.component';
+import { StoryEditorExitGuard } from './guards/story-editor-exit.guard';
 import { StorySettingsComponent } from './components/story-settings/story-settings.component';
 import { CodexComponent } from './components/codex/codex.component';
 import { NovelCrafterImportComponent } from './components/novelcrafter-import/novelcrafter-import.component';
@@ -10,7 +11,8 @@ import { SceneChatComponent } from './components/scene-chat/scene-chat.component
 const routes: Routes = [
   {
     path: 'editor/:id',
-    component: StoryEditorComponent
+    component: StoryEditorComponent,
+    canDeactivate: [StoryEditorExitGuard]
   },
   {
     path: 'settings/:id',

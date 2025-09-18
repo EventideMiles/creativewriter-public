@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, ChangeDetectionStrategy, TemplateRef, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, ChangeDetectionStrategy, TemplateRef, HostListener, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -10,7 +10,8 @@ import { addIcons } from 'ionicons';
 import { 
   arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
   saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
-  chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search
+  chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
+  listOutline, list
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { Story, Scene } from '../../models/story.interface';
@@ -135,7 +136,8 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     addIcons({ 
       arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
       saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
-      chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search
+      chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
+      listOutline, list
     });
   }
 
@@ -411,6 +413,21 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   }
 
   async goBack(): Promise<void> {
+    // Delete-on-exit strategy for empty, untitled drafts
+    if (this.isDefaultEmptyDraft()) {
+      const shouldDelete = confirm('This draft has no title or content. Delete it?');
+      if (shouldDelete) {
+        try {
+          await this.storyService.deleteStory(this.story.id);
+        } catch (err) {
+          console.error('Failed to delete empty draft:', err);
+        }
+        this.router.navigate(['/']);
+        return;
+      }
+      // If user cancels deletion, continue with normal navigation (preserve draft)
+    }
+
     if (this.hasUnsavedChanges) {
       await this.saveStory();
     }
@@ -449,13 +466,15 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         icon: 'arrow-back',
         action: () => this.goBack(),
         showOnMobile: true,
-        showOnDesktop: true
+        showOnDesktop: true,
+        tooltip: 'Back'
       },
       {
-        icon: 'book-outline',
+        icon: 'list-outline',
         action: () => this.toggleSidebar(),
         showOnMobile: true,
-        showOnDesktop: true
+        showOnDesktop: true,
+        tooltip: 'Story structure'
       }
     ];
     
@@ -474,7 +493,8 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         chipColor: 'medium',
         action: () => this.showStoryStatsModal(),
         showOnMobile: false,
-        showOnDesktop: true
+        showOnDesktop: true,
+        tooltip: 'Show story stats'
       }
     ];
     
@@ -539,6 +559,58 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Consider a story an "empty draft" only if it's in the default structure
+  // (1 chapter, 1 scene), has no title, and no scene text content.
+  isDefaultEmptyDraft(): boolean {
+    const titleEmpty = !this.story.title || this.story.title.trim() === '';
+    if (!titleEmpty) return false;
+
+    const hasSingleChapter = Array.isArray(this.story.chapters) && this.story.chapters.length === 1;
+    if (!hasSingleChapter) return false;
+
+    const firstChapter = this.story.chapters[0];
+    const hasSingleScene = Array.isArray(firstChapter.scenes) && firstChapter.scenes.length === 1;
+    if (!hasSingleScene) return false;
+
+    // Use StoryStatsService to compute total word count safely
+    try {
+      const totalWords = this.storyStatsService.calculateTotalStoryWordCount(this.story as any);
+      return totalWords === 0;
+    } catch {
+      // Fallback: if stats service fails, perform a minimal check on the first scene
+      const sceneContent = firstChapter.scenes[0]?.content || '';
+      const textOnly = this.stripContentToText(sceneContent);
+      return textOnly.length === 0;
+    }
+  }
+
+  // Minimal HTML-to-text stripper used only as a fallback.
+  private stripContentToText(html: string): string {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html || '', 'text/html');
+      // Remove Beat AI elements if present
+      const beatNodes = doc.querySelectorAll('[class*="beat-ai"], .beat-ai-node, .beat-ai-wrapper');
+      beatNodes.forEach(el => el.remove());
+      return (doc.body.textContent || '').trim();
+    } catch {
+      return (html || '').replace(/<[^>]+>/g, '').trim();
+    }
+  }
+
+  // Prompt on browser refresh/close if this is an empty draft
+  @HostListener('window:beforeunload', ['$event'])
+  handleBeforeUnload(event: BeforeUnloadEvent): void {
+    try {
+      if (this.isDefaultEmptyDraft() || this.hasUnsavedChanges) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   async goToSceneChat(): Promise<void> {
     if (this.hasUnsavedChanges) {
       await this.saveStory();
@@ -581,7 +653,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Update the sidebar icon in left actions
     const isOpen = await this.menuController.isOpen('story-menu');
     if (this.leftActions.length > 1) {
-      this.leftActions[1].icon = isOpen ? 'book' : 'book-outline';
+      this.leftActions[1].icon = isOpen ? 'list' : 'list-outline';
     }
   }
 
