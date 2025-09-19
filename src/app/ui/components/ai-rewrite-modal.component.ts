@@ -186,12 +186,11 @@ interface SceneContext {
           </ion-button>
         </div>
 
-        <ion-button 
-          *ngIf="rewrittenText"
-          expand="block" 
-          fill="solid" 
-          color="success"
-          (click)="useRewrittenText()">
+      </div>
+
+      <!-- Sticky footer for primary action on mobile -->
+      <div class="action-footer" slot="fixed" *ngIf="rewrittenText">
+        <ion-button expand="block" color="success" (click)="useRewrittenText()">
           Use Text
         </ion-button>
       </div>
@@ -242,6 +241,8 @@ interface SceneContext {
     </ion-modal>
   `,
   styles: [`
+    :host { display: block; }
+    ion-content { --padding-bottom: calc(var(--ion-safe-area-bottom, 0) + 96px); }
     .context-section {
       margin-bottom: 1.5rem;
       padding: 1rem;
@@ -355,6 +356,14 @@ interface SceneContext {
 
     .rewritten-section {
       animation: fadeIn 0.3s ease-in;
+    }
+
+    .action-footer {
+      padding: 12px;
+      padding-bottom: calc(12px + var(--ion-safe-area-bottom, 0));
+      background: var(--ion-background-color, #111);
+      box-shadow: 0 -6px 16px rgba(0,0,0,0.3);
+      border-top: 1px solid rgba(255,255,255,0.08);
     }
 
     @keyframes fadeIn {
