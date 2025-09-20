@@ -14,7 +14,8 @@ import {
   arrowBack, sendOutline, peopleOutline, documentTextOutline, 
   addOutline, checkmarkOutline, closeOutline, sparklesOutline,
   personOutline, locationOutline, cubeOutline, readerOutline,
-  copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip
+  copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
+  refreshOutline
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { SettingsService } from '../../../core/services/settings.service';
@@ -121,11 +122,19 @@ export class SceneChatComponent implements OnInit, OnDestroy {
       arrowBack, sendOutline, peopleOutline, documentTextOutline, 
       addOutline, checkmarkOutline, closeOutline, sparklesOutline,
       personOutline, locationOutline, cubeOutline, readerOutline,
-      copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip
+      copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
+      refreshOutline
     });
     
     this.initializePresetPrompts();
     this.initializeHeaderActions();
+  }
+
+  resendMessage(message: ChatMessage): void {
+    if (this.isGenerating) return;
+    // Reuse the exact message content and extraction type
+    this.currentMessage = message.content;
+    this.sendMessage(message.extractionType);
   }
 
   ngOnInit() {

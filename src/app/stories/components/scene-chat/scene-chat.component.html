@@ -99,6 +99,16 @@
               <ion-icon name="copy-outline" slot="icon-only"></ion-icon>
             </ion-button>
             <ion-button 
+              *ngIf="message.role === 'user'"
+              size="small" 
+              fill="clear" 
+              color="medium"
+              [disabled]="isGenerating"
+              (click)="resendMessage(message)"
+              title="Re-send message">
+              <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+            <ion-button 
               *ngIf="message.role === 'assistant' && message.extractionType"
               size="small" 
               fill="outline" 
