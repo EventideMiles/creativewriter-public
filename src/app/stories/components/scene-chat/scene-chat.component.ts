@@ -799,6 +799,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
     const settings = this.settingsService.getSettings();
     const apiKey = settings.googleGemini.apiKey;
     const model = options.model || settings.googleGemini.model || 'gemini-1.5-flash';
+    const maxTokens = this.getChatMaxTokens(options.wordCount);
     
     const requestBody = {
       contents: [{
@@ -807,7 +808,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
       }],
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: Math.ceil(options.wordCount * 2.5),
+        maxOutputTokens: maxTokens,
         topP: 0.95,
         topK: 40
       }
@@ -833,6 +834,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
     const settings = this.settingsService.getSettings();
     const apiKey = settings.openRouter.apiKey;
     const model = options.model || settings.openRouter.model || 'anthropic/claude-3-haiku';
+    const maxTokens = this.getChatMaxTokens(options.wordCount);
     
     const requestBody = {
       model: model,
@@ -841,7 +843,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
         content: prompt
       }],
       stream: true,
-      max_tokens: Math.ceil(options.wordCount * 2.5),
+      max_tokens: maxTokens,
       temperature: 0.7
     };
     
@@ -868,66 +870,74 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
     return new Observable<string>(observer => {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      
-      const processChunk = async () => {
+      let buffer = '';
+
+      const processBufferLine = (line: string) => {
+        if (!line) return;
+        if (!line.startsWith('data: ')) return;
+        const jsonStr = line.slice(6);
+        if (jsonStr === '[DONE]') return;
+        try {
+          const json = JSON.parse(jsonStr);
+          let text = '';
+          // Gemini streaming
+          if (json.candidates?.[0]?.content?.parts?.[0]?.text) {
+            text = json.candidates[0].content.parts[0].text;
+          }
+          // OpenRouter/OpenAI streaming
+          else if (json.choices?.[0]?.delta?.content) {
+            text = json.choices[0].delta.content;
+          }
+          if (text) observer.next(text);
+        } catch {
+          // ignore partial JSON until complete line arrives
+        }
+      };
+
+      const read = async (): Promise<void> => {
         try {
           const { done, value } = await reader!.read();
-          
           if (done) {
+            // flush remaining buffer
+            const remaining = buffer.trim();
+            if (remaining) processBufferLine(remaining);
             observer.complete();
             return;
           }
-          
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const jsonStr = line.slice(6);
-              if (jsonStr === '[DONE]') continue;
-              
-              try {
-                const json = JSON.parse(jsonStr);
-                let text = '';
-                
-                // Handle different response formats
-                if (json.candidates?.[0]?.content?.parts?.[0]?.text) {
-                  // Gemini format
-                  text = json.candidates[0].content.parts[0].text;
-                } else if (json.choices?.[0]?.delta?.content) {
-                  // OpenRouter format
-                  text = json.choices[0].delta.content;
-                }
-                
-                if (text) {
-                  observer.next(text);
-                }
-              } catch {
-                // Ignore JSON parse errors
-              }
-            }
+          buffer += decoder.decode(value, { stream: true });
+          let newlineIndex = buffer.indexOf('\n');
+          while (newlineIndex !== -1) {
+            const line = buffer.slice(0, newlineIndex).trim();
+            buffer = buffer.slice(newlineIndex + 1);
+            processBufferLine(line);
+            newlineIndex = buffer.indexOf('\n');
           }
-          
-          processChunk();
+          read();
         } catch (error) {
           observer.error(error);
         }
       };
-      
-      processChunk();
+
+      read();
     });
+  }
+
+  private getChatMaxTokens(wordCount: number): number {
+    const estimated = Math.ceil(wordCount * 2.5);
+    return Math.max(estimated, 3000);
   }
 
   private logGeminiRequest(prompt: string, options: { wordCount: number; model?: string | null }): string {
     const settings = this.settingsService.getSettings();
     const model = options.model || settings.googleGemini.model || 'gemini-1.5-flash';
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent`;
+    const maxTokens = this.getChatMaxTokens(options.wordCount);
     
     return this.aiLogger.logRequest({
       endpoint: endpoint,
       model: model,
       wordCount: options.wordCount,
-      maxTokens: Math.ceil(options.wordCount * 2.5),
+      maxTokens: maxTokens,
       prompt: prompt,
       apiProvider: 'gemini',
       streamingMode: true,
@@ -944,12 +954,13 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
     const settings = this.settingsService.getSettings();
     const model = options.model || settings.openRouter.model || 'anthropic/claude-3-haiku';
     const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    const maxTokens = this.getChatMaxTokens(options.wordCount);
     
     return this.aiLogger.logRequest({
       endpoint: endpoint,
       model: model,
       wordCount: options.wordCount,
-      maxTokens: Math.ceil(options.wordCount * 2.5),
+      maxTokens: maxTokens,
       prompt: prompt,
       apiProvider: 'openrouter',
       streamingMode: true,
