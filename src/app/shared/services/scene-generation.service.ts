@@ -48,7 +48,7 @@ export class SceneGenerationService {
     if (!story) throw new Error('Story not found');
 
     // Build initial prompt + messages
-    const { systemMessage, messages, languageInstruction, storyContext, codexText } = await this.buildMessages(story, options);
+    const { systemMessage, messages, languageInstruction } = await this.buildMessages(story, options);
     const { provider, modelId } = this.splitProvider(options.model);
     const temperature = options.temperature ?? this.getDefaultTemperature(provider);
 
@@ -171,36 +171,39 @@ export class SceneGenerationService {
       const remaining = targetWords - currentWords;
       const goal = Math.min(segmentMax, remaining);
 
-      // Use a small tail of prior output for continuity
-      const tail = this.tailText(combined, 12000);
+      // Use a modest tail of prior output for continuity (avoid bloating context)
+      const tail = this.tailText(combined, 6000);
 
-      // Minimal continuation context: keep outline, optional codex, optional story context (summaries)
+      // Keep continuation context lean: outline + instructions. The previous prose comes as assistant.
       const continueUser = [
         options.outline ? `<scene_outline>\n${options.outline}\n</scene_outline>` : '',
-        codexText ? `<glossary>\n${codexText}\n</glossary>` : '',
-        storyContext ? `<story_context>\n${storyContext}\n</story_context>` : '',
-        `<previous_scene_tail>\n${tail}\n</previous_scene_tail>`,
-        `<instructions>\nContinue the same scene seamlessly from the previous text without repeating any sentences. Aim for about ${goal} words. ${languageInstruction}` +
+        `<instructions>\nContinue the same scene seamlessly from the previous text without repeating any sentences. Maintain POV, tense, style, and characterization. Aim for about ${goal} words. ${languageInstruction}` +
         `${this.settingsService.getSettings().sceneGenerationFromOutline?.customInstruction ? `\n${this.settingsService.getSettings().sceneGenerationFromOutline!.customInstruction}` : ''}` +
         `\nDo not add headings or summaries. Output only the next part of the prose.\n</instructions>`
       ].filter(Boolean).join('\n\n');
 
       const continuationMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-        // Keep conversation minimal to save tokens: we provide tail as assistant content
-        { role: 'user', content: continueUser },
+        // Provide the last part of the scene as the assistant's prior message,
+        // then ask the model (user message) to continue.
         { role: 'assistant', content: tail },
-        { role: 'user', content: `Continue where you left off for about ${goal} words. Do not repeat anything from the prior text.` }
+        { role: 'user', content: continueUser }
       ];
 
       if (wasCanceled) {
         break;
       }
 
-      const next = await callProvider(continuationMessages, goal);
+      let next = '';
+      try {
+        next = await callProvider(continuationMessages, goal);
+      } catch {
+        // On provider error during continuation, stop iterating and return what we have
+        break;
+      }
       const cleaned = next.trim();
 
       // Break if model returns nothing meaningful to avoid loops
-      if (!cleaned || cleaned.split(/\s+/).length < 50) {
+      if (!cleaned || cleaned.split(/\s+/).length < 30) {
         break;
       }
 
