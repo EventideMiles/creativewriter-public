@@ -49,6 +49,14 @@ export class SettingsService {
             ...DEFAULT_SETTINGS.sceneTitleGeneration,
             ...parsed.sceneTitleGeneration
           },
+          sceneSummaryGeneration: {
+            ...DEFAULT_SETTINGS.sceneSummaryGeneration,
+            ...parsed.sceneSummaryGeneration
+          },
+          sceneGenerationFromOutline: {
+            ...DEFAULT_SETTINGS.sceneGenerationFromOutline,
+            ...parsed.sceneGenerationFromOutline
+          },
           appearance: {
             ...DEFAULT_SETTINGS.appearance,
             ...parsed.appearance

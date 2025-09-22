@@ -51,9 +51,13 @@ export class SceneCreateFromOutlineComponent {
   constructor() {
     addIcons({ closeOutline, sparklesOutline, sendOutline });
     const s = this.settingsService.getSettings();
-    this.temperature = s.openRouter?.temperature ?? 0.7;
-    // Use global selectedModel if available
-    // ModelSelectorComponent will initialize from settings if empty
+    this.temperature = s.sceneGenerationFromOutline?.temperature ?? s.openRouter?.temperature ?? 0.7;
+    this.wordCount = s.sceneGenerationFromOutline?.wordCount ?? 600;
+    this.includeStoryOutline = s.sceneGenerationFromOutline?.includeStoryOutline ?? true;
+    this.useFullStoryContext = s.sceneGenerationFromOutline?.useFullStoryContext ?? false;
+    this.includeCodex = s.sceneGenerationFromOutline?.includeCodex ?? false;
+    this.selectedModel = s.sceneGenerationFromOutline?.selectedModel || '';
+    // If no specific model, ModelSelectorComponent will fallback to global selectedModel
   }
 
   async create(): Promise<void> {

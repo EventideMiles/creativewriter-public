@@ -111,6 +111,7 @@ export class SceneGenerationService {
   private async buildMessages(story: Story, options: SceneFromOutlineOptions): Promise<{ systemMessage: string; messages: { role: 'user' | 'assistant' | 'system'; content: string }[] }> {
     // System message
     const systemMessage = story.settings?.systemMessage || DEFAULT_STORY_SETTINGS.systemMessage;
+    const appSettings = this.settingsService.getSettings();
 
     // Optional story context
     let storyContext = '';
@@ -147,13 +148,34 @@ export class SceneGenerationService {
     const languageInstruction = this.getLanguageInstruction(langPref);
     const wordCount = Math.max(200, Math.min(2000, options.wordCount || 600));
 
-    const userContent = [
-      `<story_title>${story.title}</story_title>`,
-      codexText ? `<glossary>\n${codexText}\n</glossary>` : '',
-      storyContext ? `<story_context>\n${storyContext}\n</story_context>` : '',
-      `<scene_outline>\n${options.outline}\n</scene_outline>`,
-      `<instructions>\nWrite a complete, coherent scene based strictly on the outline. Aim for ~${wordCount} words. ${languageInstruction}\nDo not include meta comments or headings. Output only the scene prose.\n</instructions>`
-    ].filter(Boolean).join('\n\n');
+    let userContent = '';
+    if (appSettings.sceneGenerationFromOutline?.useCustomPrompt) {
+      const tpl = appSettings.sceneGenerationFromOutline.customPrompt || '';
+      const customInstr = appSettings.sceneGenerationFromOutline.customInstruction || '';
+      userContent = tpl
+        .replace(/\{systemMessage\}/g, systemMessage)
+        .replace(/\{storyTitle\}/g, story.title || '')
+        .replace(/\{codexEntries\}/g, codexText)
+        .replace(/\{storySoFar\}/g, storyContext)
+        .replace(/\{sceneOutline\}/g, options.outline)
+        .replace(/\{wordCount\}/g, String(wordCount))
+        .replace(/\{languageInstruction\}/g, languageInstruction)
+        .replace(/\{customInstruction\}/g, customInstr ? `\n${customInstr}` : '');
+      // Ensure language instruction present if omitted in template
+      if (!userContent.includes(languageInstruction)) {
+        userContent += `\n\n${languageInstruction}`;
+      }
+    } else {
+      userContent = [
+        `<story_title>${story.title}</story_title>`,
+        codexText ? `<glossary>\n${codexText}\n</glossary>` : '',
+        storyContext ? `<story_context>\n${storyContext}\n</story_context>` : '',
+        `<scene_outline>\n${options.outline}\n</scene_outline>`,
+        `<instructions>\nWrite a complete, coherent scene based strictly on the outline. Aim for ~${wordCount} words. ${languageInstruction}` +
+        `${appSettings.sceneGenerationFromOutline?.customInstruction ? `\n${appSettings.sceneGenerationFromOutline.customInstruction}` : ''}` +
+        `\nDo not include meta comments or headings. Output only the scene prose.\n</instructions>`
+      ].filter(Boolean).join('\n\n');
+    }
 
     const messages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [
       { role: 'user', content: userContent }
