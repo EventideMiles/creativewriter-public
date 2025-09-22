@@ -1,0 +1,67 @@
+<app-header
+  [title]="'Outline Overview'"
+  [leftActions]="leftActions"
+  [rightActions]="rightActions"
+  [showBurgerMenu]="false"
+></app-header>
+
+<ion-content>
+  <div class="toolbar">
+    <ion-searchbar
+      placeholder="Search titles and summaries"
+      [debounce]="150"
+      (ionInput)="query.set($any($event.target).value || '')">
+    </ion-searchbar>
+    <ion-chip [color]="onlyWithSummary() ? 'primary' : 'medium'" (click)="onlyWithSummary.set(!onlyWithSummary())">
+      <ion-label>Only with summary</ion-label>
+    </ion-chip>
+  </div>
+
+  <div *ngIf="loading()" class="loading">
+    <ion-skeleton-text [animated]="true" style="width: 60%; height: 20px;"></ion-skeleton-text>
+    <ion-skeleton-text [animated]="true" style="width: 90%; height: 16px;"></ion-skeleton-text>
+    <ion-skeleton-text [animated]="true" style="width: 80%; height: 16px;"></ion-skeleton-text>
+  </div>
+
+  <ion-accordion-group *ngIf="!loading()" [multiple]="true" [value]="expandedArray()" (ionChange)="onAccordionChange($event)">
+    <ion-accordion *ngFor="let chapter of filteredChapters()" [value]="chapter.id">
+      <ion-item slot="header" lines="full">
+        <ion-label>
+          <div class="chapter-title">
+            <span class="idx">{{chapter.chapterNumber}}.</span>
+            <span>{{ chapter.title || 'Untitled Chapter' }}</span>
+          </div>
+          <ion-note>{{ chapter.scenes.length }} scene(s)</ion-note>
+        </ion-label>
+      </ion-item>
+      <div class="chapter-content" slot="content">
+        <ion-list lines="none">
+          <ion-card *ngFor="let scene of chapter.scenes" class="scene-card">
+            <ion-card-header>
+              <ion-card-title>
+                <span class="idx">{{scene.sceneNumber}}.</span>
+                <span>{{ scene.title || 'Untitled Scene' }}</span>
+                <ion-badge color="warning" *ngIf="!scene.summary">No summary</ion-badge>
+              </ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+              <div class="summary" [class.placeholder]="!scene.summary">
+                {{ scene.summary || 'No summary available for this scene.' }}
+              </div>
+              <div class="actions">
+                <ion-button size="small" color="medium" (click)="openInEditor(chapter.id, scene.id)" title="Open in editor">
+                  <ion-icon name="open-outline" slot="start"></ion-icon>
+                  Open Scene
+                </ion-button>
+              </div>
+            </ion-card-content>
+          </ion-card>
+        </ion-list>
+      </div>
+    </ion-accordion>
+  </ion-accordion-group>
+
+  <div class="empty" *ngIf="!loading() && filteredChapters().length === 0">
+    <p>No scenes match your filter.</p>
+  </div>
+</ion-content>

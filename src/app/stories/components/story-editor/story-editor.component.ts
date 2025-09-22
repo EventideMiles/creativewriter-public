@@ -542,6 +542,12 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         label: 'Image Generation',
         action: () => this.headerNavService.goToImageGeneration()
       }
+      ,
+      {
+        icon: 'list-outline',
+        label: 'Outline Overview',
+        action: () => this.router.navigate(['/stories/outline', this.story.id])
+      }
     ];
   }
 

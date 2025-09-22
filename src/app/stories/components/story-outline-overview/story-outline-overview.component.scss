@@ -1,0 +1,40 @@
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 12px 0 12px;
+}
+
+.chapter-title {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.idx {
+  opacity: 0.7;
+}
+
+.chapter-content {
+  padding: 12px;
+}
+
+.scene-card {
+  margin-bottom: 12px;
+}
+
+.summary.placeholder {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.loading, .empty {
+  padding: 16px;
+}
+
