@@ -257,11 +257,6 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
 
   async deleteScene(chapterId: string, sceneId: string, event: Event): Promise<void> {
     event.stopPropagation();
-    const chapter = this.story.chapters.find(c => c.id === chapterId);
-    if (chapter && chapter.scenes.length <= 1) {
-      alert('A chapter must have at least one scene.');
-      return;
-    }
     
     if (confirm('Really delete scene?')) {
       // Find current index before deletion
@@ -273,14 +268,53 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
       if (updatedStory) {
         const wasActive = this.activeSceneId === sceneId;
         this.story = updatedStory;
-        // If the deleted scene was active, choose neighbor
+        // If the deleted scene was active, choose a sensible fallback
         if (wasActive) {
           const ch = this.story.chapters.find(c => c.id === chapterId);
           const scenes = ch?.scenes || [];
           if (scenes.length > 0) {
+            // Same chapter neighbor (previous index if possible, otherwise first)
             const fallbackIndex = Math.max(0, Math.min(idxBefore, scenes.length - 1));
             const fallbackScene = scenes[fallbackIndex];
             this.selectScene(chapterId, fallbackScene.id);
+          } else {
+            // Chapter is empty now. Try next chapters, then previous chapters, otherwise create a new empty scene
+            const chapters = this.story.chapters;
+            const currentIdx = chapters.findIndex(c => c.id === chapterId);
+            let selected = false;
+
+            // Search forward for the next chapter that has scenes
+            for (let i = currentIdx + 1; i < chapters.length; i++) {
+              const nextCh = chapters[i];
+              if (nextCh.scenes && nextCh.scenes.length > 0) {
+                this.selectScene(nextCh.id, nextCh.scenes[0].id);
+                selected = true;
+                break;
+              }
+            }
+            // If not found, search backward
+            if (!selected) {
+              for (let i = currentIdx - 1; i >= 0; i--) {
+                const prevCh = chapters[i];
+                if (prevCh.scenes && prevCh.scenes.length > 0) {
+                  const lastScene = prevCh.scenes[prevCh.scenes.length - 1];
+                  this.selectScene(prevCh.id, lastScene.id);
+                  selected = true;
+                  break;
+                }
+              }
+            }
+            // If the entire story has no scenes, create a new empty scene in the current (now empty) chapter
+            if (!selected) {
+              this.storyService.addScene(this.story.id, chapterId).then(async (newScene) => {
+                const refreshed = await this.storyService.getStory(this.story.id);
+                if (refreshed) {
+                  this.story = refreshed;
+                  this.selectScene(chapterId, newScene.id);
+                  this.cdr.markForCheck();
+                }
+              });
+            }
           }
         }
         this.promptManager.refresh();
