@@ -964,7 +964,30 @@ Respond only with the title, without further explanations or quotation marks.`;
     }
   }
   
+  private isEventFromTextInput(event: KeyboardEvent): boolean {
+    const isElement = (node: EventTarget | null | undefined): node is Element => {
+      return !!node && (node as Element).tagName !== undefined;
+    };
+    const isTextLike = (el: Element): boolean => {
+      const tag = el.tagName?.toLowerCase?.() || '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'ion-input' || tag === 'ion-textarea') return true;
+      if (el instanceof HTMLElement) {
+        if (el.isContentEditable) return true;
+        const ce = el.getAttribute('contenteditable');
+        return ce === '' || ce === 'true';
+      }
+      return false;
+    };
+    const pathTargets = (event.composedPath ? event.composedPath() : [event.target]) as EventTarget[];
+    for (const t of pathTargets) {
+      if (isElement(t) && isTextLike(t)) return true;
+    }
+    return false;
+  }
+
   onChapterKeyDown(event: KeyboardEvent, chapterId: string): void {
+    // Do not handle keys when focus is inside a text input/textarea
+    if (this.isEventFromTextInput(event)) return;
     switch (event.key) {
       case 'Enter':
       case ' ':
@@ -988,6 +1011,8 @@ Respond only with the title, without further explanations or quotation marks.`;
   }
   
   onSceneKeyDown(event: KeyboardEvent, chapterId: string, sceneId: string): void {
+    // Do not handle keys when focus is inside a text input/textarea
+    if (this.isEventFromTextInput(event)) return;
     switch (event.key) {
       case 'Enter':
       case ' ':
