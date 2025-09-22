@@ -169,8 +169,20 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
       await this.storyService.deleteChapter(this.story.id, chapterId);
       const updatedStory = await this.storyService.getStory(this.story.id);
       if (updatedStory) {
+        const wasActive = this.activeChapterId === chapterId;
         this.story = updatedStory;
         this.expandedChapters.delete(chapterId);
+        // If the deleted chapter was active, select a sensible fallback
+        if (wasActive && this.story.chapters.length > 0) {
+          const fallbackChapter = this.story.chapters[Math.min(0, this.story.chapters.length - 1)];
+          const fallbackScene = fallbackChapter.scenes?.[0];
+          if (fallbackScene) {
+            this.selectScene(fallbackChapter.id, fallbackScene.id);
+          }
+        }
+        // Refresh prompt manager and mark for check
+        this.promptManager.refresh();
+        this.cdr.markForCheck();
       }
     }
   }
@@ -252,10 +264,27 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     }
     
     if (confirm('Really delete scene?')) {
+      // Find current index before deletion
+      const chapterBefore = this.story.chapters.find(c => c.id === chapterId);
+      const idxBefore = chapterBefore?.scenes.findIndex(s => s.id === sceneId) ?? -1;
+
       await this.storyService.deleteScene(this.story.id, chapterId, sceneId);
       const updatedStory = await this.storyService.getStory(this.story.id);
       if (updatedStory) {
+        const wasActive = this.activeSceneId === sceneId;
         this.story = updatedStory;
+        // If the deleted scene was active, choose neighbor
+        if (wasActive) {
+          const ch = this.story.chapters.find(c => c.id === chapterId);
+          const scenes = ch?.scenes || [];
+          if (scenes.length > 0) {
+            const fallbackIndex = Math.max(0, Math.min(idxBefore, scenes.length - 1));
+            const fallbackScene = scenes[fallbackIndex];
+            this.selectScene(chapterId, fallbackScene.id);
+          }
+        }
+        this.promptManager.refresh();
+        this.cdr.markForCheck();
       }
     }
   }
