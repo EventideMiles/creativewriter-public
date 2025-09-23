@@ -16,7 +16,7 @@ import {
   addOutline, checkmarkOutline, closeOutline, sparklesOutline,
   personOutline, locationOutline, cubeOutline, readerOutline,
   copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
-  refreshOutline
+  refreshOutline, createOutline
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { SettingsService } from '../../../core/services/settings.service';
@@ -119,6 +119,11 @@ export class SceneChatComponent implements OnInit, OnDestroy {
   private abortController: AbortController | null = null;
   keyboardVisible = false;
   private chatSessionId = Date.now();
+  
+  // Editing state
+  isEditing = false;
+  private editingIndex = -1;
+  private editingExtractionType?: 'characters' | 'locations' | 'objects';
 
   constructor() {
     addIcons({ 
@@ -126,11 +131,41 @@ export class SceneChatComponent implements OnInit, OnDestroy {
       addOutline, checkmarkOutline, closeOutline, sparklesOutline,
       personOutline, locationOutline, cubeOutline, readerOutline,
       copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
-      refreshOutline
+      refreshOutline, createOutline
     });
     
     this.initializePresetPrompts();
     this.initializeHeaderActions();
+  }
+
+  editMessage(message: ChatMessage): void {
+    if (this.isGenerating) return;
+    const index = this.messages.indexOf(message);
+    if (index === -1) return;
+
+    this.isEditing = true;
+    this.editingIndex = index;
+    this.editingExtractionType = message.extractionType;
+    this.currentMessage = message.content;
+    this.scrollToBottom();
+    setTimeout(() => {
+      try {
+        // IonTextarea exposes setFocus
+        (this.messageInput as unknown as { setFocus?: () => void })?.setFocus?.();
+      } catch {
+        void 0;
+      }
+    }, 50);
+    this.cdr.markForCheck();
+  }
+
+  cancelEdit(): void {
+    if (this.isGenerating) return;
+    this.isEditing = false;
+    this.editingIndex = -1;
+    this.editingExtractionType = undefined;
+    this.currentMessage = '';
+    this.cdr.markForCheck();
   }
 
   resendMessage(message: ChatMessage): void {
@@ -308,13 +343,30 @@ export class SceneChatComponent implements OnInit, OnDestroy {
     const userMessage = this.currentMessage;
     this.currentMessage = '';
     
+    // If editing, revert history to just before the edited message
+    let effectiveExtractionType: 'characters' | 'locations' | 'objects' | undefined = extractionType;
+    if (this.isEditing) {
+      if (this.editingIndex >= 0) {
+        // Remove the edited message and everything after it
+        this.messages.splice(this.editingIndex);
+      }
+      // Preserve original extraction type if not explicitly overwritten
+      if (!effectiveExtractionType) {
+        effectiveExtractionType = this.editingExtractionType;
+      }
+      // Clear editing state
+      this.isEditing = false;
+      this.editingIndex = -1;
+      this.editingExtractionType = undefined;
+    }
+    
     // Add user message
     this.messages.push({
       role: 'user',
       content: userMessage,
       timestamp: new Date(),
-      isPresetPrompt: !!extractionType,
-      extractionType
+      isPresetPrompt: !!effectiveExtractionType,
+      extractionType: effectiveExtractionType
     });
 
     this.isGenerating = true;
