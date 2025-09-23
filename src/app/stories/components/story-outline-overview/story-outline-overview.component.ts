@@ -13,6 +13,7 @@ import { arrowBack, openOutline, clipboardOutline, copyOutline, refreshOutline, 
 import { Story, Chapter } from '../../models/story.interface';
 import { StoryService } from '../../services/story.service';
 import { AppHeaderComponent, HeaderAction, BurgerMenuItem } from '../../../ui/components/app-header.component';
+import { ModelSelectorComponent } from '../../../shared/components/model-selector/model-selector.component';
 import { SettingsService } from '../../../core/services/settings.service';
 import { OpenRouterApiService } from '../../../core/services/openrouter-api.service';
 import { GoogleGeminiApiService } from '../../../core/services/google-gemini-api.service';
@@ -23,7 +24,7 @@ import { PromptManagerService } from '../../../shared/services/prompt-manager.se
   standalone: true,
   imports: [
     CommonModule, FormsModule,
-    AppHeaderComponent,
+    AppHeaderComponent, ModelSelectorComponent,
     IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
     IonButton, IonIcon, IonChip, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
     IonTextarea, IonInput,
@@ -51,6 +52,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
   story = signal<Story | null>(null);
   query = signal('');
   onlyWithSummary = signal<boolean>(false);
+  selectedModel = '';
 
   // UI state
   loading = signal<boolean>(true);
@@ -294,7 +296,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
     if (!scene || !scene.content?.trim()) return;
 
     const settings = this.settingsService.getSettings();
-    const modelToUse = settings.sceneSummaryGeneration.selectedModel || settings.selectedModel;
+    const modelToUse = settings.sceneSummaryGeneration.selectedModel || this.selectedModel || settings.selectedModel;
     if (!modelToUse) { alert('No AI model configured.'); return; }
 
     const openRouterAvailable = settings.openRouter.enabled && settings.openRouter.apiKey;
@@ -415,7 +417,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
 
     const settings = this.settingsService.getSettings();
     const titleSettings = settings.sceneTitleGeneration;
-    const modelToUse = titleSettings.selectedModel || settings.selectedModel;
+    const modelToUse = titleSettings.selectedModel || this.selectedModel || settings.selectedModel;
     if (!modelToUse) { alert('No AI model configured.'); return; }
 
     const openRouterAvailable = settings.openRouter.enabled && settings.openRouter.apiKey;

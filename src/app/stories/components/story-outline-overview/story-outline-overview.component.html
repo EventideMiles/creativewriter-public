@@ -12,6 +12,7 @@
       [debounce]="150"
       (ionInput)="query.set($any($event.target).value || '')">
     </ion-searchbar>
+    <app-model-selector [(model)]="selectedModel" [placeholder]="'Select AI model'" [appendTo]="'body'"></app-model-selector>
     <ion-chip [color]="onlyWithSummary() ? 'primary' : 'medium'" (click)="onlyWithSummary.set(!onlyWithSummary())">
       <ion-label>Only with summary</ion-label>
     </ion-chip>
@@ -119,7 +120,7 @@
                 <ion-button *ngIf="!isEditingTitle(scene.id) && !isEditing(scene.id)"
                             size="small" fill="outline" color="primary"
                             (click)="generateSceneTitle(chapter.id, scene.id)"
-                            [disabled]="isGeneratingTitle(scene.id) || !(scene.content && scene.content.trim())">
+                            [disabled]="isGeneratingTitle(scene.id) || !(scene.content && scene.content.trim()) || !selectedModel">
                   <ion-icon [name]="isGeneratingTitle(scene.id) ? 'time-outline' : 'sparkles-outline'" slot="start"></ion-icon>
                   {{ isGeneratingTitle(scene.id) ? 'Generating…' : 'AI Title' }}
                 </ion-button>
@@ -127,7 +128,7 @@
                 <ion-button *ngIf="!isEditingTitle(scene.id) && !isEditing(scene.id)"
                             size="small" color="success"
                             (click)="generateSceneSummary(chapter.id, scene.id)"
-                            [disabled]="isGeneratingSummary(scene.id) || !(scene.content && scene.content.trim())">
+                            [disabled]="isGeneratingSummary(scene.id) || !(scene.content && scene.content.trim()) || !selectedModel">
                   <ion-icon [name]="isGeneratingSummary(scene.id) ? 'time-outline' : 'flash-outline'" slot="start"></ion-icon>
                   {{ isGeneratingSummary(scene.id) ? 'Generating…' : 'AI Summary' }}
                 </ion-button>
