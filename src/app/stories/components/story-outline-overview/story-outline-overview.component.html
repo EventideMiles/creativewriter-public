@@ -17,6 +17,11 @@
     </ion-chip>
   </div>
 
+  <div class="story-meta" *ngIf="story() as s">
+    <div class="title">{{ s.title || 'Untitled Story' }}</div>
+    <div class="meta">{{ s.chapters?.length || 0 }} chapter(s)</div>
+  </div>
+
   <div *ngIf="loading()" class="loading">
     <ion-skeleton-text [animated]="true" style="width: 60%; height: 20px;"></ion-skeleton-text>
     <ion-skeleton-text [animated]="true" style="width: 90%; height: 16px;"></ion-skeleton-text>

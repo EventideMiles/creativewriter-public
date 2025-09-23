@@ -53,7 +53,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
     if (!s) return [] as Chapter[];
     const q = this.query().toLowerCase().trim();
     const onlySumm = this.onlyWithSummary();
-    return s.chapters.map((ch) => ({
+    const chapters = Array.isArray(s.chapters) ? s.chapters : [];
+    return chapters.map((ch) => ({
       ...ch,
       scenes: ch.scenes.filter(sc => {
         if (onlySumm && !sc.summary) return false;
@@ -129,8 +130,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
     ], { queryParams: { chapterId, sceneId }});
   }
 
-  onAccordionChange(ev: CustomEvent) {
-    const raw = (ev as any)?.detail?.value as string[] | string | null | undefined;
+  onAccordionChange(ev: CustomEvent<{ value: string[] | string | null | undefined }>) {
+    const raw = ev?.detail?.value;
     let values: string[] = [];
     if (Array.isArray(raw)) values = raw;
     else if (typeof raw === 'string') values = [raw];
