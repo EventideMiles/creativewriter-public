@@ -24,6 +24,7 @@
   --padding-top: 6px;
   --padding-bottom: 6px;
   --height: 32px;
+  min-width: 110px; /* reduce layout shift */
 }
 
 .chapter-edit-input {
@@ -164,6 +165,7 @@
   --padding-end: 12px;
   --padding-top: 6px;
   --padding-bottom: 6px;
+  min-width: 120px; /* reduce layout shift for varying labels */
 }
 
 .loading, .empty {
