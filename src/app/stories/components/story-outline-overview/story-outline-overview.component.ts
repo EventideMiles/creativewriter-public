@@ -6,7 +6,7 @@ import {
   IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
   IonButton, IonIcon, IonChip, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonTextarea, IonInput,
-  IonBadge, IonSkeletonText, IonNote
+  IonBadge, IonSkeletonText, IonNote, IonSpinner
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { arrowBack, openOutline, clipboardOutline, copyOutline, refreshOutline, createOutline, saveOutline, closeOutline, flashOutline, sparklesOutline, timeOutline } from 'ionicons/icons';
@@ -28,7 +28,7 @@ import { PromptManagerService } from '../../../shared/services/prompt-manager.se
     IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
     IonButton, IonIcon, IonChip, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
     IonTextarea, IonInput,
-    IonBadge, IonSkeletonText, IonNote
+    IonBadge, IonSkeletonText, IonNote, IonSpinner
   ],
   templateUrl: './story-outline-overview.component.html',
   styleUrls: ['./story-outline-overview.component.scss'],
