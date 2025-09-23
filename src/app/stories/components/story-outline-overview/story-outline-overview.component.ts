@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
   IonButton, IonIcon, IonChip, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-  IonTextarea,
+  IonTextarea, IonInput,
   IonBadge, IonSkeletonText, IonNote
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -22,7 +22,7 @@ import { AppHeaderComponent, HeaderAction, BurgerMenuItem } from '../../../ui/co
     AppHeaderComponent,
     IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
     IonButton, IonIcon, IonChip, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-    IonTextarea,
+    IonTextarea, IonInput,
     IonBadge, IonSkeletonText, IonNote
   ],
   templateUrl: './story-outline-overview.component.html',
@@ -216,6 +216,57 @@ export class StoryOutlineOverviewComponent implements OnInit {
     if ((event.key === 'Enter' || event.key === 'NumpadEnter') && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       this.saveSceneSummary(chapterId, sceneId);
+    }
+  }
+
+  // Inline title editing state
+  editingTitles: Record<string, string> = {};
+  private savingTitleSet = new Set<string>();
+
+  isEditingTitle(sceneId: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.editingTitles, sceneId);
+  }
+
+  startEditTitle(sceneId: string, current: string | undefined): void {
+    this.editingTitles = { ...this.editingTitles, [sceneId]: current || '' };
+  }
+
+  cancelEditTitle(sceneId: string): void {
+    const rest = { ...this.editingTitles };
+    delete rest[sceneId];
+    this.editingTitles = rest;
+  }
+
+  onEditTitleChange(sceneId: string, value: string): void {
+    this.editingTitles = { ...this.editingTitles, [sceneId]: value };
+  }
+
+  savingTitle(sceneId: string): boolean {
+    return this.savingTitleSet.has(sceneId);
+  }
+
+  async saveSceneTitle(chapterId: string, sceneId: string): Promise<void> {
+    const s = this.story();
+    if (!s) return;
+    const title = (this.editingTitles[sceneId] ?? '').trim();
+    if (!title) return; // avoid empty titles
+    this.savingTitleSet.add(sceneId);
+    try {
+      await this.storyService.updateScene(s.id, chapterId, sceneId, { title });
+      const updatedChapters = s.chapters.map(ch => {
+        if (ch.id !== chapterId) return ch;
+        return {
+          ...ch,
+          updatedAt: new Date(),
+          scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, title, updatedAt: new Date() } : sc)
+        };
+      });
+      this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
+      this.cancelEditTitle(sceneId);
+    } catch (e) {
+      console.error('Failed to save scene title', e);
+    } finally {
+      this.savingTitleSet.delete(sceneId);
     }
   }
 }

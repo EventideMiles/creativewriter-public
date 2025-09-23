@@ -44,9 +44,23 @@
           <ion-card *ngFor="let scene of chapter.scenes" class="scene-card">
             <ion-card-header>
               <ion-card-title>
-                <span class="idx">{{scene.sceneNumber}}.</span>
-                <span>{{ scene.title || 'Untitled Scene' }}</span>
-                <ion-badge color="warning" *ngIf="!scene.summary">No summary</ion-badge>
+                <ng-container *ngIf="!isEditingTitle(scene.id); else editTitleTpl">
+                  <span class="idx">{{scene.sceneNumber}}.</span>
+                  <span>{{ scene.title || 'Untitled Scene' }}</span>
+                  <ion-badge color="warning" *ngIf="!scene.summary">No summary</ion-badge>
+                </ng-container>
+                <ng-template #editTitleTpl>
+                  <div class="title-edit">
+                    <span class="idx">{{scene.sceneNumber}}.</span>
+                    <ion-input
+                      class="title-input"
+                      [ngModel]="editingTitles[scene.id] || ''"
+                      (ngModelChange)="onEditTitleChange(scene.id, $event)"
+                      placeholder="Untitled Scene"
+                      (keydown.enter)="saveSceneTitle(chapter.id, scene.id)">
+                    </ion-input>
+                  </div>
+                </ng-template>
               </ion-card-title>
             </ion-card-header>
             <ion-card-content>
@@ -70,6 +84,19 @@
               </ng-template>
 
               <div class="actions">
+                <ion-button *ngIf="!isEditingTitle(scene.id)" size="small" fill="outline" color="medium" (click)="startEditTitle(scene.id, scene.title)" title="Edit title">
+                  <ion-icon name="create-outline" slot="start"></ion-icon>
+                  Edit Title
+                </ion-button>
+                <ion-button *ngIf="isEditingTitle(scene.id)" size="small" color="primary" (click)="saveSceneTitle(chapter.id, scene.id)" [disabled]="savingTitle(scene.id)" title="Save title (Enter)">
+                  <ion-icon name="save-outline" slot="start"></ion-icon>
+                  Save Title
+                </ion-button>
+                <ion-button *ngIf="isEditingTitle(scene.id)" size="small" fill="outline" color="medium" (click)="cancelEditTitle(scene.id)" [disabled]="savingTitle(scene.id)" title="Cancel">
+                  <ion-icon name="close-outline" slot="start"></ion-icon>
+                  Cancel
+                </ion-button>
+
                 <ion-button *ngIf="!isEditing(scene.id)" size="small" fill="outline" color="medium" (click)="startEdit(scene.id, scene.summary)" title="Edit summary">
                   <ion-icon name="create-outline" slot="start"></ion-icon>
                   Edit Summary

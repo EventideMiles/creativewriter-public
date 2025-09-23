@@ -75,6 +75,37 @@
   --padding-bottom: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
+  --min-height: 100px;
+  --max-height: 240px;
+}
+
+.summary-edit ion-textarea::part(native) {
+  max-height: 240px;
+  overflow: auto;
+}
+
+/* Title edit styling */
+.title-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.title-input {
+  --background: rgba(0, 0, 0, 0.2);
+  --color: var(--ion-text-color);
+  --padding-start: 8px;
+  --padding-end: 8px;
+  --padding-top: 4px;
+  --padding-bottom: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  flex: 1 1 auto;
+}
+
+.title-input::part(native) {
+  background: transparent !important;
 }
 
 /* Ensure list container inside accordion content is transparent */
