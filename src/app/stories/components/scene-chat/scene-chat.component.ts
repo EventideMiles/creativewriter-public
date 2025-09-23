@@ -16,7 +16,7 @@ import {
   addOutline, checkmarkOutline, closeOutline, sparklesOutline,
   personOutline, locationOutline, cubeOutline, readerOutline,
   copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
-  refreshOutline, createOutline
+  refreshOutline, createOutline, timeOutline
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { SettingsService } from '../../../core/services/settings.service';
@@ -36,6 +36,7 @@ import { StoryRole } from '../../models/codex.interface';
 import { Subscription, Observable, of, from } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { NgSelectModule } from '@ng-select/ng-select';
+import { ChatHistoryDoc } from '../../models/chat-history.interface';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -129,6 +130,8 @@ export class SceneChatComponent implements OnInit, OnDestroy {
   
   // Persistence state
   private activeHistoryId: string | null = null;
+  showHistoryList = false;
+  histories: ChatHistoryDoc[] = [];
 
   constructor() {
     addIcons({ 
@@ -136,7 +139,7 @@ export class SceneChatComponent implements OnInit, OnDestroy {
       addOutline, checkmarkOutline, closeOutline, sparklesOutline,
       personOutline, locationOutline, cubeOutline, readerOutline,
       copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
-      refreshOutline, createOutline
+      refreshOutline, createOutline, timeOutline
     });
     
     this.initializePresetPrompts();
@@ -1221,6 +1224,12 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
   private initializeHeaderActions(): void {
     this.headerActions = [
       {
+        icon: 'time-outline',
+        action: () => this.openHistoryList(),
+        showOnMobile: true,
+        showOnDesktop: true
+      },
+      {
         icon: 'sparkles-outline',
         action: () => this.showPresetPrompts = true,
         showOnMobile: true,
@@ -1298,31 +1307,7 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
   private async restoreLatestHistory(storyId: string): Promise<void> {
     const latest = await this.chatHistoryService.getLatest(storyId);
     if (!latest) return;
-    // Replace current chat with stored one
-    this.messages = latest.messages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
-    this.includeStoryOutline = !!latest.includeStoryOutline;
-    if (latest.selectedModel) this.selectedModel = latest.selectedModel;
-    // Restore selected scenes best-effort if story is loaded
-    if (latest.selectedScenes && this.story) {
-      const restored: SceneContext[] = [];
-      for (const ref of latest.selectedScenes) {
-        const chapter = this.story.chapters.find(c => c.id === ref.chapterId);
-        const scene = chapter?.scenes.find(s => s.id === ref.sceneId);
-        if (chapter && scene) {
-          restored.push({
-            chapterId: chapter.id,
-            sceneId: scene.id,
-            chapterTitle: ref.chapterTitle || `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
-            sceneTitle: ref.sceneTitle || `C${chapter.chapterNumber || chapter.order}S${scene.sceneNumber || scene.order}:${scene.title}`,
-            content: this.extractFullTextFromScene(scene),
-            selected: true
-          });
-        }
-      }
-      if (restored.length) this.selectedScenes = restored;
-    }
-    this.activeHistoryId = latest.historyId;
-    this.cdr.markForCheck();
+    this.applyHistory(latest);
   }
 
   private async saveHistorySnapshot(): Promise<void> {
@@ -1345,5 +1330,73 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
       historyId: this.activeHistoryId
     });
     this.activeHistoryId = saved.historyId;
+  }
+
+  async openHistoryList(): Promise<void> {
+    if (!this.story) return;
+    try {
+      this.histories = await this.chatHistoryService.listHistories(this.story.id);
+      this.showHistoryList = true;
+      this.cdr.markForCheck();
+    } catch (e) {
+      console.error('Failed to load histories', e);
+    }
+  }
+
+  async selectHistory(history: ChatHistoryDoc): Promise<void> {
+    if (!this.story) return;
+    this.applyHistory(history);
+    this.showHistoryList = false;
+    this.cdr.markForCheck();
+  }
+
+  getHistoryTitle(h: ChatHistoryDoc): string {
+    if (h.title && h.title.trim()) return h.title;
+    const firstUser = (h.messages || []).find(m => m.role === 'user');
+    const base = firstUser ? firstUser.content.trim().slice(0, 60) : '';
+    return base ? `${base}${(firstUser!.content.length > 60 ? '…' : '')}` : `Chat ${new Date(h.updatedAt).toLocaleString()}`;
+  }
+
+  getHistoryMeta(h: ChatHistoryDoc): string {
+    const count = (h.messages || []).length;
+    const when = new Date(h.updatedAt).toLocaleString();
+    return `${count} messages · ${when}`;
+  }
+
+  private applyHistory(history: ChatHistoryDoc): void {
+    // Bump session id to stop any in-flight streaming
+    this.chatSessionId = Date.now();
+    this.isGenerating = false;
+    // Replace current chat with stored one
+    this.messages = (history.messages || []).map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+    if (this.messages.length === 0) {
+      this.messages.push({
+        role: 'assistant',
+        content: 'Hello! I am your AI assistant for this scene. I work exclusively with the context of selected scenes. You can ask me questions to extract characters, analyze details, or develop ideas.',
+        timestamp: new Date()
+      });
+    }
+    this.includeStoryOutline = !!history.includeStoryOutline;
+    if (history.selectedModel) this.selectedModel = history.selectedModel;
+    if (history.selectedScenes && this.story) {
+      const restored: SceneContext[] = [];
+      for (const ref of history.selectedScenes) {
+        const chapter = this.story.chapters.find(c => c.id === ref.chapterId);
+        const scene = chapter?.scenes.find(s => s.id === ref.sceneId);
+        if (chapter && scene) {
+          restored.push({
+            chapterId: chapter.id,
+            sceneId: scene.id,
+            chapterTitle: ref.chapterTitle || `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
+            sceneTitle: ref.sceneTitle || `C${chapter.chapterNumber || chapter.order}S${scene.sceneNumber || scene.order}:${scene.title}`,
+            content: this.extractFullTextFromScene(scene),
+            selected: true
+          });
+        }
+      }
+      if (restored.length) this.selectedScenes = restored;
+    }
+    this.activeHistoryId = history.historyId;
+    this.scrollToBottom();
   }
 }
