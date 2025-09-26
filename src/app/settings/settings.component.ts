@@ -907,10 +907,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
         if (!this.settings.favoriteModelLists) {
           this.settings.favoriteModelLists = {
-            beatInput: [...(this.settings.favoriteModels ?? [])]
+            beatInput: [...(this.settings.favoriteModels ?? [])],
+            sceneSummary: []
           };
-        } else if (!Array.isArray(this.settings.favoriteModelLists.beatInput)) {
+        }
+
+        if (!Array.isArray(this.settings.favoriteModelLists.beatInput)) {
           this.settings.favoriteModelLists.beatInput = [...(this.settings.favoriteModels ?? [])];
+        }
+
+        if (!Array.isArray(this.settings.favoriteModelLists.sceneSummary)) {
+          this.settings.favoriteModelLists.sceneSummary = [];
         }
       })
     );

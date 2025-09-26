@@ -828,12 +828,23 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       this.story.settings.favoriteModels = [];
     }
 
-    if (!this.story.settings.favoriteModelLists || !Array.isArray(this.story.settings.favoriteModelLists.beatInput)) {
+    if (!this.story.settings.favoriteModelLists) {
       this.story.settings.favoriteModelLists = {
-        beatInput: [...this.story.settings.favoriteModels]
+        beatInput: [...this.story.settings.favoriteModels],
+        sceneSummary: []
       };
+    }
+
+    if (!Array.isArray(this.story.settings.favoriteModelLists.beatInput)) {
+      this.story.settings.favoriteModelLists.beatInput = [...this.story.settings.favoriteModels];
     } else {
       this.story.settings.favoriteModelLists.beatInput = [...this.story.settings.favoriteModelLists.beatInput];
+    }
+
+    if (!Array.isArray(this.story.settings.favoriteModelLists.sceneSummary)) {
+      this.story.settings.favoriteModelLists.sceneSummary = [];
+    } else {
+      this.story.settings.favoriteModelLists.sceneSummary = [...this.story.settings.favoriteModelLists.sceneSummary];
     }
 
     return this.story.settings;

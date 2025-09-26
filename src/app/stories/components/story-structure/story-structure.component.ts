@@ -9,7 +9,8 @@ import {
 import { addIcons } from 'ionicons';
 import { 
   chevronForward, chevronDown, add, trash, createOutline,
-  flashOutline, documentTextOutline, timeOutline, sparklesOutline, close
+  flashOutline, documentTextOutline, timeOutline, sparklesOutline, close,
+  logoGoogle, gitNetworkOutline, cloudOutline, hardwareChip
 } from 'ionicons/icons';
 import { Story, Chapter, Scene } from '../../models/story.interface';
 import { StoryService } from '../../services/story.service';
@@ -19,6 +20,10 @@ import { ModelService } from '../../../core/services/model.service';
 import { SettingsService } from '../../../core/services/settings.service';
 import { PromptManagerService } from '../../../shared/services/prompt-manager.service';
 import { ModelOption } from '../../../core/models/model.interface';
+import { OpenRouterIconComponent } from '../../../ui/icons/openrouter-icon.component';
+import { ClaudeIconComponent } from '../../../ui/icons/claude-icon.component';
+import { ReplicateIconComponent } from '../../../ui/icons/replicate-icon.component';
+import { OllamaIconComponent } from '../../../ui/icons/ollama-icon.component';
 import { Subscription } from 'rxjs';
 import { SceneCreateFromOutlineComponent } from '../scene-create-from-outline/scene-create-from-outline.component';
 
@@ -28,7 +33,8 @@ import { SceneCreateFromOutlineComponent } from '../scene-create-from-outline/sc
   imports: [
     CommonModule, FormsModule,
     IonContent, IonList, IonItem, IonLabel, IonButton, IonIcon, IonInput,
-    IonChip, IonTextarea, IonSelect, IonSelectOption, IonBadge
+    IonChip, IonTextarea, IonSelect, IonSelectOption, IonBadge,
+    OpenRouterIconComponent, ClaudeIconComponent, ReplicateIconComponent, OllamaIconComponent
   ],
   templateUrl: './story-structure.component.html',
   styleUrls: ['./story-structure.component.scss'],
@@ -60,12 +66,14 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
   private originalTitles = new Map<string, string>();
   selectedModel = '';
   availableModels: ModelOption[] = [];
+  summaryFavoriteModels: ModelOption[] = [];
   private subscription = new Subscription();
 
   constructor() {
     addIcons({ 
       chevronForward, chevronDown, add, trash, createOutline,
-      flashOutline, documentTextOutline, timeOutline, sparklesOutline, close
+      flashOutline, documentTextOutline, timeOutline, sparklesOutline, close,
+      logoGoogle, gitNetworkOutline, cloudOutline, hardwareChip
     });
   }
 
@@ -76,6 +84,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     // Load available models and set default
     this.loadAvailableModels();
     this.setDefaultModel();
+    this.updateSummaryFavoriteModels();
   }
   
   ngOnChanges(changes: SimpleChanges) {
@@ -84,6 +93,10 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
       this.expandActiveChapter();
       // Auto-scroll to active scene when active scene changes
       setTimeout(() => this.scrollToActiveScene(), 100);
+    }
+
+    if (changes['story']) {
+      this.updateSummaryFavoriteModels();
     }
   }
   
@@ -146,6 +159,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     const updatedStory = await this.storyService.getStory(this.story.id);
     if (updatedStory) {
       this.story = updatedStory;
+      this.updateSummaryFavoriteModels();
       // Auto-expand new chapter
       const newChapter = this.story.chapters[this.story.chapters.length - 1];
       this.expandedChapters.add(newChapter.id);
@@ -169,9 +183,10 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
       await this.storyService.deleteChapter(this.story.id, chapterId);
       const updatedStory = await this.storyService.getStory(this.story.id);
       if (updatedStory) {
-        const wasActive = this.activeChapterId === chapterId;
-        this.story = updatedStory;
-        this.expandedChapters.delete(chapterId);
+      const wasActive = this.activeChapterId === chapterId;
+      this.story = updatedStory;
+      this.updateSummaryFavoriteModels();
+      this.expandedChapters.delete(chapterId);
         // If the deleted chapter was active, select a sensible fallback
         if (wasActive && this.story.chapters.length > 0) {
           const fallbackChapter = this.story.chapters[Math.min(0, this.story.chapters.length - 1)];
@@ -220,6 +235,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     const updatedStory = await this.storyService.getStory(this.story.id);
     if (updatedStory) {
       this.story = updatedStory;
+      this.updateSummaryFavoriteModels();
       const chapter = this.story.chapters.find(c => c.id === chapterId);
       if (chapter) {
         const newScene = chapter.scenes[chapter.scenes.length - 1];
@@ -244,6 +260,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
       const updatedStory = await this.storyService.getStory(this.story.id);
       if (updatedStory) {
         this.story = updatedStory;
+        this.updateSummaryFavoriteModels();
         this.selectScene(result.data.chapterId, result.data.createdSceneId);
       }
     }
@@ -268,6 +285,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
       if (updatedStory) {
         const wasActive = this.activeSceneId === sceneId;
         this.story = updatedStory;
+        this.updateSummaryFavoriteModels();
         // If the deleted scene was active, choose a sensible fallback
         if (wasActive) {
           const ch = this.story.chapters.find(c => c.id === chapterId);
@@ -515,6 +533,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
             const updatedStory = await this.storyService.getStory(this.story.id);
             if (updatedStory) {
               this.story = updatedStory;
+              this.updateSummaryFavoriteModels();
             }
           }
           clearTimeout(timeoutId); // Clear timeout on success
@@ -578,11 +597,12 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
           });
           
           // Refresh the story data to ensure consistency
-          const updatedStory = await this.storyService.getStory(this.story.id);
-          if (updatedStory) {
-            this.story = updatedStory;
-          }
+        const updatedStory = await this.storyService.getStory(this.story.id);
+        if (updatedStory) {
+          this.story = updatedStory;
+          this.updateSummaryFavoriteModels();
         }
+      }
         clearTimeout(timeoutId); // Clear timeout on success
         this.isGeneratingSummary.delete(sceneId);
         this.cdr.markForCheck(); // Force change detection
@@ -936,31 +956,100 @@ Respond only with the title, without further explanations or quotation marks.`;
   private loadAvailableModels(): void {
     // Subscribe to model changes
     this.subscription.add(
-      this.modelService.openRouterModels$.subscribe(models => {
+      this.modelService.getCombinedModels().subscribe(models => {
         this.availableModels = models;
         if (models.length > 0 && !this.selectedModel) {
           this.setDefaultModel();
         }
+        this.updateSummaryFavoriteModels();
         this.cdr.markForCheck();
       })
     );
-    
-    // Load models if not already loaded
-    const currentModels = this.modelService.getCurrentOpenRouterModels();
-    if (currentModels.length === 0) {
-      this.modelService.loadOpenRouterModels().subscribe();
-    } else {
-      this.availableModels = currentModels;
-    }
   }
   
   private setDefaultModel(): void {
     const settings = this.settingsService.getSettings();
-    if (settings.openRouter.enabled && settings.openRouter.model) {
-      this.selectedModel = settings.openRouter.model;
-    } else if (this.availableModels.length > 0) {
-      // Fallback to first available model
+    const preferredModelId = settings.sceneSummaryGeneration.selectedModel
+      || settings.selectedModel
+      || settings.openRouter.model;
+
+    if (preferredModelId) {
+      const matched = this.findModelForFavorite(preferredModelId);
+      if (matched) {
+        this.selectedModel = matched.id;
+        return;
+      }
+    }
+
+    if (this.availableModels.length > 0) {
       this.selectedModel = this.availableModels[0].id;
+    }
+  }
+
+  private updateSummaryFavoriteModels(): void {
+    if (!this.story) {
+      this.summaryFavoriteModels = [];
+      return;
+    }
+
+    const favoriteIds = this.story.settings?.favoriteModelLists?.sceneSummary ?? [];
+    const normalized = Array.isArray(favoriteIds) ? favoriteIds : [];
+
+    const resolved = normalized
+      .map(id => this.findModelForFavorite(id))
+      .filter((model): model is ModelOption => !!model);
+
+    this.summaryFavoriteModels = resolved;
+    this.cdr.markForCheck();
+  }
+
+  private findModelForFavorite(favoriteId: string): ModelOption | undefined {
+    if (!favoriteId) {
+      return undefined;
+    }
+
+    let model = this.availableModels.find(m => m.id === favoriteId);
+    if (model) {
+      return model;
+    }
+
+    const trimmedId = favoriteId.includes(':') ? favoriteId.split(':').slice(1).join(':') : favoriteId;
+    model = this.availableModels.find(m => m.id === trimmedId || m.id.endsWith(`:${trimmedId}`) || m.id.endsWith(`/${trimmedId}`));
+    return model;
+  }
+
+  selectSummaryFavorite(model: ModelOption): void {
+    this.selectedModel = model.id;
+    this.cdr.markForCheck();
+  }
+
+  getShortModelName(label: string): string {
+    if (!label) {
+      return '';
+    }
+    if (label.length <= 18) {
+      return label;
+    }
+    const segments = label.split(' ');
+    if (segments.length > 1) {
+      return `${segments[0]} ${segments[1].slice(0, 6)}`;
+    }
+    return label.slice(0, 18);
+  }
+
+  getProviderIcon(provider: string): string {
+    switch (provider) {
+      case 'gemini':
+        return 'logo-google';
+      case 'openrouter':
+        return 'git-network-outline';
+      case 'ollama':
+        return 'hardware-chip';
+      case 'replicate':
+        return 'cloud-outline';
+      case 'claude':
+      default:
+        return 'sparkles-outline';
     }
   }
   

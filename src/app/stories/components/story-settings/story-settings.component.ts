@@ -176,10 +176,14 @@ export class StorySettingsComponent implements OnInit {
     }
   }
 
-  onFavoriteModelsChange(favoriteIds: string[]): void {
+  onFavoriteModelsChange(list: keyof StorySettings['favoriteModelLists'], favoriteIds: string[]): void {
     this.ensureFavoriteStructure();
-    this.settings.favoriteModelLists.beatInput = [...favoriteIds];
-    this.settings.favoriteModels = [...favoriteIds];
+    this.settings.favoriteModelLists[list] = [...favoriteIds];
+
+    if (list === 'beatInput') {
+      this.settings.favoriteModels = [...favoriteIds];
+    }
+
     this.onSettingsChange();
   }
 
@@ -187,12 +191,23 @@ export class StorySettingsComponent implements OnInit {
     if (!Array.isArray(this.settings.favoriteModels)) {
       this.settings.favoriteModels = [];
     }
-    if (!this.settings.favoriteModelLists || !Array.isArray(this.settings.favoriteModelLists.beatInput)) {
+    if (!this.settings.favoriteModelLists) {
       this.settings.favoriteModelLists = {
-        beatInput: [...this.settings.favoriteModels]
+        beatInput: [...this.settings.favoriteModels],
+        sceneSummary: []
       };
+    }
+
+    if (!Array.isArray(this.settings.favoriteModelLists.beatInput)) {
+      this.settings.favoriteModelLists.beatInput = [...this.settings.favoriteModels];
     } else {
       this.settings.favoriteModelLists.beatInput = [...this.settings.favoriteModelLists.beatInput];
+    }
+
+    if (!Array.isArray(this.settings.favoriteModelLists.sceneSummary)) {
+      this.settings.favoriteModelLists.sceneSummary = [];
+    } else {
+      this.settings.favoriteModelLists.sceneSummary = [...this.settings.favoriteModelLists.sceneSummary];
     }
   }
 

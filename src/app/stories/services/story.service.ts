@@ -251,13 +251,18 @@ export class StoryService {
         migrated.settings.favoriteModels = [];
       }
 
-      if (!migrated.settings.favoriteModelLists || !Array.isArray(migrated.settings.favoriteModelLists.beatInput)) {
-        migrated.settings.favoriteModelLists = {
-          beatInput: [...migrated.settings.favoriteModels]
-        };
-      } else {
-        migrated.settings.favoriteModelLists.beatInput = [...migrated.settings.favoriteModelLists.beatInput];
-      }
+      const existingLists = migrated.settings.favoriteModelLists ?? {};
+      const beatInputList = Array.isArray(existingLists.beatInput)
+        ? existingLists.beatInput
+        : migrated.settings.favoriteModels;
+      const sceneSummaryList = Array.isArray(existingLists.sceneSummary)
+        ? existingLists.sceneSummary
+        : [];
+
+      migrated.settings.favoriteModelLists = {
+        beatInput: [...(beatInputList ?? [])],
+        sceneSummary: [...sceneSummaryList]
+      };
     }
 
     // If old story format with content field, migrate to chapter/scene structure

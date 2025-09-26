@@ -28,10 +28,15 @@ export class SettingsService {
             ? parsed.favoriteModels
             : DEFAULT_SETTINGS.favoriteModelLists.beatInput;
 
+        const sceneSummaryFavorites = Array.isArray(parsed.favoriteModelLists?.sceneSummary)
+          ? parsed.favoriteModelLists.sceneSummary
+          : DEFAULT_SETTINGS.favoriteModelLists.sceneSummary;
+
         const favoriteModelLists = {
           ...DEFAULT_SETTINGS.favoriteModelLists,
           ...(parsed.favoriteModelLists ?? {}),
-          beatInput: [...beatInputFavorites]
+          beatInput: [...beatInputFavorites],
+          sceneSummary: [...sceneSummaryFavorites]
         };
 
         return {
@@ -103,10 +108,13 @@ export class SettingsService {
       ...(settings.favoriteModelLists ?? {})
     } as Settings['favoriteModelLists'];
 
-    if (settings.favoriteModelLists?.beatInput) {
-      mergedFavoriteLists.beatInput = [...settings.favoriteModelLists.beatInput];
-    } else {
-      mergedFavoriteLists.beatInput = [...mergedFavoriteLists.beatInput];
+    const favoriteListsKeys: (keyof Settings['favoriteModelLists'])[] = ['beatInput', 'sceneSummary'];
+    for (const key of favoriteListsKeys) {
+      if (settings.favoriteModelLists?.[key]) {
+        mergedFavoriteLists[key] = [...settings.favoriteModelLists[key]];
+      } else {
+        mergedFavoriteLists[key] = [...(mergedFavoriteLists[key] ?? [])];
+      }
     }
 
     const updatedSettings: Settings = {
@@ -184,14 +192,16 @@ export class SettingsService {
 
   clearSettings(): void {
     localStorage.removeItem(this.STORAGE_KEY);
-    const resetFavorites = [...DEFAULT_SETTINGS.favoriteModelLists.beatInput];
+    const resetBeatFavorites = [...DEFAULT_SETTINGS.favoriteModelLists.beatInput];
+    const resetSummaryFavorites = [...DEFAULT_SETTINGS.favoriteModelLists.sceneSummary];
     this.settingsSubject.next({
       ...DEFAULT_SETTINGS,
       favoriteModelLists: {
         ...DEFAULT_SETTINGS.favoriteModelLists,
-        beatInput: resetFavorites
+        beatInput: resetBeatFavorites,
+        sceneSummary: resetSummaryFavorites
       },
-      favoriteModels: [...resetFavorites],
+      favoriteModels: [...resetBeatFavorites],
       updatedAt: new Date()
     });
   }

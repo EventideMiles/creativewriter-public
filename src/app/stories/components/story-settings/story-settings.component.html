@@ -215,7 +215,21 @@
           description="Favorites are stored with this story and power the quick-select buttons in Beat AI."
           emptyState="No favorites defined for this story yet. Use the selector above to add models."
           infoNote="Connect at least one AI provider in the global API settings to populate the list."
-          (favoriteIdsChange)="onFavoriteModelsChange($event)">
+          (favoriteIdsChange)="onFavoriteModelsChange('beatInput', $event)">
+        </app-model-favorites-settings>
+
+        <app-model-favorites-settings
+          [favoriteIds]="settings.favoriteModelLists?.sceneSummary || []"
+          [combinedModels]="combinedModels"
+          [loadingModels]="loadingModels"
+          [modelLoadError]="modelLoadError"
+          cardTitle="Scene Summary Favorites"
+          heading="Summary Model Favorites"
+          subheading="Pick up to 6 models that should be one tap away when creating scene summaries."
+          description="These favorites appear in the scene summary panel inside the story editor."
+          emptyState="No favorites defined for scene summaries yet. Add models to speed up your workflow."
+          infoNote="Favorites are available for any provider you have enabled in the story."
+          (favoriteIdsChange)="onFavoriteModelsChange('sceneSummary', $event)">
         </app-model-favorites-settings>
       </div>
 
