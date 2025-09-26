@@ -111,6 +111,7 @@ export class StoryResearchComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly alertController = inject(AlertController);
   private readonly tokenCounter = inject(TokenCounterService);
+  private readonly MAX_CONCURRENT_SCENES = 3;
 
   story: Story | null = null;
   storyId = '';
@@ -251,39 +252,72 @@ export class StoryResearchComponent implements OnInit {
       return progressState;
     });
 
+    this.updateProgressCounters();
+    this.progressMessage = 'Processing scenes…';
     this.cdr.markForCheck();
 
-    try {
-      for (let index = 0; index < orderedScenes.length; index++) {
-        const { chapter, scene } = orderedScenes[index];
-        const progress = this.sceneProgress[index];
+    const findingsBuffer = new Array<StoryResearchSceneFinding | undefined>(orderedScenes.length);
+    const workerCount = Math.min(this.MAX_CONCURRENT_SCENES, orderedScenes.length);
+    let nextSceneIndex = 0;
+    let firstError: Error | null = null;
 
+    const runWorker = async (): Promise<void> => {
+      while (true) {
+        if (firstError) return;
+        const currentIndex = nextSceneIndex++;
+        if (currentIndex >= orderedScenes.length) return;
+
+        const { chapter, scene } = orderedScenes[currentIndex];
+        const progress = this.sceneProgress[currentIndex];
         const plainText = progress.plainText ?? this.extractSceneText(scene);
+
         if (!plainText.trim()) {
           progress.status = 'skipped';
+          progress.tokenEstimate = 0;
+          this.updateProgressCounters();
+          this.cdr.markForCheck();
           continue;
         }
 
-        this.progressIndex = index;
-        this.progressMessage = `Analyzing "${scene.title}" (${chapter.title})`;
         progress.status = 'running';
+        this.progressMessage = `Analyzing "${scene.title}" (${chapter.title})`;
         this.cdr.markForCheck();
 
         const prompt = this.buildScenePrompt(chapter, scene, trimmedTask, plainText);
         progress.prompt = prompt;
 
-        const response = await this.callModel(prompt, { maxTokens: 900 });
-        progress.response = response;
-        progress.status = 'completed';
-        this.sceneFindings.push({
-          chapterId: chapter.id,
-          sceneId: scene.id,
-          chapterTitle: chapter.title,
-          sceneTitle: scene.title,
-          prompt,
-          response
-        });
-        this.cdr.markForCheck();
+        try {
+          const response = await this.callModel(prompt, { maxTokens: 900 });
+          progress.response = response;
+          progress.status = 'completed';
+          findingsBuffer[currentIndex] = {
+            chapterId: chapter.id,
+            sceneId: scene.id,
+            chapterTitle: chapter.title,
+            sceneTitle: scene.title,
+            prompt,
+            response
+          };
+          this.updateProgressCounters();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error during research. Please try again.';
+          progress.status = 'error';
+          progress.errorMessage = message;
+          firstError = error instanceof Error ? error : new Error(message);
+          return;
+        } finally {
+          this.cdr.markForCheck();
+        }
+      }
+    };
+
+    try {
+      await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+      this.sceneFindings = findingsBuffer.filter((finding): finding is StoryResearchSceneFinding => !!finding);
+
+      if (firstError) {
+        throw firstError;
       }
 
       this.progressMessage = 'Compiling final summary';
@@ -310,10 +344,6 @@ export class StoryResearchComponent implements OnInit {
       this.errorMessage = message;
       this.isRunning = false;
       this.progressMessage = '';
-      if (this.sceneProgress[this.progressIndex]) {
-        this.sceneProgress[this.progressIndex].status = 'error';
-        this.sceneProgress[this.progressIndex].errorMessage = message;
-      }
       const saved = await this.researchService.saveResearch({
         storyId: this.story?.id || this.storyId,
         task: trimmedTask,
@@ -508,6 +538,10 @@ export class StoryResearchComponent implements OnInit {
       buttons: ['OK']
     });
     await alert.present();
+  }
+
+  private updateProgressCounters(): void {
+    this.progressIndex = this.sceneProgress.filter(state => state.status === 'completed' || state.status === 'skipped').length;
   }
 
   private extractSceneText(scene: Scene): string {
