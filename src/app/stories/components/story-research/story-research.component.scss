@@ -48,6 +48,23 @@
   gap: 8px;
 }
 
+.concurrency-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.concurrency-control ion-range {
+  flex: 1;
+}
+
+.range-value {
+  min-width: 36px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 16px;
+}
+
 .selector-row label {
   font-size: 13px;
   text-transform: uppercase;

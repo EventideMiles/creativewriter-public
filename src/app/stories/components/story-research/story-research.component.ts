@@ -22,7 +22,8 @@ import {
   IonHeader,
   IonToolbar,
   IonTitle,
-  IonButtons
+  IonButtons,
+  IonRange
 } from '@ionic/angular/standalone';
 import {
   arrowBack,
@@ -91,6 +92,7 @@ interface OrderedScene {
     IonToolbar,
     IonTitle,
     IonButtons,
+    IonRange,
     AppHeaderComponent,
     ModelSelectorComponent
   ],
@@ -111,7 +113,8 @@ export class StoryResearchComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly alertController = inject(AlertController);
   private readonly tokenCounter = inject(TokenCounterService);
-  private readonly MAX_CONCURRENT_SCENES = 3;
+  private readonly MIN_CONCURRENCY = 1;
+  private readonly MAX_CONCURRENCY = 6;
 
   story: Story | null = null;
   storyId = '';
@@ -127,6 +130,9 @@ export class StoryResearchComponent implements OnInit {
   errorMessage = '';
   currentRunTask = '';
   currentRunModel = '';
+  maxConcurrentScenes = 3;
+  readonly minConcurrency = this.MIN_CONCURRENCY;
+  readonly maxConcurrency = this.MAX_CONCURRENCY;
 
   histories: StoryResearchDoc[] = [];
   viewingHistory: StoryResearchDoc | null = null;
@@ -257,7 +263,9 @@ export class StoryResearchComponent implements OnInit {
     this.cdr.markForCheck();
 
     const findingsBuffer = new Array<StoryResearchSceneFinding | undefined>(orderedScenes.length);
-    const workerCount = Math.min(this.MAX_CONCURRENT_SCENES, orderedScenes.length);
+    const effectiveConcurrency = Math.max(this.MIN_CONCURRENCY, Math.min(this.maxConcurrentScenes, this.MAX_CONCURRENCY));
+    this.maxConcurrentScenes = effectiveConcurrency;
+    const workerCount = Math.min(effectiveConcurrency, orderedScenes.length);
     let nextSceneIndex = 0;
     let firstError: Error | null = null;
 
@@ -518,9 +526,10 @@ export class StoryResearchComponent implements OnInit {
   }
 
   private async confirmHighTokenUsage(): Promise<boolean> {
+    const effectiveConcurrency = Math.max(this.MIN_CONCURRENCY, Math.min(this.maxConcurrentScenes, this.MAX_CONCURRENCY));
     const alert = await this.alertController.create({
       header: 'Token usage warning',
-      message: `This will trigger ${this.estimatedPromptCount} prompts and send the full text of each scene. Expensive hosted models may incur significant costs. Continue?`,
+      message: `This will trigger ${this.estimatedPromptCount} prompts and send the full text of each scene. Up to ${effectiveConcurrency} prompts run in parallel. Expensive hosted models may incur significant costs. Continue?`,
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         { text: 'Proceed', role: 'confirm' }

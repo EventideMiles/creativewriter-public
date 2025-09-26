@@ -27,6 +27,21 @@
             <label for="model">AI model</label>
             <app-model-selector [(model)]="selectedModel" [appendTo]="'body'" [placeholder]="'Select AI model'"></app-model-selector>
           </div>
+          <div class="selector-row concurrency-row">
+            <label for="concurrency">Parallel prompts</label>
+            <div class="concurrency-control">
+              <ion-range
+                [(ngModel)]="maxConcurrentScenes"
+                [min]="minConcurrency"
+                [max]="maxConcurrency"
+                step="1"
+                snaps="true"
+                ticks="true"
+                pin="true">
+              </ion-range>
+              <div class="range-value">{{ maxConcurrentScenes }}</div>
+            </div>
+          </div>
           <ion-textarea
             [(ngModel)]="task"
             [autoGrow]="true"
