@@ -35,6 +35,7 @@ export class BeatAIService {
   private isStreamingSubject = new Subject<boolean>();
   public isStreaming$ = this.isStreamingSubject.asObservable();
   private htmlEntityDecoder: HTMLTextAreaElement | null = null;
+  private entityDecodeBuffers = new Map<string, string>();
 
   private decodeHtmlEntities(text: string): string {
     if (!text || text.indexOf('&') === -1) {
@@ -55,6 +56,48 @@ export class BeatAIService {
     this.htmlEntityDecoder.value = '';
     this.htmlEntityDecoder.textContent = '';
     return decoded;
+  }
+
+  private decodeStreamingChunk(beatId: string, chunk: string): string {
+    if (!chunk) {
+      return chunk;
+    }
+
+    const buffered = (this.entityDecodeBuffers.get(beatId) || '') + chunk;
+
+    if (buffered.indexOf('&') === -1) {
+      this.entityDecodeBuffers.set(beatId, '');
+      return buffered;
+    }
+
+    let remainder = '';
+    let processable = buffered;
+    const lastAmpIndex = buffered.lastIndexOf('&');
+    if (lastAmpIndex !== -1) {
+      const nextSemicolonIndex = buffered.indexOf(';', lastAmpIndex);
+      if (nextSemicolonIndex === -1) {
+        remainder = buffered.substring(lastAmpIndex);
+        processable = buffered.substring(0, lastAmpIndex);
+      }
+    }
+
+    const decoded = this.decodeHtmlEntities(processable);
+    this.entityDecodeBuffers.set(beatId, remainder);
+    return decoded;
+  }
+
+  private flushEntityDecodeBuffer(beatId: string): string {
+    const remainder = this.entityDecodeBuffers.get(beatId);
+    if (remainder === undefined) {
+      return '';
+    }
+
+    this.entityDecodeBuffers.delete(beatId);
+    if (!remainder) {
+      return '';
+    }
+
+    return this.decodeHtmlEntities(remainder);
   }
 
   generateBeatContent(prompt: string, beatId: string, options: {
@@ -138,6 +181,7 @@ export class BeatAIService {
             
             // Clean up active generation
             this.activeGenerations.delete(beatId);
+            this.entityDecodeBuffers.delete(beatId);
             
             // Signal streaming stopped if no more active generations
             if (this.activeGenerations.size === 0) {
@@ -162,7 +206,7 @@ export class BeatAIService {
     const messages = this.parseStructuredPrompt(prompt);
     
     let accumulatedContent = '';
-    
+    this.entityDecodeBuffers.set(beatId, '');
     return this.googleGeminiApi.generateTextStream(prompt, {
       model: options.model,
       maxTokens: maxTokens,
@@ -170,7 +214,7 @@ export class BeatAIService {
       requestId: requestId,
       messages: messages
     }).pipe(
-      map(chunk => this.decodeHtmlEntities(chunk)),
+      map(chunk => this.decodeStreamingChunk(beatId, chunk)),
       tap((decodedChunk: string) => {
         // Emit each chunk as it arrives
         accumulatedContent += decodedChunk;
@@ -183,6 +227,15 @@ export class BeatAIService {
       scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
       tap({
         complete: () => {
+          const remainder = this.flushEntityDecodeBuffer(beatId);
+          if (remainder) {
+            accumulatedContent += remainder;
+            this.generationSubject.next({
+              beatId,
+              chunk: remainder,
+              isComplete: false
+            });
+          }
           // Post-process to remove duplicate character analyses
           accumulatedContent = this.removeDuplicateCharacterAnalyses(accumulatedContent);
           
@@ -204,6 +257,7 @@ export class BeatAIService {
         error: () => {
           // Clean up on error
           this.activeGenerations.delete(beatId);
+          this.entityDecodeBuffers.delete(beatId);
           
           // Signal streaming stopped if no more active generations
           if (this.activeGenerations.size === 0) {
@@ -225,14 +279,15 @@ export class BeatAIService {
           messages: messages
         }).pipe(
           map(response => {
+            const pending = this.flushEntityDecodeBuffer(beatId);
             const rawContent = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const decodedContent = this.decodeHtmlEntities(rawContent);
-            accumulatedContent = decodedContent;
+            accumulatedContent = pending ? pending + decodedContent : decodedContent;
             
             // Simulate streaming by emitting in chunks
             const chunkSize = 50;
-            for (let i = 0; i < decodedContent.length; i += chunkSize) {
-              const chunk = decodedContent.substring(i, i + chunkSize);
+            for (let i = 0; i < accumulatedContent.length; i += chunkSize) {
+              const chunk = accumulatedContent.substring(i, i + chunkSize);
               this.generationSubject.next({
                 beatId,
                 chunk: chunk,
@@ -255,7 +310,7 @@ export class BeatAIService {
               this.isStreamingSubject.next(false);
             }
             
-            return decodedContent;
+            return accumulatedContent;
           })
         );
       })
@@ -267,6 +322,7 @@ export class BeatAIService {
     const messages = this.parseStructuredPrompt(prompt);
 
     let accumulatedContent = '';
+    this.entityDecodeBuffers.set(beatId, '');
     
     return this.openRouterApi.generateTextStream(prompt, {
       model: options.model,
@@ -275,7 +331,7 @@ export class BeatAIService {
       requestId: requestId,
       messages: messages
     }).pipe(
-      map(chunk => this.decodeHtmlEntities(chunk)),
+      map(chunk => this.decodeStreamingChunk(beatId, chunk)),
       tap((decodedChunk: string) => {
         // Emit each chunk as it arrives
         accumulatedContent += decodedChunk;
@@ -288,108 +344,15 @@ export class BeatAIService {
       scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
       tap({
         complete: () => {
-          // Post-process to remove duplicate character analyses
-          accumulatedContent = this.removeDuplicateCharacterAnalyses(accumulatedContent);
-          
-          // Emit completion
-          this.generationSubject.next({
-            beatId,
-            chunk: '',
-            isComplete: true
-          });
-          
-          // Clean up active generation
-          this.activeGenerations.delete(beatId);
-          
-          // Signal streaming stopped if no more active generations
-          if (this.activeGenerations.size === 0) {
-            this.isStreamingSubject.next(false);
+          const remainder = this.flushEntityDecodeBuffer(beatId);
+          if (remainder) {
+            accumulatedContent += remainder;
+            this.generationSubject.next({
+              beatId,
+              chunk: remainder,
+              isComplete: false
+            });
           }
-        }
-      }),
-      map(() => accumulatedContent) // Return full content at the end
-    );
-  }
-
-  private callOllamaAPI(prompt: string, options: { model?: string; temperature?: number; topP?: number }, maxTokens: number, wordCount: number, requestId: string, beatId: string): Observable<string> {
-    // Parse the structured prompt to extract messages
-    const messages = this.parseStructuredPrompt(prompt);
-    
-    let accumulatedContent = '';
-    
-    return this.ollamaApi.generateTextStream(prompt, {
-      model: options.model,
-      maxTokens: maxTokens,
-      temperature: options.temperature,
-      topP: options.topP,
-      wordCount: wordCount,
-      requestId: requestId,
-      messages: messages
-    }).pipe(
-      map(chunk => this.decodeHtmlEntities(chunk)),
-      tap((decodedChunk: string) => {
-        // Emit each chunk as it arrives
-        accumulatedContent += decodedChunk;
-        this.generationSubject.next({
-          beatId,
-          chunk: decodedChunk,
-          isComplete: false
-        });
-      }),
-      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
-      tap({
-        complete: () => {
-          // Post-process to remove duplicate character analyses
-          accumulatedContent = this.removeDuplicateCharacterAnalyses(accumulatedContent);
-          
-          // Emit completion
-          this.generationSubject.next({
-            beatId,
-            chunk: '',
-            isComplete: true
-          });
-          
-          // Clean up active generation
-          this.activeGenerations.delete(beatId);
-          
-          // Signal streaming stopped if no more active generations
-          if (this.activeGenerations.size === 0) {
-            this.isStreamingSubject.next(false);
-          }
-        }
-      }),
-      map(() => accumulatedContent) // Return full content at the end
-    );
-  }
-
-  private callClaudeStreamingAPI(prompt: string, options: { model?: string; temperature?: number; topP?: number }, maxTokens: number, wordCount: number, requestId: string, beatId: string): Observable<string> {
-    // Parse the structured prompt to extract messages
-    const messages = this.parseStructuredPrompt(prompt);
-    
-    let accumulatedContent = '';
-    
-    return this.claudeApi.generateTextStream(prompt, {
-      model: options.model,
-      maxTokens: maxTokens,
-      temperature: options.temperature,
-      topP: options.topP,
-      wordCount: wordCount,
-      requestId: requestId,
-      messages: messages
-    }).pipe(
-      map(chunk => this.decodeHtmlEntities(chunk)),
-      tap((decodedChunk: string) => {
-        // Emit each chunk as it arrives
-        accumulatedContent += decodedChunk;
-        this.generationSubject.next({
-          beatId,
-          chunk: decodedChunk,
-          isComplete: false
-        });
-      }),
-      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
-      tap({
-        complete: () => {
           // Post-process to remove duplicate character analyses
           accumulatedContent = this.removeDuplicateCharacterAnalyses(accumulatedContent);
           
@@ -411,6 +374,149 @@ export class BeatAIService {
         error: () => {
           // Clean up on error
           this.activeGenerations.delete(beatId);
+          this.entityDecodeBuffers.delete(beatId);
+          
+          // Signal streaming stopped if no more active generations
+          if (this.activeGenerations.size === 0) {
+            this.isStreamingSubject.next(false);
+          }
+        }
+      }),
+      map(() => accumulatedContent) // Return full content at the end
+    );
+  }
+
+  private callOllamaAPI(prompt: string, options: { model?: string; temperature?: number; topP?: number }, maxTokens: number, wordCount: number, requestId: string, beatId: string): Observable<string> {
+    // Parse the structured prompt to extract messages
+    const messages = this.parseStructuredPrompt(prompt);
+    
+    let accumulatedContent = '';
+    this.entityDecodeBuffers.set(beatId, '');
+    
+    return this.ollamaApi.generateTextStream(prompt, {
+      model: options.model,
+      maxTokens: maxTokens,
+      temperature: options.temperature,
+      topP: options.topP,
+      wordCount: wordCount,
+      requestId: requestId,
+      messages: messages
+    }).pipe(
+      map(chunk => this.decodeStreamingChunk(beatId, chunk)),
+      tap((decodedChunk: string) => {
+        // Emit each chunk as it arrives
+        accumulatedContent += decodedChunk;
+        this.generationSubject.next({
+          beatId,
+          chunk: decodedChunk,
+          isComplete: false
+        });
+      }),
+      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
+      tap({
+        complete: () => {
+          const remainder = this.flushEntityDecodeBuffer(beatId);
+          if (remainder) {
+            accumulatedContent += remainder;
+            this.generationSubject.next({
+              beatId,
+              chunk: remainder,
+              isComplete: false
+            });
+          }
+          // Post-process to remove duplicate character analyses
+          accumulatedContent = this.removeDuplicateCharacterAnalyses(accumulatedContent);
+          
+          // Emit completion
+          this.generationSubject.next({
+            beatId,
+            chunk: '',
+            isComplete: true
+          });
+          
+          // Clean up active generation
+          this.activeGenerations.delete(beatId);
+          
+          // Signal streaming stopped if no more active generations
+          if (this.activeGenerations.size === 0) {
+            this.isStreamingSubject.next(false);
+          }
+        },
+        error: () => {
+          // Clean up on error
+          this.activeGenerations.delete(beatId);
+          this.entityDecodeBuffers.delete(beatId);
+          
+          // Signal streaming stopped if no more active generations
+          if (this.activeGenerations.size === 0) {
+            this.isStreamingSubject.next(false);
+          }
+        }
+      }),
+      map(() => accumulatedContent) // Return full content at the end
+    );
+  }
+
+  private callClaudeStreamingAPI(prompt: string, options: { model?: string; temperature?: number; topP?: number }, maxTokens: number, wordCount: number, requestId: string, beatId: string): Observable<string> {
+    // Parse the structured prompt to extract messages
+    const messages = this.parseStructuredPrompt(prompt);
+    
+    let accumulatedContent = '';
+    this.entityDecodeBuffers.set(beatId, '');
+    
+    return this.claudeApi.generateTextStream(prompt, {
+      model: options.model,
+      maxTokens: maxTokens,
+      temperature: options.temperature,
+      topP: options.topP,
+      wordCount: wordCount,
+      requestId: requestId,
+      messages: messages
+    }).pipe(
+      map(chunk => this.decodeStreamingChunk(beatId, chunk)),
+      tap((decodedChunk: string) => {
+        // Emit each chunk as it arrives
+        accumulatedContent += decodedChunk;
+        this.generationSubject.next({
+          beatId,
+          chunk: decodedChunk,
+          isComplete: false
+        });
+      }),
+      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
+      tap({
+        complete: () => {
+          const remainder = this.flushEntityDecodeBuffer(beatId);
+          if (remainder) {
+            accumulatedContent += remainder;
+            this.generationSubject.next({
+              beatId,
+              chunk: remainder,
+              isComplete: false
+            });
+          }
+          // Post-process to remove duplicate character analyses
+          accumulatedContent = this.removeDuplicateCharacterAnalyses(accumulatedContent);
+          
+          // Emit completion
+          this.generationSubject.next({
+            beatId,
+            chunk: '',
+            isComplete: true
+          });
+          
+          // Clean up active generation
+          this.activeGenerations.delete(beatId);
+          
+          // Signal streaming stopped if no more active generations
+          if (this.activeGenerations.size === 0) {
+            this.isStreamingSubject.next(false);
+          }
+        },
+        error: () => {
+          // Clean up on error
+          this.activeGenerations.delete(beatId);
+          this.entityDecodeBuffers.delete(beatId);
           
           // Signal streaming stopped if no more active generations
           if (this.activeGenerations.size === 0) {
@@ -431,14 +537,15 @@ export class BeatAIService {
           messages: messages
         }).pipe(
           map(response => {
+            const pending = this.flushEntityDecodeBuffer(beatId);
             const rawContent = response.content?.[0]?.text || '';
             const decodedContent = this.decodeHtmlEntities(rawContent);
-            accumulatedContent = decodedContent;
+            accumulatedContent = pending ? pending + decodedContent : decodedContent;
             
             // Simulate streaming by emitting in chunks
             const chunkSize = 50;
-            for (let i = 0; i < decodedContent.length; i += chunkSize) {
-              const chunk = decodedContent.substring(i, i + chunkSize);
+            for (let i = 0; i < accumulatedContent.length; i += chunkSize) {
+              const chunk = accumulatedContent.substring(i, i + chunkSize);
               this.generationSubject.next({
                 beatId,
                 chunk: chunk,
@@ -461,7 +568,7 @@ export class BeatAIService {
               this.isStreamingSubject.next(false);
             }
             
-            return decodedContent;
+            return accumulatedContent;
           })
         );
       })
@@ -727,6 +834,7 @@ export class BeatAIService {
 
   private generateFallbackContent(prompt: string, beatId: string): Observable<string> {
     const fallbackContent = this.generateSampleContent(prompt);
+    this.entityDecodeBuffers.delete(beatId);
     
     
     // Emit generation complete with fallback
@@ -823,6 +931,7 @@ export class BeatAIService {
       }
       
       this.activeGenerations.delete(beatId);
+      this.entityDecodeBuffers.delete(beatId);
       
       // Emit generation stopped
       this.generationSubject.next({
