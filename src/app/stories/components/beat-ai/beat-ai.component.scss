@@ -443,6 +443,7 @@
     
     .favorite-models {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 0.4rem;
       padding: 0.25rem 0.5rem;
@@ -457,16 +458,16 @@
       font-size: 0.95rem;
       color: #ffd43b;
       opacity: 0.85;
+      flex: 0 0 auto;
     }
 
     .favorite-buttons {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 0.35rem;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
       padding: 0.1rem 0;
+      flex: 1 1 auto;
     }
 
     .favorite-buttons::-webkit-scrollbar {
@@ -998,16 +999,16 @@
     /* Mobile optimizations for Beat AI */
     @media (max-width: 768px) {
       .favorite-models {
-        padding: 0.4rem;
-      }
-      
-      .favorite-models {
         padding: 0.2rem 0.45rem;
         gap: 0.3rem;
+        flex-direction: column;
+        align-items: flex-start;
       }
 
       .favorite-buttons {
         gap: 0.25rem;
+        width: 100%;
+        justify-content: flex-start;
       }
       
       .favorite-btn {
