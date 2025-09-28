@@ -362,7 +362,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     this.promptSubmit.emit({
       beatId: this.beatData.id,
       prompt: this.beatData.prompt,
-      action: 'generate',
+      action: 'regenerate',
       wordCount: this.getActualWordCount(),
       model: this.selectedModel,
       storyId: this.storyId,

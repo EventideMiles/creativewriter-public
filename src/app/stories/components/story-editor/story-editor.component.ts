@@ -1217,6 +1217,11 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Make sure dropdown is hidden when working with beat AI
     this.hideSlashDropdown();
 
+    if (event.action === 'regenerate') {
+      await this.handleBeatRegenerate(event);
+      return;
+    }
+
     if (event.action !== 'deleteAfter') {
       const persistenceSucceeded = await this.persistSceneBeforeBeatAction();
       if (!persistenceSucceeded) {
@@ -1237,6 +1242,38 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     if (this.proseMirrorService) {
       this.proseMirrorService.handleBeatPromptSubmit(enhancedEvent);
     }
+  }
+
+  private async handleBeatRegenerate(event: BeatAIPromptEvent): Promise<void> {
+    if (!this.proseMirrorService) {
+      return;
+    }
+
+    const deleted = this.proseMirrorService.deleteContentAfterBeat(event.beatId);
+    if (!deleted) {
+      console.warn('Beat regeneration skipped: could not remove existing generated content.');
+      return;
+    }
+
+    const persisted = await this.persistSceneBeforeBeatAction();
+    if (!persisted) {
+      console.error('Beat regeneration aborted: Failed to persist scene after clearing previous content.');
+      return;
+    }
+
+    const generateEvent: BeatAIPromptEvent = {
+      ...event,
+      action: 'generate'
+    };
+
+    const enhancedEvent: BeatAIPromptEvent = {
+      ...generateEvent,
+      storyId: this.story.id,
+      chapterId: this.activeChapterId || undefined,
+      sceneId: this.activeSceneId || undefined
+    };
+
+    this.proseMirrorService.handleBeatPromptSubmit(enhancedEvent);
   }
 
   private async persistSceneBeforeBeatAction(): Promise<boolean> {

@@ -937,22 +937,22 @@ export class ProseMirrorEditorService {
   }
 
 
-  private deleteContentAfterBeat(beatId: string): void {
-    if (!this.editorView) return;
+  deleteContentAfterBeat(beatId: string): boolean {
+    if (!this.editorView) return false;
     
     const beatPos = this.findBeatNodePosition(beatId);
-    if (beatPos === null) return;
+    if (beatPos === null) return false;
     
     const { state } = this.editorView;
     const beatNode = state.doc.nodeAt(beatPos);
-    if (!beatNode) return;
+    if (!beatNode) return false;
     
     const deleteStartPos = beatPos + beatNode.nodeSize;
     const nextBeatPos = this.findNextBeatPosition(deleteStartPos);
     const deleteEndPos = nextBeatPos ?? state.doc.content.size;
     
     if (deleteEndPos <= deleteStartPos) {
-      return;
+      return false;
     }
     
     const tr = state.tr.delete(deleteStartPos, deleteEndPos);
@@ -967,6 +967,8 @@ export class ProseMirrorEditorService {
         console.error('Error refreshing prompt manager:', error);
       });
     }, 500);
+
+    return true;
   }
 
   private findNextBeatPosition(startPos: number): number | null {
