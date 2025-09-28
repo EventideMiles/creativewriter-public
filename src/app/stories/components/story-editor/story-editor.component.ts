@@ -1261,9 +1261,12 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const refreshedCustomContext = this.refreshCustomContextForRegenerate(event);
+
     const generateEvent: BeatAIPromptEvent = {
       ...event,
-      action: 'generate'
+      action: 'generate',
+      customContext: refreshedCustomContext
     };
 
     const enhancedEvent: BeatAIPromptEvent = {
@@ -1274,6 +1277,31 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     };
 
     this.proseMirrorService.handleBeatPromptSubmit(enhancedEvent);
+  }
+
+  private refreshCustomContextForRegenerate(event: BeatAIPromptEvent): BeatAIPromptEvent['customContext'] | undefined {
+    if (!event.customContext) {
+      return event.customContext;
+    }
+
+    const { selectedSceneContexts, includeStoryOutline } = event.customContext;
+
+    const updatedContexts = selectedSceneContexts.map(context => {
+      if (this.activeScene && context.sceneId === this.activeScene.id) {
+        const sanitizedContent = this.promptManager.extractPlainTextFromHtml(this.activeScene.content || '');
+        return {
+          ...context,
+          content: sanitizedContent
+        };
+      }
+      return context;
+    });
+
+    return {
+      includeStoryOutline,
+      selectedSceneContexts: updatedContexts,
+      selectedScenes: updatedContexts.map(ctx => ctx.content)
+    };
   }
 
   private async persistSceneBeforeBeatAction(): Promise<boolean> {
