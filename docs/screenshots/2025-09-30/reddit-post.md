@@ -1,7 +1,7 @@
-# CreativeWriter 2 v1.4.202509301106 – Outline workspace, scene generation, smarter research
+# CreativeWriter 2 v1.4.202509301106 – AI outline workspace, scene generator, research toolkit
 
 ## Suggested Reddit Title
-CreativeWriter 2 v1.4.202509301106 – Outline workspace, scene generation, and smarter research
+CreativeWriter 2 v1.4: AI Outline Workspace, Scene Generator & Research Toolkit
 
 ## Post Body
 Hey storytellers 👋
