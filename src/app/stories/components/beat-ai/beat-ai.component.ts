@@ -739,11 +739,13 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
   
   getShortModelName(label: string): string {
     // Create short names for favorite buttons
+    // Check more specific versions first to avoid substring matching issues
     if (label.includes('Claude 3.7 Sonnet') || label.includes('Claude 3.5 Sonnet v2')) return 'Claude 3.7';
+    if (label.includes('Claude Sonnet 4.5')) return 'Sonnet 4.5';
     if (label.includes('Claude Sonnet 4')) return 'Sonnet 4';
     if (label.includes('Gemini 2.5 Pro')) return 'Gemini 2.5';
     if (label.includes('Grok-3') || label.includes('Grok3')) return 'Grok3';
-    
+
     // For other models, try to extract a short name
     const parts = label.split(' ');
     if (parts.length > 2) {
