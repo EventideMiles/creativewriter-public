@@ -230,11 +230,11 @@ export class StoryOutlineOverviewComponent implements OnInit {
   }
 
   // AI generation states
-  private generatingSummary = new Set<string>();
-  private generatingTitle = new Set<string>();
+  private generatingSummary = signal<Set<string>>(new Set());
+  private generatingTitle = signal<Set<string>>(new Set());
 
-  isGeneratingSummary(sceneId: string): boolean { return this.generatingSummary.has(sceneId); }
-  isGeneratingTitle(sceneId: string): boolean { return this.generatingTitle.has(sceneId); }
+  isGeneratingSummary(sceneId: string): boolean { return this.generatingSummary().has(sceneId); }
+  isGeneratingTitle(sceneId: string): boolean { return this.generatingTitle().has(sceneId); }
 
   // Inline title editing state
   editingTitles: Record<string, string> = {};
@@ -306,10 +306,14 @@ export class StoryOutlineOverviewComponent implements OnInit {
       return;
     }
 
-    this.generatingSummary.add(sceneId);
+    this.generatingSummary.update(set => new Set(set).add(sceneId));
     const timeoutId = setTimeout(() => {
-      if (this.generatingSummary.has(sceneId)) {
-        this.generatingSummary.delete(sceneId);
+      if (this.generatingSummary().has(sceneId)) {
+        this.generatingSummary.update(set => {
+          const newSet = new Set(set);
+          newSet.delete(sceneId);
+          return newSet;
+        });
         alert('Summary generation is taking too long. Please try again.');
       }
     }, 30000);
@@ -371,7 +375,11 @@ export class StoryOutlineOverviewComponent implements OnInit {
       await this.storyService.updateScene(current.id, chapterId, sceneId, { summary, summaryGeneratedAt: new Date() });
       this.promptManager.refresh();
       clearTimeout(timeoutId);
-      this.generatingSummary.delete(sceneId);
+      this.generatingSummary.update(set => {
+        const newSet = new Set(set);
+        newSet.delete(sceneId);
+        return newSet;
+      });
     };
 
     if (useGemini) {
@@ -385,7 +393,11 @@ export class StoryOutlineOverviewComponent implements OnInit {
           error: (error) => {
             console.error('Error generating scene summary:', error);
             clearTimeout(timeoutId);
-            this.generatingSummary.delete(sceneId);
+            this.generatingSummary.update(set => {
+              const newSet = new Set(set);
+              newSet.delete(sceneId);
+              return newSet;
+            });
             alert(this.describeGeminiError(error));
           }
         });
@@ -401,7 +413,11 @@ export class StoryOutlineOverviewComponent implements OnInit {
           error: (error) => {
             console.error('Error generating scene summary:', error);
             clearTimeout(timeoutId);
-            this.generatingSummary.delete(sceneId);
+            this.generatingSummary.update(set => {
+              const newSet = new Set(set);
+              newSet.delete(sceneId);
+              return newSet;
+            });
             alert(this.describeOpenRouterError(error));
           }
         });
@@ -427,10 +443,14 @@ export class StoryOutlineOverviewComponent implements OnInit {
       return;
     }
 
-    this.generatingTitle.add(sceneId);
+    this.generatingTitle.update(set => new Set(set).add(sceneId));
     const timeoutId = setTimeout(() => {
-      if (this.generatingTitle.has(sceneId)) {
-        this.generatingTitle.delete(sceneId);
+      if (this.generatingTitle().has(sceneId)) {
+        this.generatingTitle.update(set => {
+          const newSet = new Set(set);
+          newSet.delete(sceneId);
+          return newSet;
+        });
         alert('Title generation is taking too long. Please try again.');
       }
     }, 30000);
@@ -484,7 +504,11 @@ export class StoryOutlineOverviewComponent implements OnInit {
       await this.storyService.updateScene(current.id, chapterId, sceneId, { title });
       this.promptManager.refresh();
       clearTimeout(timeoutId);
-      this.generatingTitle.delete(sceneId);
+      this.generatingTitle.update(set => {
+        const newSet = new Set(set);
+        newSet.delete(sceneId);
+        return newSet;
+      });
     };
 
     if (useGemini) {
@@ -498,7 +522,11 @@ export class StoryOutlineOverviewComponent implements OnInit {
           error: (error) => {
             console.error('Error generating scene title:', error);
             clearTimeout(timeoutId);
-            this.generatingTitle.delete(sceneId);
+            this.generatingTitle.update(set => {
+              const newSet = new Set(set);
+              newSet.delete(sceneId);
+              return newSet;
+            });
             alert(this.describeGeminiError(error));
           }
         });
@@ -512,7 +540,11 @@ export class StoryOutlineOverviewComponent implements OnInit {
           error: (error) => {
             console.error('Error generating scene title:', error);
             clearTimeout(timeoutId);
-            this.generatingTitle.delete(sceneId);
+            this.generatingTitle.update(set => {
+              const newSet = new Set(set);
+              newSet.delete(sceneId);
+              return newSet;
+            });
             alert(this.describeOpenRouterError(error));
           }
         });
