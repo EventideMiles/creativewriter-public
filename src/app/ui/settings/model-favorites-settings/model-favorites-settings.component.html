@@ -44,7 +44,7 @@
           </ng-template>
           <ng-template ng-multi-label-tmp let-items="items">
             <div class="selected-chips">
-              <div class="selected-chip" *ngFor="let item of items">
+              <div class="selected-chip" *ngFor="let item of items" [title]="item.label">
                 {{ item.label }}
               </div>
             </div>

@@ -93,6 +93,10 @@ ion-card {
   padding: 0.25rem 0.5rem;
   font-size: 0.85rem;
   color: #e0e0e0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .loading-state {
