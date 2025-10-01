@@ -597,4 +597,13 @@ export class StoryOutlineOverviewComponent implements OnInit {
       this.savingChapterTitleSet.delete(chapterId);
     }
   }
+
+  // TrackBy functions to preserve accordion state during updates
+  trackChapterById(index: number, chapter: Chapter): string {
+    return chapter.id;
+  }
+
+  trackSceneById(index: number, scene: { id: string }): string {
+    return scene.id;
+  }
 }

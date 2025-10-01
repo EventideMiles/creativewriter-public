@@ -30,7 +30,7 @@
   </div>
 
   <ion-accordion-group *ngIf="!loading()" [multiple]="true" [value]="expandedArray()" (ionChange)="onAccordionChange($event)">
-    <ion-accordion *ngFor="let chapter of filteredChapters()" [value]="chapter.id">
+    <ion-accordion *ngFor="let chapter of filteredChapters(); trackBy: trackChapterById" [value]="chapter.id">
       <ion-item slot="header" lines="full">
         <ion-label>
           <div class="chapter-header-row">
@@ -74,7 +74,7 @@
       </ion-item>
       <div class="chapter-content" slot="content">
         <ion-list lines="none">
-          <ion-card *ngFor="let scene of chapter.scenes" class="scene-card">
+          <ion-card *ngFor="let scene of chapter.scenes; trackBy: trackSceneById" class="scene-card">
             <ion-card-header>
               <ion-card-title>
                 <ng-container *ngIf="!isEditingTitle(scene.id); else editTitleTpl">
