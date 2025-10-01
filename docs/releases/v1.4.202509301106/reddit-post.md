@@ -54,18 +54,17 @@ CreativeWriter 2 is a **self-hosted, privacy-first writing tool** designed for n
 
 ## 🚀 Getting Started
 
-**Docker (Recommended):**
+**Recommended: Use Docker Compose**
 ```bash
-docker pull ghcr.io/marcodroll/creativewriter-public:v1.4.202509301106
-docker pull ghcr.io/marcodroll/creativewriter-public-nginx:v1.4.202509301106
+# Download the docker-compose.yml
+wget https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
+
+# Start all services
+docker compose pull
 docker compose up -d
 ```
 
-**Or use stable tags:**
-```bash
-docker pull ghcr.io/marcodroll/creativewriter-public:stable
-docker pull ghcr.io/marcodroll/creativewriter-public-nginx:stable
-```
+This uses the `docker-compose.yml` which handles all services and configuration automatically.
 
 ## 📦 Links
 
