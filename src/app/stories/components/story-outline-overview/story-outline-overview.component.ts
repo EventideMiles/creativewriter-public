@@ -1,8 +1,8 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, computed, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, computed, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { 
+import {
   IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
   IonButton, IonIcon, IonChip, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonTextarea, IonInput,
@@ -35,6 +35,8 @@ import { PromptManagerService } from '../../../shared/services/prompt-manager.se
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StoryOutlineOverviewComponent implements OnInit {
+  @ViewChild(IonContent) content!: IonContent;
+
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private storyService = inject(StoryService);
@@ -105,9 +107,9 @@ export class StoryOutlineOverviewComponent implements OnInit {
       // If we have a chapterId, only expand that chapter. Otherwise expand all chapters
       if (chapterId) {
         this.expanded.set(new Set([chapterId]));
-        // Schedule scroll to scene after view is ready
+        // Schedule scroll to scene after view is ready and accordion expanded
         if (sceneId) {
-          setTimeout(() => this.scrollToScene(sceneId), 300);
+          setTimeout(() => this.scrollToScene(sceneId), 600);
         }
       } else {
         // Expand all chapters by default for quick overview
@@ -650,13 +652,29 @@ export class StoryOutlineOverviewComponent implements OnInit {
     return scene.id;
   }
 
-  private scrollToScene(sceneId: string): void {
+  private async scrollToScene(sceneId: string): Promise<void> {
     const element = document.getElementById(`scene-${sceneId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Add a highlight effect
-      element.classList.add('highlight');
-      setTimeout(() => element.classList.remove('highlight'), 2000);
+    if (element && this.content) {
+      try {
+        // Get element position relative to the page
+        const rect = element.getBoundingClientRect();
+        const scrollElement = await this.content.getScrollElement();
+        const scrollTop = scrollElement.scrollTop;
+
+        // Calculate absolute Y position
+        const yPosition = rect.top + scrollTop - 100; // 100px offset from top
+
+        // Use Ionic's scrollToPoint for mobile compatibility
+        await this.content.scrollToPoint(0, yPosition, 500);
+
+        // Add a highlight effect
+        element.classList.add('highlight');
+        setTimeout(() => element.classList.remove('highlight'), 2000);
+      } catch (error) {
+        console.error('Error scrolling to scene:', error);
+        // Fallback to standard scrollIntoView
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
   }
 }
