@@ -317,6 +317,6 @@ ion-accordion [slot="content"],
   }
   ion-content::part(scroll) {
     padding-top: 56px; /* header height compensation */
-    padding-bottom: var(--ion-safe-area-bottom, 0px);
+    padding-bottom: max(40px, var(--ion-safe-area-bottom, 0px));
   }
 }
