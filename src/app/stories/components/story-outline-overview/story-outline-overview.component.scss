@@ -1,6 +1,6 @@
 ion-fab.model-fab {
   z-index: 40;
-  margin-bottom: calc(20px + env(safe-area-inset-bottom));
+  margin-bottom: calc(96px + env(safe-area-inset-bottom));
   margin-right: calc(16px + env(safe-area-inset-right));
 
   ion-fab-button {
@@ -8,7 +8,7 @@ ion-fab.model-fab {
   }
 
   @media (min-width: 768px) {
-    margin-bottom: 32px;
+    margin-bottom: 48px;
     margin-right: 32px;
   }
 }
