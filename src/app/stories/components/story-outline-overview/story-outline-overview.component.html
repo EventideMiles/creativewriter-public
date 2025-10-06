@@ -7,17 +7,15 @@
 
 <ion-content [fullscreen]="true">
   <!-- Floating Action Button to toggle model selection -->
-  <ion-fab class="model-fab" vertical="bottom" horizontal="end" slot="fixed" [class.expanded]="toolbarVisible()">
+  <ion-fab class="model-fab" vertical="bottom" horizontal="end" slot="fixed">
     <ion-fab-button
       aria-label="Toggle model selection"
       [attr.aria-expanded]="toolbarVisible()"
       aria-controls="model-selection-panel"
       (click)="toggleToolbar()"
-      [color]="toolbarVisible() ? 'primary' : 'tertiary'"
-      size="small"
-      class="model-fab-button">
+      [color]="toolbarVisible() ? 'primary' : 'medium'"
+      size="small">
       <ion-icon [name]="toolbarVisible() ? 'close-outline' : 'sparkles-outline'"></ion-icon>
-      <span>{{ toolbarVisible() ? 'Close' : 'Model tools' }}</span>
     </ion-fab-button>
   </ion-fab>
 

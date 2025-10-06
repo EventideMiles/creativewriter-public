@@ -3,35 +3,8 @@ ion-fab.model-fab {
   margin-bottom: calc(20px + env(safe-area-inset-bottom));
   margin-right: calc(16px + env(safe-area-inset-right));
 
-  &.expanded {
-    --ion-safe-area-bottom: 0;
-  }
-
-  .model-fab-button {
-    --border-radius: 999px;
-    --box-shadow: 0 18px 32px rgba(0, 0, 0, 0.35);
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding-inline: 16px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    text-transform: none;
-    min-width: 0;
-
-    ion-icon {
-      font-size: 20px;
-    }
-
-    span {
-      display: none;
-    }
-  }
-
-  @media (min-width: 480px) {
-    .model-fab-button span {
-      display: inline;
-    }
+  ion-fab-button {
+    --box-shadow: 0 16px 28px rgba(0, 0, 0, 0.3);
   }
 
   @media (min-width: 768px) {
