@@ -451,21 +451,6 @@ export class CodexComponent implements OnInit, OnDestroy {
     this.router.navigate(['/stories/editor', this.storyId()]);
   }
 
-  onTextareaInput(event: CustomEvent) {
-    // Fix for autoGrow scroll-to-top issue
-    setTimeout(() => {
-      const target = event.target as HTMLIonTextareaElement;
-      if (target && typeof target.getInputElement === 'function') {
-        target.getInputElement().then((textArea: HTMLTextAreaElement) => {
-          if (textArea) {
-            textArea.style.scrollBehavior = 'smooth';
-            textArea.scrollTop = textArea.scrollHeight;
-          }
-        });
-      }
-    }, 0);
-  }
-
   private initializeHeaderActions(): void {
     this.headerActions = [
       {
