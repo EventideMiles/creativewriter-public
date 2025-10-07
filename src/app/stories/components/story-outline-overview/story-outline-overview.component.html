@@ -148,7 +148,7 @@
                   <ion-textarea
                     [ngModel]="editingSummaries[scene.id] || ''"
                     (ngModelChange)="onEditSummaryChange(scene.id, $event)"
-                    [autoGrow]="true"
+                    [autoGrow]="false"
                     rows="6"
                     placeholder="Write a short summary for this scene..."
                     (keydown)="onSummaryKeydown($event, chapter.id, scene.id)">

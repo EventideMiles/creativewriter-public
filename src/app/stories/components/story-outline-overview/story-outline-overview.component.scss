@@ -233,6 +233,14 @@ ion-fab.model-fab {
   font-style: italic;
 }
 
+.summary {
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .summary-edit ion-textarea {
   --background: rgba(0, 0, 0, 0.2);
   --color: var(--ion-text-color);
