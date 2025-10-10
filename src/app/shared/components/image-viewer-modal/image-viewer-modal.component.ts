@@ -1,10 +1,26 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
+import { IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIcon, IonContent, IonFooter, IonSpinner, IonImg } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { close, videocamOutline } from 'ionicons/icons';
 
 @Component({
   selector: 'app-image-viewer-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [
+    CommonModule,
+    IonModal,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonButtons,
+    IonButton,
+    IonIcon,
+    IonContent,
+    IonFooter,
+    IonSpinner,
+    IonImg
+  ],
   templateUrl: './image-viewer-modal.component.html',
   styleUrls: ['./image-viewer-modal.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -33,18 +49,18 @@ export class ImageViewerModalComponent {
     }
   }
 
-  onOverlayInteraction(event: Event): void {
-    if (event instanceof KeyboardEvent) {
-      if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
-        event.preventDefault();
-        this.onClose();
-      }
+  private closingViaControl = false;
+
+  constructor() {
+    addIcons({ close, videocamOutline });
+  }
+
+  onModalDidDismiss(): void {
+    if (this.closingViaControl) {
+      this.closingViaControl = false;
       return;
     }
-
-    if (event.target === event.currentTarget) {
-      this.onClose();
-    }
+    this.closed.emit();
   }
 
   onClose(): void {
@@ -52,11 +68,14 @@ export class ImageViewerModalComponent {
       return;
     }
 
+    this.closingViaControl = true;
     this.closed.emit();
   }
 
   onManageVideo(event: Event): void {
+    event.preventDefault();
     event.stopPropagation();
+    this.closingViaControl = true;
     this.manageVideo.emit();
   }
 }

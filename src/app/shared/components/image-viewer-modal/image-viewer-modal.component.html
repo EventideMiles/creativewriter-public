@@ -1,37 +1,33 @@
-<div 
-  class="image-viewer-overlay" 
-  *ngIf="isOpen" 
-  (click)="onOverlayInteraction($event)"
-  (keydown.enter)="onOverlayInteraction($event)"
-  (keydown.space)="onOverlayInteraction($event)"
-  tabindex="0"
+<ion-modal
+  [isOpen]="isOpen"
+  (didDismiss)="onModalDidDismiss()"
+  [backdropDismiss]="true"
+  class="image-lightbox-modal"
+  style="--width: min(900px, 100vw); --height: 90vh; --backdrop-opacity: 0.85;"
 >
-  <div 
-    class="image-viewer-dialog"
-    role="dialog"
-    aria-modal="true"
-    tabindex="-1"
-    [attr.aria-label]="imageTitle || 'Image preview'"
-  >
-    <header class="dialog-header">
-      <h2 *ngIf="imageTitle; else fallbackTitle">{{ imageTitle }}</h2>
-      <ng-template #fallbackTitle>
-        <h2>Image preview</h2>
-      </ng-template>
-      <button type="button" class="close-btn" (click)="onClose()" aria-label="Close image viewer">✕</button>
-    </header>
+  <ng-template>
+    <ion-header class="lightbox-header">
+      <ion-toolbar>
+        <ion-title>{{ imageTitle || 'Image preview' }}</ion-title>
+        <ion-buttons slot="end">
+          <ion-button fill="clear" (click)="onClose()" aria-label="Close image viewer">
+            <ion-icon slot="icon-only" name="close"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
 
-    <section class="dialog-body">
-      <div class="image-container" *ngIf="imageSrc">
-        <img [src]="imageSrc" [alt]="imageAlt || 'Story image'" />
+    <ion-content class="lightbox-content" [fullscreen]="true">
+      <div class="image-wrapper" *ngIf="imageSrc">
+        <ion-img [src]="imageSrc" [alt]="imageAlt || 'Story image'"></ion-img>
       </div>
 
-      <div class="video-container loading" *ngIf="loadingVideo">
-        <div class="spinner" aria-hidden="true"></div>
+      <div class="video-wrapper loading" *ngIf="loadingVideo">
+        <ion-spinner name="crescent"></ion-spinner>
         <p>Loading video…</p>
       </div>
 
-      <div class="video-container" *ngIf="!loadingVideo && videoSrc">
+      <div class="video-wrapper" *ngIf="!loadingVideo && videoSrc">
         <video controls [src]="videoSrc">
           Your browser does not support the video element.
         </video>
@@ -41,12 +37,22 @@
       <p class="no-video" *ngIf="!loadingVideo && !videoSrc">
         No video attached to this image.
       </p>
-    </section>
+    </ion-content>
 
-    <footer class="dialog-footer">
-      <button type="button" class="manage-video-btn" (click)="onManageVideo($event)">
-        Manage Video
-      </button>
-    </footer>
-  </div>
-</div>
+    <ion-footer class="lightbox-footer">
+      <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-button fill="clear" (click)="onManageVideo($event)">
+            <ion-icon slot="start" name="videocam-outline"></ion-icon>
+            Manage Video
+          </ion-button>
+        </ion-buttons>
+        <ion-buttons slot="end">
+          <ion-button fill="solid" color="primary" (click)="onClose()">
+            Close
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-footer>
+  </ng-template>
+</ion-modal>
