@@ -1,0 +1,52 @@
+<div 
+  class="image-viewer-overlay" 
+  *ngIf="isOpen" 
+  (click)="onOverlayInteraction($event)"
+  (keydown.enter)="onOverlayInteraction($event)"
+  (keydown.space)="onOverlayInteraction($event)"
+  tabindex="0"
+>
+  <div 
+    class="image-viewer-dialog"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    [attr.aria-label]="imageTitle || 'Image preview'"
+  >
+    <header class="dialog-header">
+      <h2 *ngIf="imageTitle; else fallbackTitle">{{ imageTitle }}</h2>
+      <ng-template #fallbackTitle>
+        <h2>Image preview</h2>
+      </ng-template>
+      <button type="button" class="close-btn" (click)="onClose()" aria-label="Close image viewer">✕</button>
+    </header>
+
+    <section class="dialog-body">
+      <div class="image-container" *ngIf="imageSrc">
+        <img [src]="imageSrc" [alt]="imageAlt || 'Story image'" />
+      </div>
+
+      <div class="video-container loading" *ngIf="loadingVideo">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Loading video…</p>
+      </div>
+
+      <div class="video-container" *ngIf="!loadingVideo && videoSrc">
+        <video controls [src]="videoSrc">
+          Your browser does not support the video element.
+        </video>
+        <p class="video-name" *ngIf="videoName">{{ videoName }}</p>
+      </div>
+
+      <p class="no-video" *ngIf="!loadingVideo && !videoSrc">
+        No video attached to this image.
+      </p>
+    </section>
+
+    <footer class="dialog-footer">
+      <button type="button" class="manage-video-btn" (click)="onManageVideo($event)">
+        Manage Video
+      </button>
+    </footer>
+  </div>
+</div>
