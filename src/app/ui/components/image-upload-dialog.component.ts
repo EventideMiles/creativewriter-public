@@ -6,6 +6,8 @@ import { ImageService, ImageUploadResult } from '../../shared/services/image.ser
 import { ImageCropperModalComponent } from './image-cropper-modal.component';
 import imageCompression from 'browser-image-compression';
 
+type ProcessingStage = 'prepare' | 'compressing' | 'uploading' | 'finalizing';
+
 export interface ImageInsertResult {
   url: string;
   alt: string;
@@ -19,7 +21,19 @@ export interface ImageInsertResult {
   imports: [CommonModule, FormsModule],
   template: `
     <div class="dialog-overlay" role="button" tabindex="0" (click)="cancel()" (keyup.escape)="cancel()">
-      <div class="dialog-content" role="button" tabindex="0" (click)="$event.stopPropagation()" (keyup.enter)="$event.stopPropagation()">
+      <div 
+        class="dialog-content"
+        role="button"
+        tabindex="0"
+        (click)="$event.stopPropagation()"
+        (keyup.enter)="$event.stopPropagation()"
+        [attr.aria-busy]="isProcessing">
+        <div class="processing-overlay" *ngIf="isProcessing">
+          <div class="processing-container" role="status" aria-live="polite">
+            <div class="processing-spinner" aria-hidden="true"></div>
+            <p>{{ processingMessage }}</p>
+          </div>
+        </div>
         <h3>Insert Image</h3>
         
         <div class="upload-tabs">
@@ -157,7 +171,7 @@ export interface ImageInsertResult {
           <button class="cancel-btn" (click)="cancel()">Cancel</button>
           <button 
             class="insert-btn" 
-            [disabled]="!canInsert()"
+            [disabled]="!canInsert() || isProcessing"
             (click)="insert()">
             Insert
           </button>
@@ -189,6 +203,8 @@ export interface ImageInsertResult {
       max-height: 90vh;
       overflow-y: auto;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
     }
 
     h3 {
@@ -461,6 +477,52 @@ export interface ImageInsertResult {
       cursor: not-allowed;
     }
 
+    .processing-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      backdrop-filter: blur(4px);
+      pointer-events: all;
+    }
+
+    .processing-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.5rem;
+      background: rgba(26, 26, 26, 0.9);
+      border: 1px solid #404040;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .processing-container p {
+      margin: 0;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    .processing-spinner {
+      width: 42px;
+      height: 42px;
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #28a745;
+      border-radius: 50%;
+      animation: processing-spin 1s linear infinite;
+    }
+
+    @keyframes processing-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     @media (max-width: 480px) {
       .dialog-content {
         padding: 1rem;
@@ -503,6 +565,8 @@ export class ImageUploadDialogComponent {
   originalSize = 0;
   compressedSize = 0;
   Math = Math;
+  isProcessing = false;
+  processingStage: ProcessingStage | null = null;
 
   private readonly imageService = inject(ImageService);
   private readonly modalController = inject(ModalController);
@@ -611,6 +675,43 @@ export class ImageUploadDialogComponent {
     });
   }
 
+  private beginProcessing(stage: ProcessingStage): void {
+    this.commitState(() => {
+      this.isProcessing = true;
+      this.processingStage = stage;
+    });
+  }
+
+  private updateProcessingStage(stage: ProcessingStage): void {
+    this.commitState(() => {
+      if (!this.isProcessing) {
+        return;
+      }
+      this.processingStage = stage;
+    });
+  }
+
+  private endProcessing(): void {
+    this.commitState(() => {
+      this.isProcessing = false;
+      this.processingStage = null;
+    });
+  }
+
+  get processingMessage(): string {
+    switch (this.processingStage) {
+      case 'compressing':
+        return 'Compressing image...';
+      case 'uploading':
+        return 'Uploading image...';
+      case 'finalizing':
+        return 'Finishing up...';
+      case 'prepare':
+      default:
+        return 'Preparing image...';
+    }
+  }
+
   private buildAltText(filename: string): string {
     const nameWithoutExtension = filename.replace(/\.[^/.]+$/, '');
     return nameWithoutExtension
@@ -712,17 +813,19 @@ export class ImageUploadDialogComponent {
   }
 
   async insert(): Promise<void> {
-    if (!this.canInsert()) return;
+    if (!this.canInsert() || this.isProcessing) return;
+
+    this.beginProcessing('prepare');
 
     try {
       let imageUrl: string;
       let imageId: string | undefined;
 
       if (this.activeTab === 'upload' && this.uploadedFile) {
-        // Compress the image before uploading
+        this.updateProcessingStage('compressing');
         const compressedFile = await this.compressImage(this.uploadedFile);
-        
-        // Convert to base64 for local storage and get both URL and ID
+
+        this.updateProcessingStage('uploading');
         const uploadResult: ImageUploadResult = await this.imageService.uploadImageWithId(compressedFile);
         imageUrl = uploadResult.url;
         imageId = uploadResult.imageId;
@@ -732,6 +835,7 @@ export class ImageUploadDialogComponent {
         imageId = undefined;
       }
 
+      this.updateProcessingStage('finalizing');
       this.imageInserted.emit({
         url: imageUrl,
         alt: this.altText || 'Image',
@@ -741,6 +845,8 @@ export class ImageUploadDialogComponent {
     } catch (error) {
       console.error('Error inserting image:', error);
       alert('Error inserting image. Please try again.');
+    } finally {
+      this.endProcessing();
     }
   }
 
