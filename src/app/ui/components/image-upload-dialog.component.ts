@@ -843,8 +843,7 @@ export class ImageUploadDialogComponent {
         imageId: imageId
       });
     } catch (error) {
-      console.error('Error inserting image:', error);
-      alert('Error inserting image. Please try again.');
+      this.handleInsertError(error);
     } finally {
       this.endProcessing();
     }
@@ -876,5 +875,28 @@ export class ImageUploadDialogComponent {
 
   cancel(): void {
     this.cancelled.emit();
+  }
+
+  private handleInsertError(error: unknown): void {
+    console.error('Error inserting image:', error);
+    const message = this.buildUserFacingError(error);
+    // Ensure alert runs inside Angular zone for consistency across platforms
+    this.zone.run(() => alert(message));
+  }
+
+  private buildUserFacingError(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      const trimmed = error.message.trim();
+      const lower = trimmed.toLowerCase();
+      const hasPrefix = lower.startsWith('error') || lower.startsWith('warning');
+      return hasPrefix ? trimmed : `Image upload failed: ${trimmed}`;
+    }
+
+    if (typeof error === 'string' && error) {
+      const trimmed = error.trim();
+      return `Image upload failed: ${trimmed}`;
+    }
+
+    return 'Image upload failed. Please check the file and try again.';
   }
 }
