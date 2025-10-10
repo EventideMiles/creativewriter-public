@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, Output, ViewChild, inject, NgZone } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, ElementRef, EventEmitter, Output, ViewChild, ViewRef, inject, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ModalController } from '@ionic/angular/standalone';
@@ -507,22 +507,31 @@ export class ImageUploadDialogComponent {
   private readonly imageService = inject(ImageService);
   private readonly modalController = inject(ModalController);
   private readonly zone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private viewDestroyed = false;
 
-  onFileSelected(event: Event): void {
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.viewDestroyed = true;
+    });
+  }
+
+  async onFileSelected(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
-      this.handleFile(input.files[0]);
+      await this.handleFile(input.files[0]);
     }
     this.resetFileInput(input);
   }
 
-  onDrop(event: DragEvent): void {
+  async onDrop(event: DragEvent): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
     this.isDragging = false;
 
     if (event.dataTransfer?.files && event.dataTransfer.files[0]) {
-      this.handleFile(event.dataTransfer.files[0]);
+      await this.handleFile(event.dataTransfer.files[0]);
     }
   }
 
@@ -538,7 +547,7 @@ export class ImageUploadDialogComponent {
     this.isDragging = false;
   }
 
-  private handleFile(file: File): void {
+  private async handleFile(file: File): Promise<void> {
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file.');
       return;
@@ -553,22 +562,20 @@ export class ImageUploadDialogComponent {
     if (!this.altText) {
       this.altText = this.buildAltText(file.name);
     }
-    
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.zone.run(() => {
-        this.uploadPreview = reader.result as string;
+    this.uploadPreview = null;
+
+    try {
+      const preview = await this.readFileAsDataURL(file);
+      this.commitState(() => {
+        this.uploadPreview = preview;
       });
-    };
-    reader.onerror = () => {
-      this.zone.run(() => {
-        console.error('Error reading image file');
+    } catch (error) {
+      console.error('Error reading image file', error);
+      this.commitState(() => {
         alert('Error loading the image preview. Please try again.');
         this.removeUploadedImage();
       });
-    };
-    reader.readAsDataURL(file);
+    }
   }
 
   private resetFileInput(input?: HTMLInputElement | null): void {
@@ -576,6 +583,32 @@ export class ImageUploadDialogComponent {
     if (target) {
       target.value = '';
     }
+  }
+
+  private readFileAsDataURL(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.onabort = () => reject(new Error('File reading was aborted'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  private commitState(mutator: () => void): void {
+    if (this.viewDestroyed) {
+      return;
+    }
+    this.zone.run(() => {
+      if (this.viewDestroyed) {
+        return;
+      }
+      mutator();
+      const viewRef = this.cdr as ViewRef;
+      if (!viewRef.destroyed) {
+        viewRef.detectChanges();
+      }
+    });
   }
 
   private buildAltText(filename: string): string {
@@ -614,7 +647,7 @@ export class ImageUploadDialogComponent {
       if (data?.croppedImage) {
         // Convert the cropped base64 back to a File
         const croppedFile = await this.base64ToFile(data.croppedImage, this.uploadedFile?.name || 'cropped-image.jpg');
-        this.handleFile(croppedFile);
+        await this.handleFile(croppedFile);
       }
     } catch (error) {
       console.error('Error cropping image:', error);
