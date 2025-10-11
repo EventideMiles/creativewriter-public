@@ -8,5 +8,3 @@ Content:
 Important: Write it structured to be used as context for an AI that continues the story.{additionalInstructions}
 
 {languageInstruction}
-
-Answer only with and directly with the summary!
