@@ -12,6 +12,7 @@ import {
 } from 'ionicons/icons';
 import { Story, Chapter, Scene } from '../../models/story.interface';
 import { StoryService } from '../../services/story.service';
+import { StoryStatsService } from '../../services/story-stats.service';
 import { PromptManagerService } from '../../../shared/services/prompt-manager.service';
 import { Subscription } from 'rxjs';
 import { SceneCreateFromOutlineComponent } from '../scene-create-from-outline/scene-create-from-outline.component';
@@ -35,6 +36,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
   private router = inject(Router);
   private actionSheetCtrl = inject(ActionSheetController);
   private modalCtrl = inject(ModalController);
+  private storyStats = inject(StoryStatsService);
 
   @Input() story!: Story;
   @Input() activeChapterId: string | null = null;
@@ -309,9 +311,8 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     return this.activeChapterId === chapterId && this.activeSceneId === sceneId;
   }
 
-  getWordCount(content: string): number {
-    if (!content) return 0;
-    return content.trim().split(/\s+/).filter(word => word.length > 0).length;
+  getWordCount(scene: Scene): number {
+    return this.storyStats.calculateSceneWordCount(scene);
   }
   
   private isEventFromTextInput(event: KeyboardEvent): boolean {

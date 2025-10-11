@@ -86,7 +86,7 @@
                 role="treeitem"
                 tabindex="0"
                 [attr.aria-selected]="isActiveScene(chapter.id, scene.id)"
-                [attr.aria-label]="'Scene: ' + (scene.title || 'Untitled') + '. ' + (getWordCount(scene.content)) + ' words' + (isActiveScene(chapter.id, scene.id) ? '. Currently selected' : '')">
+                [attr.aria-label]="'Scene: ' + (scene.title || 'Untitled') + '. ' + (getWordCount(scene)) + ' words' + (isActiveScene(chapter.id, scene.id) ? '. Currently selected' : '')">
                 
                 <div class="scene-content">
                   <!-- Scene title and actions -->
@@ -123,7 +123,7 @@
                   <!-- Word count and action buttons -->
                   <div class="scene-actions-row">
                     <ion-badge color="medium" class="word-count-badge">
-                      {{ getWordCount(scene.content) }} words
+                      {{ getWordCount(scene) }} words
                     </ion-badge>
 
                     <div class="action-buttons">
