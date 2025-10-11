@@ -8,3 +8,5 @@ Content:
 Important: Write it structured to be used as context for an AI that continues the story.{additionalInstructions}
 
 {languageInstruction}
+
+<ai_ignore>Test</ai_ignore>
