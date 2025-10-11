@@ -372,7 +372,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
     sceneContent = this.promptManager.extractPlainTextFromHtml(sceneContent);
     const sceneWordCount = this.getSceneWordCount(sceneId) || this.storyStats.calculateSceneWordCount(scene);
     const minimumSummaryWords = this.calculateSummaryMinimumWords(sceneWordCount);
-    const wordCountInstruction = `Ensure the summary is at least ${minimumSummaryWords} words.`;
+    const wordCountInstruction = `Aim for around ${minimumSummaryWords} words.`;
     const maxContentLength = 200000;
     let truncated = false;
     if (sceneContent.length > maxContentLength) { sceneContent = sceneContent.slice(0, maxContentLength); truncated = true; }
