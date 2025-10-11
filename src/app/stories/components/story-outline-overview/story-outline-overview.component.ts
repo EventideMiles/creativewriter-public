@@ -343,7 +343,10 @@ export class StoryOutlineOverviewComponent implements OnInit {
     }, 30000);
 
     // Clean content and build prompt
-    const sceneWordCount = this.storyStats.calculateSceneWordCount(scene);
+    const sceneWordCount = Math.max(
+      this.storyStats.calculateSceneWordCount(scene),
+      this.getWordCountFromHtml(scene.content || '')
+    );
     let sceneContent = this.removeEmbeddedImages(scene.content);
     sceneContent = this.promptManager.extractPlainTextFromHtml(sceneContent);
     const maxContentLength = 200000;
@@ -606,6 +609,19 @@ export class StoryOutlineOverviewComponent implements OnInit {
     if (err.status === 500) return 'Gemini server error. Please try again later.';
     if (err.message?.includes('nicht aktiviert')) return err.message;
     return 'Error generating text.';
+  }
+
+  private getWordCountFromHtml(html: string): number {
+    if (!html) return 0;
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const text = doc.body?.textContent || '';
+      return text.trim().split(/\s+/).filter(Boolean).length;
+    } catch (error) {
+      console.warn('Failed to derive word count from HTML content', error);
+      return 0;
+    }
   }
 
   // Chapter title inline editing
