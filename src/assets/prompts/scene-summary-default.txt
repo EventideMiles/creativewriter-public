@@ -1,12 +1,23 @@
-Create a summary of the following scene:
-
-Title: {sceneTitle}
-
-Content:
-{sceneContent}{truncatedNote}
-
-Important: Write it structured to be used as context for an AI that continues the story.{additionalInstructions}
-
-{languageInstruction}
-
-Answer only with the summary.
+<messages>
+<message role="system">You are an expert story analyst who creates concise, structured summaries to support narrative continuation.</message>
+<message role="user">
+<sceneSummaryRequest>
+  <metadata>
+    <title>{sceneTitle}</title>
+  </metadata>
+  <context>
+    <scene><![CDATA[{sceneContent}{truncatedNote}]]></scene>
+    <codexContext>
+{codexEntries}
+    </codexContext>
+  </context>
+  <instructions>
+    {languageInstruction}
+    <focus>Important: Structure the summary so it can be used as context for an AI that continues the story.</focus>
+    <redundancy>Do not repeat information already captured in the codex context.</redundancy>
+    <responseFormat>Answer only with the summary.</responseFormat>
+{additionalInstructions}
+  </instructions>
+</sceneSummaryRequest>
+</message>
+</messages>

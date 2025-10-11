@@ -20,6 +20,7 @@ import { GoogleGeminiApiService } from '../../../core/services/google-gemini-api
 import { PromptManagerService } from '../../../shared/services/prompt-manager.service';
 import { PromptTemplateService } from '../../../shared/services/prompt-template.service';
 import { StoryStatsService } from '../../services/story-stats.service';
+import { CodexContextService } from '../../../shared/services/codex-context.service';
 
 @Component({
   selector: 'app-story-outline-overview',
@@ -49,6 +50,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
   private promptManager = inject(PromptManagerService);
   private promptTemplateService = inject(PromptTemplateService);
   private storyStats = inject(StoryStatsService);
+  private codexContextService = inject(CodexContextService);
 
   // Header config
   leftActions: HeaderAction[] = [];
@@ -384,28 +386,55 @@ export class StoryOutlineOverviewComponent implements OnInit {
     })();
 
     const truncatedNote = truncated ? '\n\n[Note: Content was truncated as it was too long]' : '';
-    const additionalInstructions = settings.sceneSummaryGeneration.customInstruction
-      ? `\n\nZusätzliche Anweisungen: ${settings.sceneSummaryGeneration.customInstruction}`
+    const customInstructionRaw = settings.sceneSummaryGeneration.customInstruction ?? '';
+    const customInstructionPresent = customInstructionRaw.trim().length > 0;
+    const additionalInstructionsXml = customInstructionPresent
+      ? `      <customInstruction>${this.escapeXml(customInstructionRaw)}</customInstruction>`
       : '';
+    const codexPromptContext = [scene.title || '', customInstructionRaw.trim()].filter(Boolean).join('\n');
+
+    let codexEntriesRaw = '';
+    try {
+      const codexContext = await this.codexContextService.buildCodexXml(
+        s.id,
+        sceneContent,
+        codexPromptContext
+      );
+      codexEntriesRaw = codexContext.xml;
+    } catch (error) {
+      console.error('Failed to build codex context for scene summary', error);
+    }
+
+    const codexEntriesForTemplate = codexEntriesRaw
+      ? this.indentXmlBlock(codexEntriesRaw, '      ')
+      : '      <codex />';
+    const codexEntriesForCustomPrompt = codexEntriesRaw || '<codex />';
+    const languageInstructionXml = `<languageRequirement>${this.escapeXml(languageInstruction)}</languageRequirement>`;
+    const redundancyNote = 'Do not repeat information already captured in the codex context.';
 
     let prompt: string;
     if (settings.sceneSummaryGeneration.useCustomPrompt) {
       prompt = settings.sceneSummaryGeneration.customPrompt
         .replace(/{sceneTitle}/g, scene.title || 'Untitled')
         .replace(/{sceneContent}/g, sceneContent + truncatedNote)
-        .replace(/{customInstruction}/g, settings.sceneSummaryGeneration.customInstruction || '')
+        .replace(/{customInstruction}/g, customInstructionRaw)
+        .replace(/{customInstructionXml}/g, additionalInstructionsXml.trim())
+        .replace(/{languageInstructionXml}/g, languageInstructionXml)
         .replace(/{languageInstruction}/g, languageInstruction)
-        .replace(/{summaryWordCount}/g, '');
+        .replace(/{summaryWordCount}/g, '')
+        .replace(/{codexEntries}/g, codexEntriesForCustomPrompt);
       if (!prompt.includes(languageInstruction)) prompt += `\n\n${languageInstruction}`;
+      if (!prompt.includes(redundancyNote)) prompt += `\n\n${redundancyNote}`;
     } else {
       try {
         const template = await this.promptTemplateService.getSceneSummaryTemplate();
         prompt = template
-          .replace(/\{sceneTitle\}/g, scene.title || 'Untitled')
+          .replace(/\{sceneTitle\}/g, this.escapeXml(scene.title || 'Untitled'))
           .replace(/\{sceneContent\}/g, sceneContent)
           .replace(/\{truncatedNote\}/g, truncatedNote)
-          .replace(/\{additionalInstructions\}/g, additionalInstructions)
-          .replace(/\{languageInstruction\}/g, languageInstruction);
+          .replace(/\{codexEntries\}/g, codexEntriesForTemplate)
+          .replace(/\{languageInstruction\}/g, languageInstructionXml)
+          .replace(/\{additionalInstructions\}/g, additionalInstructionsXml);
       } catch (error) {
         console.error('Failed to load default scene summary template', error);
         clearTimeout(timeoutId);
@@ -701,6 +730,24 @@ export class StoryOutlineOverviewComponent implements OnInit {
 
   trackSceneById(index: number, scene: { id: string }): string {
     return scene.id;
+  }
+
+  private indentXmlBlock(xml: string, indentation = '    '): string {
+    if (!xml) return '';
+    return xml
+      .split('\n')
+      .map(line => line ? `${indentation}${line}` : line)
+      .join('\n');
+  }
+
+  private escapeXml(value: string | unknown): string {
+    const str = String(value ?? '');
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 
   private async scrollToScene(sceneId: string): Promise<void> {
