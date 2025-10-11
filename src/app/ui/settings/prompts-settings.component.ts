@@ -191,21 +191,6 @@ import { ModelOption } from '../../core/models/model.interface';
       </ion-card-header>
       <ion-card-content>
         <ion-item>
-          <ion-label>Desired Length (words)</ion-label>
-          <ion-range
-            [(ngModel)]="settings.sceneSummaryGeneration.wordCount"
-            (ngModelChange)="settingsChange.emit()"
-            min="50"
-            max="400"
-            step="10"
-            snaps="true"
-            ticks="true"
-            slot="end">
-            <ion-label slot="start">50</ion-label>
-            <ion-label slot="end">400</ion-label>
-          </ion-range>
-        </ion-item>
-        <ion-item>
           <ion-label>Creativity (Temperature)</ion-label>
           <ion-range
             [(ngModel)]="settings.sceneSummaryGeneration.temperature"

@@ -18,13 +18,4 @@ describe('calculateDesiredSummaryWordCount', () => {
     expect(calculateDesiredSummaryWordCount(sceneText)).toBe(300);
   });
 
-  it('respects a configured base word count while still scaling', () => {
-    const sceneText = makeSceneText(8000);
-    expect(calculateDesiredSummaryWordCount(sceneText, 200)).toBe(240);
-  });
-
-  it('handles string-based overrides from forms', () => {
-    const sceneText = makeSceneText(9000);
-    expect(calculateDesiredSummaryWordCount(sceneText, '150' as unknown as number)).toBe(230);
-  });
 });

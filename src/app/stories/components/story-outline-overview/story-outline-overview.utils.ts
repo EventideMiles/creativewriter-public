@@ -1,7 +1,6 @@
-export function calculateDesiredSummaryWordCount(sceneText: string, configuredWordCount?: number | null): number {
+export function calculateDesiredSummaryWordCount(sceneText: string): number {
   const wordCount = countWords(sceneText);
-  const numericOverride = configuredWordCount != null ? Number(configuredWordCount) : NaN;
-  const baseWordCount = Number.isFinite(numericOverride) && numericOverride > 0 ? numericOverride : 120;
+  const baseWordCount = 120;
   const baseWordThreshold = 5000;
 
   const extraSegments = wordCount > baseWordThreshold

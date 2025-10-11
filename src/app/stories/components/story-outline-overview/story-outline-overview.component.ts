@@ -358,8 +358,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
       }
     })();
 
-    const configuredWordCount = settings.sceneSummaryGeneration.wordCount;
-    const desiredWordCount = calculateDesiredSummaryWordCount(sceneContent, configuredWordCount);
+    const desiredWordCount = calculateDesiredSummaryWordCount(sceneContent);
     const wordCountInstruction = `Aim for about ${desiredWordCount} words.`;
 
     let prompt: string;
