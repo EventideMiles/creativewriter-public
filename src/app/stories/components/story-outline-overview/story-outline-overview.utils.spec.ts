@@ -12,4 +12,14 @@ describe('calculateDesiredSummaryWordCount', () => {
     const sceneText = makeSceneText(10000);
     expect(calculateDesiredSummaryWordCount(sceneText)).toBe(220);
   });
+
+  it('continues scaling for very long scenes', () => {
+    const sceneText = makeSceneText(14000);
+    expect(calculateDesiredSummaryWordCount(sceneText)).toBe(300);
+  });
+
+  it('respects a configured base word count while still scaling', () => {
+    const sceneText = makeSceneText(8000);
+    expect(calculateDesiredSummaryWordCount(sceneText, 200)).toBe(240);
+  });
 });
