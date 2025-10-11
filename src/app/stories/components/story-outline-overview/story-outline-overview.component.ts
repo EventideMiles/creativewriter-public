@@ -19,6 +19,7 @@ import { OpenRouterApiService } from '../../../core/services/openrouter-api.serv
 import { GoogleGeminiApiService } from '../../../core/services/google-gemini-api.service';
 import { PromptManagerService } from '../../../shared/services/prompt-manager.service';
 import { calculateDesiredSummaryWordCount } from './story-outline-overview.utils';
+import { StoryStatsService } from '../../services/story-stats.service';
 
 @Component({
   selector: 'app-story-outline-overview',
@@ -46,6 +47,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
   private openRouterApi = inject(OpenRouterApiService);
   private geminiApi = inject(GoogleGeminiApiService);
   private promptManager = inject(PromptManagerService);
+  private storyStats = inject(StoryStatsService);
 
   // Header config
   leftActions: HeaderAction[] = [];
@@ -341,6 +343,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
     }, 30000);
 
     // Clean content and build prompt
+    const sceneWordCount = this.storyStats.calculateSceneWordCount(scene);
     let sceneContent = this.removeEmbeddedImages(scene.content);
     sceneContent = this.promptManager.extractPlainTextFromHtml(sceneContent);
     const maxContentLength = 200000;
@@ -358,7 +361,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
       }
     })();
 
-    const desiredWordCount = calculateDesiredSummaryWordCount(sceneContent);
+    const desiredWordCount = calculateDesiredSummaryWordCount(sceneWordCount);
     const wordCountInstruction = `Aim for about ${desiredWordCount} words.`;
 
     let prompt: string;
