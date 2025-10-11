@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output, ViewChild } from '@angular/core';
 import { IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIcon, IonContent, IonFooter, IonSpinner, IonImg } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { close, videocamOutline } from 'ionicons/icons';
@@ -37,6 +37,8 @@ export class ImageViewerModalComponent {
   @Output() closed = new EventEmitter<void>();
   @Output() manageVideo = new EventEmitter<void>();
 
+  @ViewChild(IonModal) modal?: IonModal;
+
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
     if (!this.isOpen) {
@@ -49,18 +51,21 @@ export class ImageViewerModalComponent {
     }
   }
 
-  private closingViaControl = false;
+  private pendingManage = false;
 
   constructor() {
     addIcons({ close, videocamOutline });
   }
 
   onModalDidDismiss(): void {
-    if (this.closingViaControl) {
-      this.closingViaControl = false;
-      return;
-    }
+    const shouldManage = this.pendingManage;
+    this.pendingManage = false;
+
     this.closed.emit();
+
+    if (shouldManage) {
+      this.manageVideo.emit();
+    }
   }
 
   onClose(): void {
@@ -68,14 +73,22 @@ export class ImageViewerModalComponent {
       return;
     }
 
-    this.closingViaControl = true;
-    this.closed.emit();
+    if (this.modal) {
+      void this.modal.dismiss();
+    } else {
+      const shouldManage = this.pendingManage;
+      this.pendingManage = false;
+      this.closed.emit();
+      if (shouldManage) {
+        this.manageVideo.emit();
+      }
+    }
   }
 
   onManageVideo(event: Event): void {
     event.preventDefault();
     event.stopPropagation();
-    this.closingViaControl = true;
-    this.manageVideo.emit();
+    this.pendingManage = true;
+    this.onClose();
   }
 }
