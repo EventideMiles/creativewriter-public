@@ -669,6 +669,7 @@ export class SceneChatComponent implements OnInit, OnDestroy {
 **Personality:** [...]
 **Backstory:** [...]
 **Relationships:** [...]
+**History with Protagonist:** [...]
 **Motivations & Goals:** [...]
 **Skills & Abilities:** [...]
 **Current Status:** [...]
