@@ -914,6 +914,24 @@ Separate each object block with a blank line.`
     }
   }
 
+  getFieldNamesForReview(entry: CodexEntryPreview): string[] {
+    const type = this.codexReviewExtractionType;
+    const orderedFields = type ? this.getFieldOrder(type) : [];
+    const primaryOrder = orderedFields.filter(name => name !== 'Description' && this.hasFieldValue(entry, name));
+
+    const additional = Object.keys(entry.fields)
+      .filter(name => name !== 'Description' && !orderedFields.includes(name) && this.hasFieldValue(entry, name));
+
+    return [...primaryOrder, ...additional];
+  }
+
+  private hasFieldValue(entry: CodexEntryPreview, name: string): boolean {
+    const value = entry.fields[name];
+    if (!value) return false;
+    const trimmed = value.trim();
+    return trimmed.length > 0 && trimmed.toLowerCase() !== 'unknown';
+  }
+
   private resetCodexReviewState(): void {
     this.codexReviewEntries = [];
     this.codexReviewExtractionType = null;

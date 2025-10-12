@@ -230,6 +230,12 @@
                 <ion-chip *ngIf="entry.role" color="primary">{{ entry.role }}</ion-chip>
               </div>
               <div class="codex-entry-description" [innerHTML]="formatMessage(entry.description || 'No description provided.')"></div>
+              <div class="codex-entry-fields" *ngIf="getFieldNamesForReview(entry).length > 0">
+                <div class="codex-entry-field" *ngFor="let fieldName of getFieldNamesForReview(entry)">
+                  <span class="field-name">{{ fieldName }}:</span>
+                  <span class="field-value" [innerHTML]="formatMessage(entry.fields[fieldName])"></span>
+                </div>
+              </div>
               <div class="codex-entry-tags" *ngIf="entry.tags.length > 0">
                 <ion-chip *ngFor="let tag of entry.tags" color="medium">{{ tag }}</ion-chip>
               </div>

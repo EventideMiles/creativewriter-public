@@ -341,6 +341,26 @@ ion-modal ion-item {
   margin-top: 8px;
 }
 
+.codex-entry-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: rgba(248, 249, 250, 0.8);
+}
+
+.codex-entry-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.codex-entry-field .field-name {
+  font-weight: 600;
+  color: var(--ion-color-primary, #8bb4f8);
+}
+
 .codex-entry-tags ion-chip {
   margin: 0;
   --padding-start: 6px;
