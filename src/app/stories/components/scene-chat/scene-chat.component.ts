@@ -658,15 +658,22 @@ export class SceneChatComponent implements OnInit, OnDestroy {
         description: 'Extract all characters from selected scenes',
         extractionType: 'characters',
         icon: 'person-outline',
-        prompt: `Please analyze the following scenes and extract all characters. For each character provide the following information:
+        prompt: `Analyze the provided scenes and identify every distinct character that appears or is referenced. For each character, fill out the template below. Keep the field labels exactly as written (in English). If a detail is unknown, write "Unknown" instead of inventing information. Use concise sentences in the story's language.
 
 **Name:** [Character name]
-**Role:** [Main character/Supporting character/Background character]
-**Description:** [Physical description, personality, important traits]
-**Relationships:** [Relationships to other characters]
-**Motivation:** [What drives the character]
+**Story Role:** [Protagonist | Antagonist | Supporting Character | Love Interest | Background Character | Unknown]
+**Tags:** [Comma-separated keywords]
 
-Structure the answer clearly separated by characters.`
+**Physical Appearance:** [...]
+**Personality:** [...]
+**Backstory:** [...]
+**Relationships:** [...]
+**Motivations & Goals:** [...]
+**Skills & Abilities:** [...]
+**Current Status:** [...]
+**Plot Hooks:** [...]
+
+Separate each character block with a blank line.`
       },
       {
         id: 'extract-locations',
@@ -674,15 +681,22 @@ Structure the answer clearly separated by characters.`
         description: 'Extract all locations and places from scenes',
         extractionType: 'locations',
         icon: 'location-outline',
-        prompt: `Please analyze the following scenes and extract all places and locations. For each location provide the following information:
+        prompt: `Analyze the scenes and document every distinct setting or location that appears or is mentioned. For each location, fill out the template below. Keep the field labels exactly as written (in English). If information is missing, answer with "Unknown". Write descriptive text in the story's language.
 
 **Name:** [Location name]
-**Type:** [City, Building, Room, Landscape, etc.]
-**Description:** [Physical description, atmosphere, important details]
-**Significance:** [Why is this location important for the story]
-**Mood:** [What mood/atmosphere prevails here]
+**Location Type:** [City, Ship, Tavern, Space Station, etc.]
+**Tags:** [Comma-separated keywords]
 
-Strukturiere die Antwort klar nach Orten getrennt.`
+**Overview:** [...]
+**Sensory Details:** [...]
+**Key Features:** [...]
+**History & Lore:** [...]
+**Story Significance:** [...]
+**Mood & Atmosphere:** [...]
+**Notable Characters:** [...]
+**Plot Hooks:** [...]
+
+Separate each location block with a blank line.`
       },
       {
         id: 'extract-objects',
@@ -690,16 +704,21 @@ Strukturiere die Antwort klar nach Orten getrennt.`
         description: 'Extract important objects and items',
         extractionType: 'objects',
         icon: 'cube-outline',
-        prompt: `Please analyze the following scenes and extract all important items and objects. For each object provide the following information:
+        prompt: `Analyze the scenes and capture every significant item, artifact, or object. For each one, complete the template below. Keep the field labels exactly as written (in English). When details are missing, respond with "Unknown". Provide descriptions in the story's language.
 
 **Name:** [Object name]
-**Type:** [Weapon, Tool, Jewelry, Document, etc.]
-**Description:** [Physical description, material, appearance]
-**Significance:** [Why is this object important]
-**Owner:** [Who owns the object]
-**Properties:** [Special abilities or characteristics]
+**Object Type:** [Weapon, Relic, Document, Tool, etc.]
+**Tags:** [Comma-separated keywords]
 
-Strukturiere die Antwort klar nach Gegenständen getrennt.`
+**Physical Description:** [...]
+**Origin & Backstory:** [...]
+**Owner or Custodian:** [...]
+**Abilities & Properties:** [...]
+**Story Significance:** [...]
+**Current Status or Location:** [...]
+**Plot Hooks:** [...]
+
+Separate each object block with a blank line.`
       }
     ];
   }
@@ -1163,42 +1182,86 @@ Strukturiere die Antwort klar nach Gegenständen getrennt.`
 
   private parseExtractionResponse(content: string, type: 'characters' | 'locations' | 'objects'): {name: string; description?: string; role?: string; tags?: string[]}[] {
     const entries: {name: string; description?: string; role?: string; tags?: string[]}[] = [];
-    
-    // Simple parsing - look for **Name:** patterns
+
     const nameRegex = /\*\*Name:\*\*\s*([^\n]+)/g;
-    let match;
-    
+    let match: RegExpExecArray | null;
+
     while ((match = nameRegex.exec(content)) !== null) {
       const name = match[1].trim();
-      if (name) {
-        // Extract description (text between this name and next name or end)
-        const startIndex = match.index + match[0].length;
-        const nextNameIndex = content.indexOf('**Name:**', startIndex);
-        const endIndex = nextNameIndex !== -1 ? nextNameIndex : content.length;
-        const description = content.substring(startIndex, endIndex).trim();
-        
-        // Basic role extraction for characters
-        let role = '';
-        if (type === 'characters') {
-          if (description.toLowerCase().includes('hauptcharakter') || description.toLowerCase().includes('protagonist')) {
-            role = 'Protagonist';
-          } else if (description.toLowerCase().includes('nebencharakter')) {
-            role = 'Nebencharakter';
-          } else if (description.toLowerCase().includes('hintergrundcharakter')) {
-            role = 'Hintergrundcharakter';
-          }
+      if (!name) continue;
+
+      const startIndex = match.index + match[0].length;
+      const nextMatchIndex = content.indexOf('**Name:**', startIndex);
+      const endIndex = nextMatchIndex !== -1 ? nextMatchIndex : content.length;
+      const block = content.substring(startIndex, endIndex).trim();
+
+      const tagsMatch = block.match(/\*\*Tags:\*\*\s*([^\n]+)/i);
+      const tags = tagsMatch
+        ? tagsMatch[1]
+            .split(/[,;|]/)
+            .map(tag => tag.trim())
+            .filter(tag => tag.length > 0)
+        : [];
+
+      let role: string | undefined;
+      if (type === 'characters') {
+        const roleMatch = block.match(/\*\*(Story Role|Role):\*\*\s*([^\n]+)/i);
+        if (roleMatch) {
+          role = this.normalizeStoryRole(roleMatch[2]);
         }
-        
-        entries.push({
-          name,
-          description,
-          role,
-          tags: []
-        });
+
+        if (!role) {
+          const lower = block.toLowerCase();
+          if (lower.includes('protagonist')) role = 'Protagonist';
+          else if (lower.includes('antagonist')) role = 'Antagonist';
+          else if (lower.includes('love interest')) role = 'Love Interest';
+          else if (lower.includes('supporting')) role = 'Supporting Character';
+          else if (lower.includes('background')) role = 'Background Character';
+        }
       }
+
+      entries.push({
+        name,
+        description: block,
+        role,
+        tags
+      });
     }
-    
+
     return entries;
+  }
+
+  private normalizeStoryRole(rawRole: string): StoryRole | undefined {
+    const normalized = rawRole.trim().toLowerCase();
+    if (!normalized) return undefined;
+
+    const map: Record<string, StoryRole> = {
+      protagonist: 'Protagonist',
+      'main character': 'Protagonist',
+      hauptcharakter: 'Protagonist',
+      held: 'Protagonist',
+      antagonist: 'Antagonist',
+      gegenspieler: 'Antagonist',
+      'supporting character': 'Supporting Character',
+      nebencharakter: 'Supporting Character',
+      'secondary character': 'Supporting Character',
+      'love interest': 'Love Interest',
+      'romantic interest': 'Love Interest',
+      'background character': 'Background Character',
+      hintergrundcharakter: 'Background Character'
+    };
+
+    if (normalized in map) {
+      return map[normalized];
+    }
+
+    if (normalized.includes('protagonist')) return 'Protagonist';
+    if (normalized.includes('antagonist')) return 'Antagonist';
+    if (normalized.includes('support')) return 'Supporting Character';
+    if (normalized.includes('love')) return 'Love Interest';
+    if (normalized.includes('background') || normalized.includes('ensemble')) return 'Background Character';
+
+    return undefined;
   }
 
   async copyToClipboard(text: string, event: Event): Promise<void> {
