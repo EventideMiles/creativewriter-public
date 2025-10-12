@@ -662,7 +662,8 @@ export class SceneChatComponent implements OnInit, OnDestroy {
 
 **Name:** [Character name]
 **Story Role:** [Protagonist | Antagonist | Supporting Character | Love Interest | Background Character | Unknown]
-**Tags:** [Comma-separated keywords]
+**Tags:** [Comma-separated keywords used only to identify the character inside beat prompts]
+**General Notes:** [...]
 
 **Physical Appearance:** [...]
 **Personality:** [...]
@@ -685,7 +686,8 @@ Separate each character block with a blank line.`
 
 **Name:** [Location name]
 **Location Type:** [City, Ship, Tavern, Space Station, etc.]
-**Tags:** [Comma-separated keywords]
+**Tags:** [Comma-separated keywords used only to identify this location inside beat prompts]
+**General Notes:** [...]
 
 **Overview:** [...]
 **Sensory Details:** [...]
@@ -708,7 +710,8 @@ Separate each location block with a blank line.`
 
 **Name:** [Object name]
 **Object Type:** [Weapon, Relic, Document, Tool, etc.]
-**Tags:** [Comma-separated keywords]
+**Tags:** [Comma-separated keywords used only to identify this object inside beat prompts]
+**General Notes:** [...]
 
 **Physical Description:** [...]
 **Origin & Backstory:** [...]
