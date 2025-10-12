@@ -617,7 +617,7 @@ ion-button[fill="outline"] {
       justify-content: space-between;
       align-items: center;
       gap: 12px;
-      padding: 16px 20px;
+      padding: 16px 20px calc(20px + var(--ion-safe-area-bottom, 0));
       background: linear-gradient(135deg, rgba(20, 20, 20, 0.98) 0%, rgba(15, 15, 15, 0.98) 100%);
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       backdrop-filter: blur(15px) saturate(150%);
