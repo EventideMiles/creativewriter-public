@@ -313,7 +313,7 @@ ion-button[fill="outline"] {
 
     @media (max-width: 768px) {
       .entry-modal-content {
-        --padding-bottom: calc(56px + var(--ion-safe-area-bottom, 0px));
+        --padding-bottom: calc(80px + var(--ion-safe-area-bottom, 0px));
       }
     }
 
