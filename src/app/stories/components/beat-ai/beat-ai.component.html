@@ -35,11 +35,17 @@
               title="Regenerate">
               <ion-icon name="refresh-outline"></ion-icon>
             </button>
-            <button 
+            <button
               class="action-btn delete-btn"
               (click)="deleteContentAfterBeat(); $event.stopPropagation()"
               title="Delete text until next beat or scene end">
               <ion-icon name="trash-outline"></ion-icon>
+            </button>
+            <button
+              class="action-btn remove-btn"
+              (click)="removeBeat($event)"
+              title="Remove this beat input">
+              <ion-icon name="close-circle-outline"></ion-icon>
             </button>
           </div>
         </div>

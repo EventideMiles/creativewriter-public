@@ -7,7 +7,7 @@ import {
   IonButton, IonButtons, IonToolbar, IonTitle, IonHeader, IonContent, IonList, IonItem
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { logoGoogle, globeOutline, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline, sparklesOutline, eyeOutline, chevronDown, chevronUp } from 'ionicons/icons';
+import { logoGoogle, globeOutline, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline, sparklesOutline, eyeOutline, chevronDown, chevronUp, closeCircleOutline } from 'ionicons/icons';
 import { BeatAIModalService } from '../../../shared/services/beat-ai-modal.service';
 import { TokenInfoPopoverComponent } from '../../../ui/components/token-info-popover.component';
 import { TokenCounterService, SupportedModel } from '../../../shared/services/token-counter.service';
@@ -121,7 +121,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
   
   constructor() {
     // Register icons
-    addIcons({ logoGoogle, globeOutline, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline, sparklesOutline, eyeOutline, chevronDown, chevronUp });
+    addIcons({ logoGoogle, globeOutline, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, refreshOutline, trashOutline, analyticsOutline, colorWandOutline, addOutline, closeOutline, readerOutline, copyOutline, sparklesOutline, eyeOutline, chevronDown, chevronUp, closeCircleOutline });
   }
   
   ngOnInit(): void {
@@ -406,6 +406,13 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
         sceneId: this.sceneId,
         beatType: this.beatData.beatType
       });
+    }
+  }
+
+  removeBeat(event?: Event): void {
+    event?.stopPropagation();
+    if (confirm('Remove this beat input? This will only remove the beat control, not the generated content.')) {
+      this.delete.emit(this.beatData.id);
     }
   }
   
