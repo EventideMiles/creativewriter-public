@@ -93,22 +93,25 @@ export class DatabaseService {
     await new Promise(resolve => setTimeout(resolve, 100));
     
     this.db = new this.pouchdbCtor(dbName);
-    
-    // Create indexes for better query performance
-    try {
-      await this.db.createIndex({
-        index: { fields: ['createdAt'] }
-      });
-    } catch (err) {
-      console.warn('Could not create createdAt index:', err);
-    }
-    
-    try {
-      await this.db.createIndex({
-        index: { fields: ['id'] }
-      });
-    } catch (err) {
-      console.warn('Could not create id index:', err);
+
+    // Create comprehensive indexes for better query performance
+    const indexes = [
+      { fields: ['type'] },
+      { fields: ['type', 'createdAt'] },
+      { fields: ['type', 'updatedAt'] },
+      { fields: ['chapters'] },
+      { fields: ['storyId'] },
+      { fields: ['createdAt'] },
+      { fields: ['updatedAt'] },
+      { fields: ['id'] }
+    ];
+
+    for (const indexDef of indexes) {
+      try {
+        await this.db.createIndex({ index: indexDef });
+      } catch (err) {
+        console.warn(`Could not create index for ${JSON.stringify(indexDef.fields)}:`, err);
+      }
     }
 
     // Setup sync for the new database
@@ -437,5 +440,57 @@ export class DatabaseService {
     }
 
     return fallback;
+  }
+
+  /**
+   * Get current database storage usage
+   */
+  async getDatabaseSize(): Promise<{ used: number; quota: number; percentage: number }> {
+    try {
+      if ('storage' in navigator && 'estimate' in navigator.storage) {
+        const estimate = await navigator.storage.estimate();
+        const used = estimate.usage || 0;
+        const quota = estimate.quota || 0;
+        const percentage = quota > 0 ? (used / quota) * 100 : 0;
+
+        return { used, quota, percentage };
+      }
+    } catch (error) {
+      console.warn('Could not estimate storage:', error);
+    }
+
+    return { used: 0, quota: 0, percentage: 0 };
+  }
+
+  /**
+   * Check storage health and emit warnings if needed
+   */
+  async checkStorageHealth(): Promise<{ healthy: boolean; message?: string }> {
+    const { percentage, used, quota } = await this.getDatabaseSize();
+
+    if (percentage > 90) {
+      return {
+        healthy: false,
+        message: `Storage almost full (${percentage.toFixed(1)}%)! Used ${this.formatBytes(used)} of ${this.formatBytes(quota)}. Consider cleaning up old data.`
+      };
+    } else if (percentage > 75) {
+      return {
+        healthy: false,
+        message: `Storage usage high (${percentage.toFixed(1)}%). Used ${this.formatBytes(used)} of ${this.formatBytes(quota)}.`
+      };
+    }
+
+    return { healthy: true };
+  }
+
+  /**
+   * Format bytes to human readable format
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 }

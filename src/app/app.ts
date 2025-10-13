@@ -4,6 +4,7 @@ import { IonApp } from '@ionic/angular/standalone';
 import { BackgroundService } from './shared/services/background.service';
 import { BeatAIModalService } from './shared/services/beat-ai-modal.service';
 import { BeatAIPreviewModalComponent } from './stories/components/beat-ai-preview-modal/beat-ai-preview-modal.component';
+import { MemoryWarningService } from './core/services/memory-warning.service';
 
 @Component({
   selector: 'app-root',
@@ -15,9 +16,13 @@ export class App {
   protected title = 'creativewriter2';
   private backgroundService = inject(BackgroundService);
   protected modalService = inject(BeatAIModalService);
+  private memoryWarning = inject(MemoryWarningService);
 
   constructor() {
     // Initialize background service to apply global background
     // The service will automatically handle background changes
+
+    // Memory warning service automatically starts monitoring on mobile
+    // Configure if needed: this.memoryWarning.updateConfig({ warningThreshold: 85 });
   }
 }
