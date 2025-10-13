@@ -8,7 +8,7 @@ import {
   IonChip, IonLabel
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, sparklesOutline } from 'ionicons/icons';
+import { arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, sparklesOutline, bug } from 'ionicons/icons';
 import { SettingsService } from '../core/services/settings.service';
 import { ModelService } from '../core/services/model.service';
 import { Settings } from '../core/models/settings.interface';
@@ -138,6 +138,14 @@ import { ModelFavoritesSettingsComponent } from '../ui/settings/model-favorites-
           <!-- Backup & Restore Tab -->
           <div *ngSwitchCase="'backup'">
             <app-database-backup></app-database-backup>
+
+            <!-- Mobile Debug Console Link -->
+            <div style="margin-top: 2rem; padding: 0 1rem;">
+              <ion-button expand="block" fill="outline" color="medium" (click)="goToMobileDebug()">
+                <ion-icon name="bug" slot="start"></ion-icon>
+                Mobile Debug Console
+              </ion-button>
+            </div>
           </div>
         </div>
 
@@ -899,7 +907,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   constructor() {
     this.settings = this.settingsService.getSettings();
     // Register Ionic icons
-    addIcons({ arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, sparklesOutline });
+    addIcons({ arrowBack, statsChart, warning, checkmarkCircle, colorPaletteOutline, documentTextOutline, cloudOutline, listOutline, archiveOutline, globeOutline, logoGoogle, libraryOutline, hardwareChip, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, sparklesOutline, bug });
   }
 
   ngOnInit(): void {
@@ -1039,6 +1047,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
       // Clear preview background
       this.backgroundService.clearPreviewBackground();
       this.router.navigate(['/logs']);
+    }
+  }
+
+  goToMobileDebug(): void {
+    if (this.hasUnsavedChanges) {
+      if (confirm('You have unsaved changes. Do you really want to leave the page?')) {
+        // Clear preview background since we're discarding changes
+        this.backgroundService.clearPreviewBackground();
+        this.router.navigate(['/mobile-debug']);
+      }
+    } else {
+      // Clear preview background
+      this.backgroundService.clearPreviewBackground();
+      this.router.navigate(['/mobile-debug']);
     }
   }
 
