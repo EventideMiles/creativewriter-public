@@ -130,11 +130,11 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     this.currentTextColor = settings.appearance?.textColor || '#e0e0e0';
     
     this.currentPrompt = this.beatData.prompt;
-    
+
     // Subscribe to modal events
-    this.modalService.close$.subscribe(() => this.hidePromptPreview());
-    this.modalService.generate$.subscribe(() => this.generateContent());
-    this.modalService.copy$.subscribe(() => this.copyPromptToClipboard());
+    this.subscription.add(this.modalService.close$.subscribe(() => this.hidePromptPreview()));
+    this.subscription.add(this.modalService.generate$.subscribe(() => this.generateContent()));
+    this.subscription.add(this.modalService.copy$.subscribe(() => this.copyPromptToClipboard()));
     
     // Load saved beat type or use default
     this.selectedBeatType = this.beatData.beatType || 'story';
