@@ -92,13 +92,6 @@
                                   <ion-icon name="star"></ion-icon>
                                   <ion-label>Always included</ion-label>
                                 </ion-chip>
-                                <ion-chip *ngIf="entry.metadata?.['storyRole']" color="success">
-                                  <ion-icon name="person"></ion-icon>
-                                  <ion-label>{{ entry.metadata?.['storyRole'] }}</ion-label>
-                                </ion-chip>
-                                <ion-chip *ngFor="let field of getCustomFields(entry)" color="secondary">
-                                  <ion-label>{{ field.name }}: {{ getFieldValuePreview(field.value) }}</ion-label>
-                                </ion-chip>
                                 <ion-chip *ngFor="let tag of entry.tags" color="medium">
                                   <ion-icon name="pricetag"></ion-icon>
                                   <ion-label>{{ tag }}</ion-label>
@@ -150,13 +143,6 @@
                                   <ion-chip *ngIf="entry.alwaysInclude" color="warning">
                                     <ion-icon name="star"></ion-icon>
                                     <ion-label>Always included</ion-label>
-                                  </ion-chip>
-                                  <ion-chip *ngIf="entry.metadata?.['storyRole']" color="success">
-                                    <ion-icon name="person"></ion-icon>
-                                    <ion-label>{{ entry.metadata?.['storyRole'] }}</ion-label>
-                                  </ion-chip>
-                                  <ion-chip *ngFor="let field of getCustomFields(entry)" color="secondary">
-                                    <ion-label>{{ field.name }}: {{ getFieldValuePreview(field.value) }}</ion-label>
                                   </ion-chip>
                                   <ion-chip *ngFor="let tag of entry.tags" color="medium">
                                     <ion-icon name="pricetag"></ion-icon>
