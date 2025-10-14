@@ -312,4 +312,233 @@ describe('ProseMirrorEditorService', () => {
       }
     });
   });
+
+  describe('Line break preservation in beat input', () => {
+    let container: HTMLElement;
+    let editorView: EditorView;
+
+    beforeEach(() => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+
+      const config = {
+        placeholder: 'Test editor',
+        onUpdate: () => {
+          // Update callback for editor changes
+        },
+        storyContext: {
+          storyId: 'test-story',
+          chapterId: 'test-chapter',
+          sceneId: 'test-scene'
+        }
+      };
+
+      editorView = service.createSimpleTextEditor(container, config);
+    });
+
+    afterEach(() => {
+      if (editorView) {
+        editorView.destroy();
+      }
+      if (container && container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
+      service.destroy();
+    });
+
+    describe('setSimpleContent', () => {
+      it('should preserve single line breaks as hard breaks', () => {
+        const content = 'Line 1\nLine 2\nLine 3';
+        service.setSimpleContent(content);
+
+        // Verify the document structure contains hard breaks
+        const doc = editorView.state.doc;
+        let hardBreakCount = 0;
+        doc.descendants((node) => {
+          if (node.type.name === 'hard_break') {
+            hardBreakCount++;
+          }
+        });
+
+        expect(hardBreakCount).toBe(2); // Two line breaks in content
+      });
+
+      it('should create separate paragraphs for double line breaks', () => {
+        const content = 'Paragraph 1\n\nParagraph 2\n\nParagraph 3';
+        service.setSimpleContent(content);
+
+        // Count paragraphs in the document
+        const doc = editorView.state.doc;
+        let paragraphCount = 0;
+        doc.descendants((node) => {
+          if (node.type.name === 'paragraph') {
+            paragraphCount++;
+          }
+        });
+
+        expect(paragraphCount).toBe(3); // Three paragraphs
+      });
+
+      it('should handle mixed single and double line breaks', () => {
+        const content = 'Line 1\nLine 2\n\nParagraph 2';
+        service.setSimpleContent(content);
+
+        const doc = editorView.state.doc;
+        let paragraphCount = 0;
+        let hardBreakCount = 0;
+
+        doc.descendants((node) => {
+          if (node.type.name === 'paragraph') {
+            paragraphCount++;
+          } else if (node.type.name === 'hard_break') {
+            hardBreakCount++;
+          }
+        });
+
+        expect(paragraphCount).toBe(2); // Two paragraphs
+        expect(hardBreakCount).toBe(1); // One hard break in first paragraph
+      });
+
+      it('should handle empty content', () => {
+        service.setSimpleContent('');
+
+        const doc = editorView.state.doc;
+        let paragraphCount = 0;
+        doc.descendants((node) => {
+          if (node.type.name === 'paragraph') {
+            paragraphCount++;
+          }
+        });
+
+        expect(paragraphCount).toBe(1); // Single empty paragraph
+        expect(doc.textContent).toBe('');
+      });
+
+      it('should handle content with only line breaks', () => {
+        const content = '\n\n\n';
+        service.setSimpleContent(content);
+
+        // Should create empty paragraphs or handle gracefully
+        expect(editorView.state.doc).toBeTruthy();
+      });
+
+      it('should handle content with trailing line breaks', () => {
+        const content = 'Line 1\nLine 2\n';
+        service.setSimpleContent(content);
+
+        const doc = editorView.state.doc;
+        let hardBreakCount = 0;
+        doc.descendants((node) => {
+          if (node.type.name === 'hard_break') {
+            hardBreakCount++;
+          }
+        });
+
+        expect(hardBreakCount).toBeGreaterThanOrEqual(1);
+      });
+    });
+
+    describe('getSimpleTextContent', () => {
+      it('should extract single line breaks as \\n', () => {
+        const originalContent = 'Line 1\nLine 2\nLine 3';
+        service.setSimpleContent(originalContent);
+
+        const extractedContent = service.getSimpleTextContent();
+
+        expect(extractedContent).toBe(originalContent);
+      });
+
+      it('should extract paragraphs separated by \\n\\n', () => {
+        const originalContent = 'Paragraph 1\n\nParagraph 2\n\nParagraph 3';
+        service.setSimpleContent(originalContent);
+
+        const extractedContent = service.getSimpleTextContent();
+
+        expect(extractedContent).toBe(originalContent);
+      });
+
+      it('should handle mixed line breaks correctly', () => {
+        const originalContent = 'Line 1\nLine 2\n\nParagraph 2\nLine in P2';
+        service.setSimpleContent(originalContent);
+
+        const extractedContent = service.getSimpleTextContent();
+
+        expect(extractedContent).toBe(originalContent);
+      });
+
+      it('should roundtrip content correctly (set then get should match)', () => {
+        const testCases = [
+          'Simple text',
+          'Line 1\nLine 2',
+          'Para 1\n\nPara 2',
+          'Complex\nWith lines\n\nAnd paragraphs\nMore lines',
+        ];
+
+        testCases.forEach(testContent => {
+          service.setSimpleContent(testContent);
+          const extractedContent = service.getSimpleTextContent();
+          expect(extractedContent).toBe(testContent);
+        });
+      });
+
+      it('should handle empty content correctly', () => {
+        service.setSimpleContent('');
+        const extractedContent = service.getSimpleTextContent();
+        expect(extractedContent).toBe('');
+      });
+
+      it('should trim leading and trailing whitespace', () => {
+        const contentWithWhitespace = '  Line 1\nLine 2  ';
+        service.setSimpleContent(contentWithWhitespace);
+
+        const extractedContent = service.getSimpleTextContent();
+
+        // Content should be trimmed
+        expect(extractedContent).toBe('Line 1\nLine 2');
+      });
+    });
+
+    describe('Integration: Line breaks sent to AI', () => {
+      it('should pass formatted content through onUpdate callback', (done) => {
+        // Clean up previous editor
+        if (editorView) {
+          editorView.destroy();
+        }
+
+        const testContent = 'Line 1\nLine 2\n\nParagraph 2';
+        let capturedContent = '';
+
+        const config = {
+          placeholder: 'Test editor',
+          onUpdate: (content: string) => {
+            capturedContent = content;
+          },
+          storyContext: {
+            storyId: 'test-story',
+            chapterId: 'test-chapter',
+            sceneId: 'test-scene'
+          }
+        };
+
+        editorView = service.createSimpleTextEditor(container, config);
+
+        // Set content which should trigger the callback
+        service.setSimpleContent(testContent);
+
+        // Manually trigger a transaction to ensure callback is called
+        setTimeout(() => {
+          const { state } = editorView;
+          const tr = state.tr.insertText(' ', 1);
+          editorView.dispatch(tr);
+
+          // Give it time to process
+          setTimeout(() => {
+            // The captured content should contain line breaks
+            expect(capturedContent).toContain('\n');
+            done();
+          }, 50);
+        }, 50);
+      });
+    });
+  });
 });
