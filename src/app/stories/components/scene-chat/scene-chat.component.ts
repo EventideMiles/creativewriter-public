@@ -234,6 +234,19 @@ export class SceneChatComponent implements OnInit, OnDestroy {
     this.editingIndex = -1;
     this.editingExtractionType = undefined;
     this.currentMessage = '';
+
+    // Trigger blur to close keyboard
+    if (this.messageInput) {
+      try {
+        const ionTextarea = this.messageInput as unknown as {
+          getInputElement?: () => Promise<HTMLTextAreaElement>
+        };
+        ionTextarea.getInputElement?.().then(el => el?.blur()).catch(() => void 0);
+      } catch {
+        void 0;
+      }
+    }
+
     this.cdr.markForCheck();
   }
 
@@ -429,7 +442,19 @@ export class SceneChatComponent implements OnInit, OnDestroy {
 
     const userMessage = this.currentMessage;
     this.currentMessage = '';
-    
+
+    // Blur the input to dismiss keyboard
+    if (this.messageInput) {
+      try {
+        const ionTextarea = this.messageInput as unknown as {
+          getInputElement?: () => Promise<HTMLTextAreaElement>
+        };
+        ionTextarea.getInputElement?.().then(el => el?.blur()).catch(() => void 0);
+      } catch {
+        void 0;
+      }
+    }
+
     // If editing, revert history to just before the edited message
     let effectiveExtractionType: 'characters' | 'locations' | 'objects' | undefined = extractionType;
     if (this.isEditing) {
@@ -637,13 +662,18 @@ export class SceneChatComponent implements OnInit, OnDestroy {
 
   onInputFocus() {
     this.keyboardVisible = true;
+    // Use longer timeout to allow keyboard to fully appear
     setTimeout(() => {
       this.scrollToBottom();
-    }, 300);
+    }, 400);
   }
 
   onInputBlur() {
-    this.keyboardVisible = false;
+    // Add slight delay to ensure keyboard is fully closed before resetting
+    setTimeout(() => {
+      this.keyboardVisible = false;
+      this.cdr.markForCheck();
+    }, 100);
   }
 
   private extractFullTextFromScene(scene: Scene): string {

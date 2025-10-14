@@ -183,12 +183,11 @@ ion-content::part(scroll) {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding: 8px 16px;
   padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px) + 48px);
-  position: sticky;
+  position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 1000;
-  margin-bottom: env(keyboard-inset-height, 0px);
 }
 
 .input-container {
@@ -530,11 +529,7 @@ ion-modal ion-item-divider {
 
   .chat-footer {
     padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px) + 48px);
-    transform: translateY(calc(-1 * env(keyboard-inset-height, 0px)));
-  }
-  
-  .chat-footer.keyboard-visible {
-    transform: translateY(-250px);
+    /* Use native keyboard handling - no manual transform needed */
   }
 
   .message-actions ion-button[fill="clear"] {
