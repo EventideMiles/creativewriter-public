@@ -59,7 +59,6 @@ export class ProseMirrorEditorService {
   private codexService = inject(CodexService);
 
   private editorView: EditorView | null = null;
-  private simpleEditorView: EditorView | null = null; // Separate view for beat input
   private editorSchema: Schema;
   private currentStoryContext: {
     storyId?: string;
@@ -71,6 +70,7 @@ export class ProseMirrorEditorService {
   private debugMode = false;
   private flashHighlightKey = new PluginKey<DecorationSet>('flashHighlight');
   private flashTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private codexSubscriptions = new Map<EditorView, { unsubscribe: () => void }>();
   
   public contentUpdate$ = new Subject<string>();
   public slashCommand$ = new Subject<number>();
@@ -330,16 +330,14 @@ export class ProseMirrorEditorService {
       marks: schema.spec.marks
     });
 
-    // Store initial story context for codex awareness
-    if (config.storyContext) {
-      this.currentStoryContext = config.storyContext;
-    }
-
     // Create initial document with empty paragraph
     const initialDoc = simpleSchema.nodes['doc'].create({}, [
       simpleSchema.nodes['paragraph'].create({}, [])
     ]);
-    
+
+    // Create the editor view instance that will be returned
+    let editorView: EditorView;
+
     const state = EditorState.create({
       doc: initialDoc,
       schema: simpleSchema,
@@ -361,17 +359,10 @@ export class ProseMirrorEditorService {
           },
           // Explicit Delete key binding for forward delete
           'Delete': (state, dispatch) => {
-            console.log('Delete key pressed in simple editor', {
-              hasSelection: !state.selection.empty,
-              selectionFrom: state.selection.from,
-              selectionTo: state.selection.to
-            });
             // Try each command in sequence until one succeeds
-            const result = deleteSelection(state, dispatch) ||
+            return deleteSelection(state, dispatch) ||
                    joinForward(state, dispatch) ||
                    selectNodeForward(state, dispatch);
-            console.log('Delete command result:', result);
-            return result;
           },
           'Mod-Delete': (state, dispatch) => {
             return deleteSelection(state, dispatch) ||
@@ -387,21 +378,21 @@ export class ProseMirrorEditorService {
             }
           }
         }),
-        // Add codex awareness plugin
-        this.createCodexHighlightingPluginForCurrentStory()
+        // Add codex awareness plugin with proper subscription management
+        this.createCodexHighlightingPluginForSimpleEditor(config.storyContext)
       ]
     });
 
     // Create the editor view with proper event isolation
-    this.simpleEditorView = new EditorView(element, {
+    editorView = new EditorView(element, {
       state,
       dispatchTransaction: (transaction) => {
-        const newState = this.simpleEditorView!.state.apply(transaction);
-        this.simpleEditorView!.updateState(newState);
-        
+        const newState = editorView.state.apply(transaction);
+        editorView.updateState(newState);
+
         // Call update callback if provided
         if (config.onUpdate) {
-          const content = this.getSimpleTextContent();
+          const content = this.getSimpleTextContent(editorView);
           config.onUpdate(content);
         }
       },
@@ -431,16 +422,17 @@ export class ProseMirrorEditorService {
 
     // Set placeholder if provided
     if (config.placeholder) {
-      this.setPlaceholder(config.placeholder);
+      const editorElement = editorView.dom as HTMLElement;
+      editorElement.setAttribute('data-placeholder', config.placeholder);
     }
 
-    return this.simpleEditorView;
+    return editorView;
   }
 
-  getSimpleTextContent(): string {
-    if (!this.simpleEditorView) return '';
+  getSimpleTextContent(editorView: EditorView): string {
+    if (!editorView) return '';
 
-    const doc = this.simpleEditorView.state.doc;
+    const doc = editorView.state.doc;
     const paragraphTexts: string[] = [];
 
     // Process each paragraph separately to preserve structure
@@ -462,42 +454,30 @@ export class ProseMirrorEditorService {
     return paragraphTexts.join('\n\n').trim();
   }
 
-  private createCodexHighlightingPluginForCurrentStory(): Plugin {
-    if (!this.currentStoryContext?.storyId) {
+  private createCodexHighlightingPluginForSimpleEditor(storyContext?: { storyId?: string; chapterId?: string; sceneId?: string }): Plugin {
+    if (!storyContext?.storyId) {
       // Return empty plugin if no story context
       return createCodexHighlightingPlugin({ codexEntries: [] });
     }
 
     // Get initial codex entries synchronously
-    const codex = this.codexService.getCodex(this.currentStoryContext.storyId);
+    const codex = this.codexService.getCodex(storyContext.storyId);
     let codexEntries: CodexEntry[] = [];
-    
+
     if (codex) {
       codexEntries = this.extractAllCodexEntries(codex);
     }
-    
-    // Subscribe to codex changes to update highlighting dynamically
-    this.codexService.codex$.subscribe(codexMap => {
-      const updatedCodex = codexMap.get(this.currentStoryContext.storyId!);
-      if (updatedCodex) {
-        const updatedEntries = this.extractAllCodexEntries(updatedCodex);
-        // Update the plugin when codex entries change (for simple text editor)
-        if (this.simpleEditorView) {
-          updateCodexHighlightingPlugin(this.simpleEditorView, updatedEntries);
-        }
-      }
-    });
 
-    return createCodexHighlightingPlugin({ 
+    return createCodexHighlightingPlugin({
       codexEntries,
-      storyId: this.currentStoryContext.storyId
+      storyId: storyContext.storyId
     });
   }
 
-  setSimpleContent(content: string): void {
-    if (!this.simpleEditorView) return;
+  setSimpleContent(editorView: EditorView, content: string): void {
+    if (!editorView) return;
 
-    const state = this.simpleEditorView.state;
+    const state = editorView.state;
     const schema = state.schema;
 
     // Parse content to preserve line breaks
@@ -508,7 +488,7 @@ export class ProseMirrorEditorService {
       // Empty content - create single empty paragraph
       const emptyParagraph = schema.nodes['paragraph'].create({}, []);
       const tr = state.tr.replaceWith(0, state.doc.content.size, emptyParagraph);
-      this.simpleEditorView.dispatch(tr);
+      editorView.dispatch(tr);
       return;
     }
 
@@ -535,7 +515,7 @@ export class ProseMirrorEditorService {
 
     // Replace the entire document content
     const tr = state.tr.replaceWith(0, state.doc.content.size, fragment);
-    this.simpleEditorView.dispatch(tr);
+    editorView.dispatch(tr);
   }
 
   setContent(content: string): void {
@@ -715,14 +695,32 @@ export class ProseMirrorEditorService {
   destroy(): void {
     this.hideContextMenu(); // Clean up context menu
     if (this.editorView) {
+      // Clean up subscriptions for this editor
+      const subscription = this.codexSubscriptions.get(this.editorView);
+      if (subscription) {
+        subscription.unsubscribe();
+        this.codexSubscriptions.delete(this.editorView);
+      }
       this.editorView.destroy();
       this.editorView = null;
     }
-    if (this.simpleEditorView) {
-      this.simpleEditorView.destroy();
-      this.simpleEditorView = null;
-    }
     this.beatNodeViews.clear();
+  }
+
+  /**
+   * Destroys a simple editor view and cleans up its subscriptions
+   */
+  destroySimpleEditor(editorView: EditorView): void {
+    if (!editorView) return;
+
+    // Clean up subscriptions for this editor
+    const subscription = this.codexSubscriptions.get(editorView);
+    if (subscription) {
+      subscription.unsubscribe();
+      this.codexSubscriptions.delete(editorView);
+    }
+
+    editorView.destroy();
   }
 
   /**

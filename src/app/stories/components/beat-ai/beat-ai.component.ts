@@ -214,7 +214,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       clearTimeout(this.saveTimeout);
     }
     if (this.editorView) {
-      this.editorView.destroy();
+      this.proseMirrorService.destroySimpleEditor(this.editorView);
       this.editorView = null;
     }
   }
@@ -253,7 +253,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     // Set initial content if available
     if (this.currentPrompt) {
       // Use setSimpleContent to ensure codex highlighting is processed
-      this.proseMirrorService.setSimpleContent(this.currentPrompt);
+      this.proseMirrorService.setSimpleContent(this.editorView, this.currentPrompt);
       // Ensure currentPrompt stays synchronized after setting content
       // (setSimpleContent doesn't trigger the onUpdate callback)
     }
@@ -309,7 +309,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     await this.restorePersistedSettings();
 
     if (this.editorView) {
-      this.editorView.destroy();
+      this.proseMirrorService.destroySimpleEditor(this.editorView);
       this.editorView = null;
     }
 
@@ -325,7 +325,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.beatData.isCollapsed = true;
     if (this.editorView) {
-      this.editorView.destroy();
+      this.proseMirrorService.destroySimpleEditor(this.editorView);
       this.editorView = null;
     }
   }
