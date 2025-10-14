@@ -419,21 +419,27 @@ export class ProseMirrorEditorService {
 
   getSimpleTextContent(): string {
     if (!this.simpleEditorView) return '';
-    
+
     const doc = this.simpleEditorView.state.doc;
-    let text = '';
-    
-    doc.descendants((node) => {
-      if (node.isText) {
-        text += node.text;
-      } else if (node.type.name === 'hard_break') {
-        text += '\n';
-      } else if (node.type.name === 'paragraph' && text && !text.endsWith('\n')) {
-        text += '\n';
+    const paragraphTexts: string[] = [];
+
+    // Process each paragraph separately to preserve structure
+    doc.forEach((node) => {
+      if (node.type.name === 'paragraph') {
+        let paragraphText = '';
+        node.descendants((childNode) => {
+          if (childNode.isText) {
+            paragraphText += childNode.text;
+          } else if (childNode.type.name === 'hard_break') {
+            paragraphText += '\n';
+          }
+        });
+        paragraphTexts.push(paragraphText);
       }
     });
-    
-    return text.trim();
+
+    // Join paragraphs with double newlines
+    return paragraphTexts.join('\n\n').trim();
   }
 
   private createCodexHighlightingPluginForCurrentStory(): Plugin {
@@ -469,15 +475,47 @@ export class ProseMirrorEditorService {
   }
 
   setSimpleContent(content: string): void {
-    if (this.simpleEditorView) {
-      const tr = this.simpleEditorView.state.tr.replaceWith(
-        0,
-        this.simpleEditorView.state.doc.content.size,
-        this.simpleEditorView.state.schema.text(content)
-      );
-      
+    if (!this.simpleEditorView) return;
+
+    const state = this.simpleEditorView.state;
+    const schema = state.schema;
+
+    // Parse content to preserve line breaks
+    // Split by double newlines for paragraphs, single newlines become hard breaks
+    const paragraphs = content.split('\n\n').filter(p => p.length > 0);
+
+    if (paragraphs.length === 0) {
+      // Empty content - create single empty paragraph
+      const emptyParagraph = schema.nodes['paragraph'].create({}, []);
+      const tr = state.tr.replaceWith(0, state.doc.content.size, emptyParagraph);
       this.simpleEditorView.dispatch(tr);
+      return;
     }
+
+    // Create paragraph nodes with hard breaks for single line breaks
+    const paragraphNodes = paragraphs.map(paragraphText => {
+      const lines = paragraphText.split('\n');
+      const content: (ProseMirrorNode | null)[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i]) {
+          content.push(schema.text(lines[i]));
+        }
+        // Add hard break between lines (but not after the last line)
+        if (i < lines.length - 1) {
+          content.push(schema.nodes['hard_break'].create());
+        }
+      }
+
+      return schema.nodes['paragraph'].create({}, content.filter((n): n is ProseMirrorNode => n !== null));
+    });
+
+    // Create a fragment from all paragraphs
+    const fragment = Fragment.from(paragraphNodes);
+
+    // Replace the entire document content
+    const tr = state.tr.replaceWith(0, state.doc.content.size, fragment);
+    this.simpleEditorView.dispatch(tr);
   }
 
   setContent(content: string): void {
