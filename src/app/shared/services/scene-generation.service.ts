@@ -191,6 +191,9 @@ export class SceneGenerationService {
       }
       let cleaned = next.trim();
 
+      // Remove any overlapping content with existing text
+      cleaned = this.removeOverlap(combined, cleaned);
+
       // Break if model returns nothing meaningful to avoid loops
       if (!cleaned || cleaned.split(/\s+/).length < 30) {
         break;
@@ -212,7 +215,12 @@ export class SceneGenerationService {
         } catch {
           break;
         }
-        const cleanedMore = more.trim();
+        let cleanedMore = more.trim();
+
+        // Remove overlap with the current chunk being built
+        const currentContext = cleaned.length > 100 ? cleaned : (combined + '\n\n' + cleaned);
+        cleanedMore = this.removeOverlap(currentContext, cleanedMore);
+
         const moreWords = this.countWords(cleanedMore);
         if (!cleanedMore || moreWords < 20) {
           break;
@@ -309,7 +317,7 @@ export class SceneGenerationService {
       storyTitle: story.title || 'Story',
       sceneFullText: sceneTail,
       wordCount: String(goalWords),
-      prompt: `Continue the same scene seamlessly without repeating sentences. Use the outline as guide. ${languageInstruction}\n\nOutline:\n${options.outline}`,
+      prompt: `Continue the same scene seamlessly. IMPORTANT: Do not repeat or rephrase the last sentences shown above. Start with completely new content that flows naturally from where the text ended. Use the outline as guide. ${languageInstruction}\n\nOutline:\n${options.outline}`,
       pointOfView,
       writingStyle
     };
@@ -415,5 +423,99 @@ export class SceneGenerationService {
 
   private generateRequestId(): string {
     return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  }
+
+  /**
+   * Detect and remove overlapping content between existing text and new chunk.
+   * Compares last sentences of existing text with first sentences of new chunk.
+   * Returns the new chunk with duplicated sentences removed.
+   */
+  private removeOverlap(existingText: string, newChunk: string): string {
+    if (!existingText || !newChunk) return newChunk;
+
+    // Split into sentences (basic sentence boundary detection)
+    const sentencePattern = /[.!?]+[\s\n]+/;
+    const existingSentences = existingText.split(sentencePattern).map(s => s.trim()).filter(Boolean);
+    const newSentences = newChunk.split(sentencePattern).map(s => s.trim()).filter(Boolean);
+
+    if (existingSentences.length === 0 || newSentences.length === 0) return newChunk;
+
+    // Check last N sentences of existing text against first M sentences of new chunk
+    const maxCheckSentences = Math.min(5, existingSentences.length, newSentences.length);
+    let overlapCount = 0;
+
+    // Find longest overlapping sequence from the end of existing text
+    for (let i = 1; i <= maxCheckSentences; i++) {
+      const existingTail = existingSentences.slice(-i).map(this.normalizeSentence);
+      const newHead = newSentences.slice(0, i).map(this.normalizeSentence);
+
+      // Check if they match (allowing for minor variations)
+      let matches = true;
+      for (let j = 0; j < i; j++) {
+        if (!this.sentencesSimilar(existingTail[j], newHead[j])) {
+          matches = false;
+          break;
+        }
+      }
+
+      if (matches) {
+        overlapCount = i;
+      } else {
+        break; // Stop at first non-match to ensure contiguous overlap
+      }
+    }
+
+    // Remove overlapping sentences from new chunk
+    if (overlapCount > 0) {
+      const keptSentences = newSentences.slice(overlapCount);
+      return keptSentences.join('. ').trim();
+    }
+
+    return newChunk;
+  }
+
+  /**
+   * Normalize sentence for comparison (lowercase, trim, remove extra whitespace)
+   */
+  private normalizeSentence(sentence: string): string {
+    return sentence.toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Check if two sentences are similar enough to be considered duplicates.
+   * Uses longest common substring ratio for fuzzy matching.
+   */
+  private sentencesSimilar(s1: string, s2: string, threshold = 0.85): boolean {
+    if (s1 === s2) return true;
+
+    // Calculate similarity ratio using simple character-based comparison
+    const longer = s1.length > s2.length ? s1 : s2;
+
+    if (longer.length === 0) return true;
+
+    // Simple approach: if one sentence contains most of the other, consider similar
+    const containmentRatio = this.longestCommonSubstring(s1, s2) / longer.length;
+    return containmentRatio >= threshold;
+  }
+
+  /**
+   * Find longest common substring length between two strings
+   */
+  private longestCommonSubstring(s1: string, s2: string): number {
+    const m = s1.length;
+    const n = s2.length;
+    let maxLength = 0;
+    const table: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (s1[i - 1] === s2[j - 1]) {
+          table[i][j] = table[i - 1][j - 1] + 1;
+          maxLength = Math.max(maxLength, table[i][j]);
+        }
+      }
+    }
+
+    return maxLength;
   }
 }
