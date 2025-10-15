@@ -351,28 +351,128 @@ export class SceneGenerationService {
     }
   }
 
+  /**
+   * Apply template placeholders with validation and error reporting.
+   * Detects unreplaced placeholders and logs warnings for debugging.
+   *
+   * @param template The template string with {placeholder} syntax
+   * @param placeholders Key-value pairs for replacement
+   * @returns Processed template with placeholders replaced
+   */
   private applyTemplatePlaceholders(template: string, placeholders: Record<string, string>): string {
+    if (!template) return '';
+
+    // Extract all placeholders from template for validation
+    const placeholderPattern = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
+    const templatePlaceholders = new Set<string>();
+    let match;
+    while ((match = placeholderPattern.exec(template)) !== null) {
+      templatePlaceholders.add(match[1]);
+    }
+
+    // Track which placeholders were replaced
+    const replacedPlaceholders = new Set<string>();
     let out = template;
+
+    // Replace each provided placeholder
     Object.entries(placeholders).forEach(([key, value]) => {
       const placeholder = `{${key}}`;
-      const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-      out = out.replace(regex, value || '');
+      // Escape special regex characters in the placeholder name for safe matching
+      const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedPlaceholder, 'g');
+
+      // Track if this placeholder was actually in the template
+      if (templatePlaceholders.has(key)) {
+        replacedPlaceholders.add(key);
+      }
+
+      // Replace with empty string if value is undefined/null
+      out = out.replace(regex, value ?? '');
     });
+
+    // Detect unreplaced placeholders (in template but not provided)
+    const unreplacedPlaceholders = Array.from(templatePlaceholders).filter(
+      key => !replacedPlaceholders.has(key)
+    );
+
+    // Detect unused placeholders (provided but not in template)
+    const unusedPlaceholders = Object.keys(placeholders).filter(
+      key => !templatePlaceholders.has(key)
+    );
+
+    // Log warnings for debugging (helps developers identify template issues)
+    if (unreplacedPlaceholders.length > 0) {
+      console.warn(
+        `[SceneGeneration] Template has unreplaced placeholders: ${unreplacedPlaceholders.join(', ')}`
+      );
+    }
+
+    if (unusedPlaceholders.length > 0) {
+      console.debug(
+        `[SceneGeneration] Unused placeholder values provided: ${unusedPlaceholders.join(', ')}`
+      );
+    }
+
     return out;
   }
 
+  /**
+   * Parse structured prompt with message role tags.
+   * Supports XML-style <message role="...">content</message> syntax.
+   * Falls back to treating entire prompt as user message if no tags found.
+   *
+   * @param prompt The prompt string, potentially with message tags
+   * @returns Array of messages with roles and content
+   */
   private parseStructuredPrompt(prompt: string): { role: 'system' | 'user' | 'assistant'; content: string }[] {
+    if (!prompt) {
+      console.warn('[SceneGeneration] Empty prompt provided to parseStructuredPrompt');
+      return [{ role: 'user', content: '' }];
+    }
+
     const messagePattern = /<message role="(system|user|assistant)">([\s\S]*?)<\/message>/gi;
     const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [];
     let match: RegExpExecArray | null;
+
+    // Detect potential malformed message tags
+    const openTagPattern = /<message[^>]*>/gi;
+    const closeTagPattern = /<\/message>/gi;
+    const openTags = (prompt.match(openTagPattern) || []).length;
+    const closeTags = (prompt.match(closeTagPattern) || []).length;
+
+    if (openTags !== closeTags) {
+      console.warn(
+        `[SceneGeneration] Mismatched message tags in template: ${openTags} opening tags, ${closeTags} closing tags`
+      );
+    }
+
+    // Detect message tags with invalid roles
+    const invalidRolePattern = /<message role="(?!system|user|assistant)[^"]*">/gi;
+    const invalidRoles = prompt.match(invalidRolePattern);
+    if (invalidRoles && invalidRoles.length > 0) {
+      console.warn(
+        `[SceneGeneration] Invalid message roles found in template: ${invalidRoles.join(', ')}`
+      );
+    }
+
+    // Extract valid messages
     while ((match = messagePattern.exec(prompt)) !== null) {
       const role = match[1] as 'system' | 'user' | 'assistant';
       const content = match[2].trim();
+
+      if (!content) {
+        console.warn(`[SceneGeneration] Empty content for ${role} message in template`);
+      }
+
       messages.push({ role, content });
     }
+
+    // Fallback: if no structured messages found, treat entire prompt as user message
     if (messages.length === 0) {
+      console.debug('[SceneGeneration] No structured messages found, using prompt as single user message');
       messages.push({ role: 'user', content: prompt });
     }
+
     return messages;
   }
 
