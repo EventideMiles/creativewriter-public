@@ -18,6 +18,7 @@ import { Story, Scene } from '../../models/story.interface';
 import { StoryStructureComponent } from '../story-structure/story-structure.component';
 import { SlashCommandDropdownComponent } from '../slash-command-dropdown/slash-command-dropdown.component';
 import { StoryStatsComponent } from '../story-stats/story-stats.component';
+import { StoryMediaGalleryComponent } from '../story-media-gallery/story-media-gallery.component';
 import { SlashCommandResult, SlashCommandAction } from '../../models/slash-command.interface';
 import { Subscription, debounceTime, Subject, throttleTime } from 'rxjs';
 import { ProseMirrorEditorService } from '../../../shared/services/prosemirror-editor.service';
@@ -43,11 +44,12 @@ import { PDFExportService, PDFExportProgress } from '../../../shared/services/pd
   selector: 'app-story-editor',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, 
+    CommonModule, FormsModule,
     IonContent, IonChip, IonLabel, IonButton, IonIcon,
     IonMenu, IonSplitPane,
     StoryStructureComponent, SlashCommandDropdownComponent, ImageUploadDialogComponent,
-    VideoModalComponent, ImageViewerModalComponent, AppHeaderComponent, StoryStatsComponent, VersionTooltipComponent
+    VideoModalComponent, ImageViewerModalComponent, AppHeaderComponent, StoryStatsComponent, VersionTooltipComponent,
+    StoryMediaGalleryComponent
   ],
   templateUrl: './story-editor.component.html',
   styleUrls: ['./story-editor.component.scss'],
@@ -130,7 +132,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   
   // Story stats functionality
   showStoryStats = false;
-  
+
+  // Media gallery functionality
+  showMediaGallery = false;
+
   hasUnsavedChanges = false;
   debugModeEnabled = false;
   private saveSubject = new Subject<void>();
@@ -602,8 +607,13 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         icon: 'images',
         label: 'Image Generation',
         action: () => this.headerNavService.goToImageGeneration()
-      }
-      ,
+      },
+      {
+        icon: 'images',
+        label: 'Media Gallery',
+        action: () => this.openMediaGallery(),
+        color: 'secondary'
+      },
       {
         icon: 'list-outline',
         label: 'Outline Overview',
@@ -1564,6 +1574,16 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   hideStoryStats(): void {
     this.showStoryStats = false;
+  }
+
+  openMediaGallery(): void {
+    this.showMediaGallery = true;
+    this.cdr.markForCheck();
+  }
+
+  closeMediaGallery(): void {
+    this.showMediaGallery = false;
+    this.cdr.markForCheck();
   }
 
   private handleImagePointerEnter = (event: Event): void => {

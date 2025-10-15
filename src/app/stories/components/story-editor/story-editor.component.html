@@ -214,5 +214,11 @@
         [story]="story"
         (closed)="hideStoryStats()">
       </app-story-stats>
+
+      <app-story-media-gallery
+        [isOpen]="showMediaGallery"
+        [story]="story"
+        (closed)="closeMediaGallery()">
+      </app-story-media-gallery>
       </div>
     </ion-split-pane>
