@@ -96,13 +96,27 @@ export class StoryMediaGalleryComponent implements OnInit, OnChanges {
     this.cdr.markForCheck();
 
     try {
-      // Load all images from the database
+      // Extract image IDs and data-URLs from story content
+      const imageReferences = this.extractImageReferencesFromStory(this.story);
+
+      // Load all images from database
       const allImages = await this.imageService.getAllImages();
+
+      // Filter to only images that are referenced in the story
+      const usedImages = allImages.filter(image => {
+        // Check if image ID is referenced
+        if (imageReferences.imageIds.has(image.id)) {
+          return true;
+        }
+        // Check if image data-URL is referenced
+        const dataUrl = this.imageService.getImageDataUrl(image);
+        return imageReferences.dataSrcs.has(dataUrl);
+      });
 
       // Load images and check for videos
       const items: MediaItem[] = [];
 
-      for (const image of allImages) {
+      for (const image of usedImages) {
         // Check if this image has an associated video
         const video = await this.videoService.getVideoForImage(image.id);
 
@@ -123,6 +137,44 @@ export class StoryMediaGalleryComponent implements OnInit, OnChanges {
       this.isLoading = false;
       this.cdr.markForCheck();
     }
+  }
+
+  private extractImageReferencesFromStory(story: Story): { imageIds: Set<string>; dataSrcs: Set<string> } {
+    const imageIds = new Set<string>();
+    const dataSrcs = new Set<string>();
+
+    // Iterate through all chapters and scenes
+    for (const chapter of story.chapters) {
+      for (const scene of chapter.scenes) {
+        // Parse HTML content to find images
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(scene.content, 'text/html');
+        const images = doc.querySelectorAll('img');
+
+        images.forEach((img) => {
+          // Try to get image ID from data attribute
+          const imageId = img.getAttribute('data-image-id');
+          if (imageId) {
+            imageIds.add(imageId);
+          }
+
+          // Try to extract from CSS class
+          const classes = img.className;
+          const idMatch = classes.match(/image-id-([a-zA-Z0-9_-]+)/);
+          if (idMatch) {
+            imageIds.add(idMatch[1]);
+          }
+
+          // Also capture src attribute (for data-URLs)
+          const src = img.getAttribute('src');
+          if (src && src.startsWith('data:')) {
+            dataSrcs.add(src);
+          }
+        });
+      }
+    }
+
+    return { imageIds, dataSrcs };
   }
 
   async onMediaItemClick(item: MediaItem): Promise<void> {
