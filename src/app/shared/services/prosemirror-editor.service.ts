@@ -335,9 +335,6 @@ export class ProseMirrorEditorService {
       simpleSchema.nodes['paragraph'].create({}, [])
     ]);
 
-    // Create the editor view instance that will be returned
-    let editorView: EditorView;
-
     const state = EditorState.create({
       doc: initialDoc,
       schema: simpleSchema,
@@ -384,16 +381,18 @@ export class ProseMirrorEditorService {
     });
 
     // Create the editor view with proper event isolation
-    // eslint-disable-next-line prefer-const
-    editorView = new EditorView(element, {
+    // Store reference to service for use in callback
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const editorService = this;
+    const editorView = new EditorView(element, {
       state,
-      dispatchTransaction: (transaction) => {
-        const newState = editorView.state.apply(transaction);
-        editorView.updateState(newState);
+      dispatchTransaction: function(this: EditorView, transaction) {
+        const newState = this.state.apply(transaction);
+        this.updateState(newState);
 
         // Call update callback if provided
         if (config.onUpdate) {
-          const content = this.getSimpleTextContent(editorView);
+          const content = editorService.getSimpleTextContent(this);
           config.onUpdate(content);
         }
       },

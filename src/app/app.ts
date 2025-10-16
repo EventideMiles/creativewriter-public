@@ -10,8 +10,14 @@ import { MemoryWarningService } from './core/services/memory-warning.service';
 import PouchDB from 'pouchdb-browser';
 import PouchDBFind from 'pouchdb-find';
 
-// Register PouchDB plugins at app startup
-PouchDB.plugin(PouchDBFind);
+// Register PouchDB plugins at app startup with error handling
+try {
+  PouchDB.plugin(PouchDBFind);
+  console.log('PouchDB initialized successfully');
+} catch (error) {
+  console.error('Error initializing PouchDB:', error);
+  // Continue execution - DatabaseService will handle errors gracefully
+}
 
 // Export for DatabaseService to use
 export { PouchDB };
