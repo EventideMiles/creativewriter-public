@@ -12,7 +12,12 @@ import { DatabaseService, SyncStatus } from '../../core/services/database.servic
   template: `
     <div class="sync-status" [ngClass]="syncStatusClass">
       <span class="sync-icon">{{ syncIcon }}</span>
-      <span class="sync-text">{{ syncText }}</span>
+      <div class="sync-content">
+        <span class="sync-text">{{ syncText }}</span>
+        <div class="sync-progress-bar" *ngIf="showProgressBar">
+          <div class="sync-progress-fill" [style.width.%]="progressPercentage"></div>
+        </div>
+      </div>
       <div class="sync-actions" *ngIf="showActions">
         <button (click)="forcePush()" [disabled]="!canSync" title="Push local changes">
           ↗️ Push
@@ -78,14 +83,35 @@ import { DatabaseService, SyncStatus } from '../../core/services/database.servic
       font-size: 1rem;
       flex-shrink: 0;
     }
-    
+
+    .sync-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      gap: 0.25rem;
+    }
+
     .sync-text {
       word-break: break-word;
       overflow-wrap: break-word;
       hyphens: auto;
       line-height: 1.2;
-      flex: 1;
-      min-width: 0;
+    }
+
+    .sync-progress-bar {
+      width: 100%;
+      height: 4px;
+      background-color: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .sync-progress-fill {
+      height: 100%;
+      background-color: currentColor;
+      transition: width 0.3s ease;
+      border-radius: 2px;
     }
     
     .sync-actions {
@@ -218,10 +244,32 @@ export class SyncStatusComponent implements OnInit, OnDestroy {
       return 'Connecting to remote database...';
     }
     if (this.syncStatus.isSync) {
-      // Show progress if available
-      if (this.syncStatus.syncProgress && this.syncStatus.syncProgress.docsProcessed > 0) {
-        const op = this.syncStatus.syncProgress.operation === 'push' ? 'Pushing' : 'Pulling';
-        return `${op} (${this.syncStatus.syncProgress.docsProcessed} docs)`;
+      // Show detailed progress if available
+      if (this.syncStatus.syncProgress) {
+        const progress = this.syncStatus.syncProgress;
+        const op = progress.operation === 'push' ? 'Pushing' : 'Pulling';
+
+        // If we have a current document, show it
+        if (progress.currentDoc) {
+          const docName = this.getDocumentDisplayName(progress.currentDoc);
+          if (progress.totalDocs) {
+            return `${op} ${progress.docsProcessed}/${progress.totalDocs}: ${docName}`;
+          }
+          return `${op} ${docName}`;
+        }
+
+        // Show pending count if available
+        if (progress.pendingDocs !== undefined && progress.pendingDocs > 0) {
+          return `${progress.pendingDocs} ${progress.pendingDocs === 1 ? 'doc' : 'docs'} pending...`;
+        }
+
+        // Show progress count
+        if (progress.docsProcessed > 0) {
+          if (progress.totalDocs) {
+            return `${op} ${progress.docsProcessed}/${progress.totalDocs} docs`;
+          }
+          return `${op} ${progress.docsProcessed} ${progress.docsProcessed === 1 ? 'doc' : 'docs'}`;
+        }
       }
       return 'Syncing...';
     }
@@ -236,8 +284,55 @@ export class SyncStatusComponent implements OnInit, OnDestroy {
     return 'Online';
   }
 
+  private getDocumentDisplayName(doc: { id: string; type?: string; title?: string }): string {
+    // Try to create a friendly name from the document
+    if (doc.title) {
+      // Truncate long titles
+      return doc.title.length > 25 ? `${doc.title.substring(0, 22)}...` : doc.title;
+    }
+
+    // Use type if available
+    if (doc.type) {
+      return doc.type;
+    }
+
+    // Extract readable parts from ID
+    const id = doc.id;
+    // Handle common patterns like 'story_12345' or 'chapter-abc'
+    const parts = id.split(/[-_]/);
+    if (parts.length > 1) {
+      return parts[0];
+    }
+
+    // Truncate long IDs
+    return id.length > 15 ? `${id.substring(0, 12)}...` : id;
+  }
+
   get canSync(): boolean {
     return this.syncStatus.isOnline && !this.syncStatus.isSync;
+  }
+
+  get showProgressBar(): boolean {
+    return !!(
+      this.syncStatus.syncProgress &&
+      this.syncStatus.syncProgress.totalDocs &&
+      this.syncStatus.syncProgress.totalDocs > 0
+    );
+  }
+
+  get progressPercentage(): number {
+    if (!this.syncStatus.syncProgress || !this.syncStatus.syncProgress.totalDocs) {
+      return 0;
+    }
+
+    const progress = this.syncStatus.syncProgress;
+    const totalDocs = progress.totalDocs;
+
+    if (!totalDocs || totalDocs === 0) {
+      return 0;
+    }
+
+    return Math.min(100, Math.round((progress.docsProcessed / totalDocs) * 100));
   }
 
   private getTimeAgo(date: Date): string {

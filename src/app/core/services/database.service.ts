@@ -25,7 +25,14 @@ export interface SyncStatus {
   error?: string;
   syncProgress?: {
     docsProcessed: number;
+    totalDocs?: number;
     operation: 'push' | 'pull';
+    currentDoc?: {
+      id: string;
+      type?: string;
+      title?: string;
+    };
+    pendingDocs?: number;
   };
 }
 
@@ -262,27 +269,89 @@ export class DatabaseService {
     }) as unknown as PouchSync;
 
     this.syncHandler = (handler as unknown as PouchDB.Replication.Sync<Record<string, unknown>>)
-    .on('change', () => {
-      this.updateSyncStatus({ 
-        isSync: false, 
+    .on('change', (info: unknown) => {
+      // Extract document details from change event
+      let docsProcessed = 0;
+      let currentDoc = undefined;
+      let operation: 'push' | 'pull' = 'pull';
+
+      if (info && typeof info === 'object') {
+        // Check if this is a push or pull operation
+        if ('direction' in info && info.direction === 'push') {
+          operation = 'push';
+        }
+
+        // Extract documents information
+        if ('change' in info && info.change && typeof info.change === 'object') {
+          const change = info.change as { docs?: unknown[] };
+          if (change.docs && Array.isArray(change.docs)) {
+            docsProcessed = change.docs.length;
+
+            // Get the last document details
+            if (change.docs.length > 0) {
+              const lastDoc = change.docs[change.docs.length - 1];
+              if (lastDoc && typeof lastDoc === 'object' && '_id' in lastDoc) {
+                currentDoc = {
+                  id: (lastDoc as { _id: string })._id,
+                  type: 'type' in lastDoc ? String((lastDoc as { type: unknown }).type) : undefined,
+                  title: 'title' in lastDoc ? String((lastDoc as { title: unknown }).title) : undefined
+                };
+              }
+            }
+          }
+        }
+      }
+
+      this.updateSyncStatus({
+        isSync: false,
         lastSync: new Date(),
-        error: undefined 
+        error: undefined,
+        syncProgress: docsProcessed > 0 ? {
+          docsProcessed,
+          operation,
+          currentDoc
+        } : undefined
+      });
+
+      // Clear progress after a short delay
+      setTimeout(() => {
+        const current = this.syncStatusSubject.value;
+        if (!current.isSync) {
+          this.updateSyncStatus({ syncProgress: undefined });
+        }
+      }, 2000);
+    })
+    .on('active', (info: unknown) => {
+      // Extract pending count if available
+      let pendingDocs = undefined;
+
+      if (info && typeof info === 'object' && 'pending' in info) {
+        pendingDocs = typeof info.pending === 'number' ? info.pending : undefined;
+      }
+
+      this.updateSyncStatus({
+        isSync: true,
+        error: undefined,
+        syncProgress: pendingDocs !== undefined ? {
+          docsProcessed: 0,
+          operation: 'pull',
+          pendingDocs
+        } : undefined
       });
     })
-    .on('active', () => {
-      this.updateSyncStatus({ isSync: true, error: undefined });
-    })
     .on('paused', (info: unknown) => {
-      this.updateSyncStatus({ 
-        isSync: false, 
-        error: info ? `Sync paused: ${info}` : undefined 
+      this.updateSyncStatus({
+        isSync: false,
+        error: info ? `Sync paused: ${info}` : undefined,
+        syncProgress: undefined
       });
     })
     .on('error', (info: unknown) => {
       console.error('Sync error:', info);
-      this.updateSyncStatus({ 
-        isSync: false, 
-        error: `Sync error: ${info}` 
+      this.updateSyncStatus({
+        isSync: false,
+        error: `Sync error: ${info}`,
+        syncProgress: undefined
       });
     });
   }
@@ -380,15 +449,42 @@ export class DatabaseService {
           ? this.db!.replicate.to(this.remoteDb!)
           : this.db!.replicate.from(this.remoteDb!);
 
-        // Track progress during replication
+        // Track progress during replication with document details
+        let totalProcessed = 0;
         (replication as PouchDB.Replication.Replication<Record<string, unknown>>)
           .on('change', (info) => {
             if (info && typeof info === 'object' && 'docs' in info) {
               const docs = info.docs as unknown[];
+              const docsCount = docs?.length || 0;
+              totalProcessed += docsCount;
+
+              // Get current document details
+              let currentDoc = undefined;
+              if (docs && docs.length > 0) {
+                const lastDoc = docs[docs.length - 1];
+                if (lastDoc && typeof lastDoc === 'object' && '_id' in lastDoc) {
+                  currentDoc = {
+                    id: (lastDoc as { _id: string })._id,
+                    type: 'type' in lastDoc ? String((lastDoc as { type: unknown }).type) : undefined,
+                    title: 'title' in lastDoc ? String((lastDoc as { title: unknown }).title) : undefined
+                  };
+                }
+              }
+
+              // Get total docs if available
+              let totalDocs: number | undefined = undefined;
+              if ('docs_read' in info) {
+                totalDocs = (info as { docs_read: number }).docs_read;
+              } else if ('docs_written' in info) {
+                totalDocs = (info as { docs_written: number }).docs_written;
+              }
+
               this.updateSyncStatus({
                 syncProgress: {
-                  docsProcessed: docs?.length || 0,
-                  operation: direction
+                  docsProcessed: totalProcessed,
+                  totalDocs,
+                  operation: direction,
+                  currentDoc
                 }
               });
             }
