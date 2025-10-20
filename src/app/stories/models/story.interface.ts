@@ -42,6 +42,7 @@ export interface Story {
   codexId?: string;
   coverImage?: string; // Base64 encoded image data or URL
   order?: number; // For custom sorting
+  schemaVersion?: number; // Schema version for migration tracking
   createdAt: Date;
   updatedAt: Date;
   // Legacy support for old stories

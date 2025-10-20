@@ -4,6 +4,10 @@ import { DatabaseService } from '../../core/services/database.service';
 import { getSystemMessage, getBeatGenerationTemplate } from '../../shared/resources/system-messages';
 import { StoryLanguage } from '../../ui/components/language-selection-dialog/language-selection-dialog.component';
 
+// Current schema version for migration tracking
+// Increment this when making breaking changes to Story structure
+const CURRENT_SCHEMA_VERSION = 1;
+
 @Injectable({
   providedIn: 'root'
 })
@@ -197,6 +201,7 @@ export class StoryService {
         beatGenerationTemplate: beatTemplate,
         language: language
       },
+      schemaVersion: CURRENT_SCHEMA_VERSION, // Mark as current version
       // Don't set order here - let it be undefined so it appears at top with latest updatedAt
       createdAt: new Date(),
       updatedAt: new Date()
@@ -219,7 +224,12 @@ export class StoryService {
       const currentDoc = await this.db.get(updatedStory._id || updatedStory.id);
       updatedStory._rev = (currentDoc as { _rev: string })._rev;
       updatedStory._id = updatedStory._id || updatedStory.id;
-      
+
+      // Ensure schema version is set when saving (for legacy stories)
+      if (!updatedStory.schemaVersion) {
+        updatedStory.schemaVersion = CURRENT_SCHEMA_VERSION;
+      }
+
       await this.db.put(updatedStory);
     } catch (error) {
       console.error('Error updating story:', error);
@@ -257,6 +267,19 @@ export class StoryService {
 
   // Migration helper for old stories
   private migrateStory(story: Partial<Story>): Story {
+    // Performance optimization: Skip migration if already at current schema version
+    if (story.schemaVersion === CURRENT_SCHEMA_VERSION) {
+      // Story is already migrated, just ensure Date objects are proper
+      return {
+        ...story,
+        id: story.id || 'story-' + Date.now(),
+        title: story.title || 'Untitled Story',
+        chapters: story.chapters || [],
+        createdAt: story.createdAt ? new Date(story.createdAt) : new Date(),
+        updatedAt: story.updatedAt ? new Date(story.updatedAt) : new Date()
+      } as Story;
+    }
+
     const migrated: Story = {
       id: story.id || 'story-' + Date.now(),
       title: story.title || 'Untitled Story',
@@ -354,6 +377,9 @@ export class StoryService {
         }))
       }));
     }
+
+    // Set schema version to mark this story as migrated
+    migrated.schemaVersion = CURRENT_SCHEMA_VERSION;
 
     return migrated;
   }
