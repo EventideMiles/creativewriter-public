@@ -882,13 +882,13 @@ this.subscription = merge(
 | Phase | Status | Progress | Target Completion | Notes |
 |-------|--------|----------|-------------------|-------|
 | Phase 1: Quick Wins | ✅ Complete | 100% | 2025-10-20 | Commit: 0e15f60 |
-| Phase 2: Database | ✅ Complete | 100% | 2025-10-20 | Commit: TBD |
+| Phase 2: Database | ✅ Complete | 100% | 2025-10-20 | Commit: 2421de8 |
 | Phase 3: Editor | 🔵 Not Started | 0% | 2025-10-22 | Pending |
 | Phase 4: Change Detection | 🔵 Not Started | 0% | 2025-10-25 | Pending |
 
 **Latest Achievements:**
 - ✅ **Phase 1 completed**: Caching and trackBy implemented (Commit: 0e15f60)
-- ✅ **Phase 2 completed**: Database indexing and pagination (Commit: TBD)
+- ✅ **Phase 2 completed**: Database indexing and pagination (Commit: 2421de8)
 - ✅ All tests passing, no regressions
 - 🎯 **Next**: Phase 3 - Editor optimization
 
@@ -922,7 +922,7 @@ this.subscription = merge(
 - [ ] Performance benchmarking (DEFERRED - to be done post-implementation)
 - [x] Testing and validation (build + lint passed)
 
-**Commit:** TBD
+**Commit:** `2421de8` - perf(stories): implement indexed queries and pagination (Phase 2)
 
 **Implementation Notes:**
 - Added compound indexes: `[chapters, updatedAt]` and `[chapters, order]`
