@@ -26,11 +26,15 @@ export class StoryService {
    * @returns Array of stories
    */
   async getAllStories(limit?: number, skip?: number): Promise<Story[]> {
+    const startTime = performance.now();
     try {
+      const dbStart = performance.now();
       this.db = await this.databaseService.getDatabase();
+      console.log(`[StoryService] getDatabase: ${(performance.now() - dbStart).toFixed(0)}ms`);
 
       // Use indexed query instead of allDocs for better performance
       // Query for documents that have chapters field (stories)
+      const queryStart = performance.now();
       const result = await this.db.find({
         selector: {
           chapters: { $exists: true }
@@ -39,7 +43,9 @@ export class StoryService {
         limit: Math.min(limit || 50, 1000),  // Default 50, max 1000 for safety
         skip: skip || 0
       });
+      console.log(`[StoryService] DB find query: ${(performance.now() - queryStart).toFixed(0)}ms, ${result.docs.length} docs`);
 
+      const filterStart = performance.now();
       const stories = result.docs
         .filter((doc: unknown) => {
           if (!doc) return false;
@@ -74,7 +80,10 @@ export class StoryService {
         })
         .map((story: unknown) => this.migrateStory(story as Story));
 
+      console.log(`[StoryService] Filter+migrate: ${(performance.now() - filterStart).toFixed(0)}ms, ${stories.length} stories after filtering`);
+
       // Sort stories by order field (if exists) or by updatedAt (descending)
+      const sortStart = performance.now();
       stories.sort((a, b) => {
         // If both have order, sort by order (ascending)
         if (a.order !== undefined && b.order !== undefined) {
@@ -86,6 +95,10 @@ export class StoryService {
         // Otherwise sort by updatedAt (descending - newest first)
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
+      console.log(`[StoryService] Sort: ${(performance.now() - sortStart).toFixed(0)}ms`);
+
+      const totalTime = performance.now() - startTime;
+      console.log(`[StoryService] getAllStories TOTAL: ${totalTime.toFixed(0)}ms`);
 
       return stories;
     } catch (error) {

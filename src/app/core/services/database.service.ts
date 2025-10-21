@@ -127,6 +127,7 @@ export class DatabaseService {
     const currentDb = this.db;
 
     // Create all indexes in parallel for faster initialization
+    const indexStart = performance.now();
     await Promise.all(
       indexes.map(async (indexDef) => {
         try {
@@ -143,9 +144,15 @@ export class DatabaseService {
         }
       })
     );
+    console.log(`[DatabaseService] Index creation: ${(performance.now() - indexStart).toFixed(0)}ms`);
 
-    // Setup sync for the new database
-    await this.setupSync();
+    // PERFORMANCE FIX: Don't await sync setup - let it happen in background
+    // This prevents network delays from blocking database availability
+    this.setupSync().catch(err => {
+      console.warn('[DatabaseService] Background sync setup failed:', err);
+    });
+
+    console.log(`[DatabaseService] Database '${dbName}' ready for use`);
   }
 
   private handleUserChange(user: User | null): void {
@@ -171,7 +178,12 @@ export class DatabaseService {
   async getDatabase(): Promise<PouchDB.Database> {
     // Wait for initialization to complete
     if (this.initializationPromise) {
+      const waitStart = performance.now();
       await this.initializationPromise;
+      const waitTime = performance.now() - waitStart;
+      if (waitTime > 10) {
+        console.log(`[DatabaseService] Waited ${waitTime.toFixed(0)}ms for database initialization`);
+      }
     }
     if (!this.db) {
       throw new Error('Database not initialized');

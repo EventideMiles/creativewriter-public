@@ -72,18 +72,15 @@ export class StoryListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.isLoadingStories = true;
-    this.loadStories().then(() => {
-      // Setup right actions after stories are loaded
-      this.setupRightActions();
-      this.isLoadingStories = false;
-      this.cdr.markForCheck();
-    });
+    console.log('[StoryList] ngOnInit started');
+    const initStart = performance.now();
 
-    // Subscribe to user changes
+    // Subscribe to user changes FIRST (before initial load)
+    // This prevents duplicate loads on initialization
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
       .subscribe(user => {
+        console.log('[StoryList] User changed:', user?.username || 'anonymous');
         this.currentUser = user;
         // Reload stories when user changes (different database)
         this.isLoadingStories = true;
@@ -91,6 +88,8 @@ export class StoryListComponent implements OnInit, OnDestroy {
           this.setupRightActions();
           this.isLoadingStories = false;
           this.cdr.markForCheck();
+          const elapsed = performance.now() - initStart;
+          console.log(`[StoryList] Total init time: ${elapsed.toFixed(0)}ms`);
         });
       });
 
@@ -154,6 +153,9 @@ export class StoryListComponent implements OnInit, OnDestroy {
   }
 
   async loadStories(reset = true): Promise<void> {
+    const loadStart = performance.now();
+    console.log('[StoryList] loadStories started, reset:', reset);
+
     if (reset) {
       this.currentPage = 0;
       this.stories = [];
@@ -164,14 +166,20 @@ export class StoryListComponent implements OnInit, OnDestroy {
 
     try {
       // Load stories for current page
+      const queryStart = performance.now();
       const newStories = await this.storyService.getAllStories(
         this.pageSize,
         this.currentPage * this.pageSize
       );
+      const queryTime = performance.now() - queryStart;
+      console.log(`[StoryList] Query time: ${queryTime.toFixed(0)}ms, returned ${newStories.length} stories`);
 
       // Get total count (only on first load for efficiency)
       if (reset) {
+        const countStart = performance.now();
         this.totalStories = await this.storyService.getTotalStoriesCount();
+        const countTime = performance.now() - countStart;
+        console.log(`[StoryList] Count query time: ${countTime.toFixed(0)}ms, total: ${this.totalStories}`);
       }
 
       // Append or replace stories
@@ -184,6 +192,9 @@ export class StoryListComponent implements OnInit, OnDestroy {
       // Check if there are more stories to load
       const loadedCount = (this.currentPage + 1) * this.pageSize;
       this.hasMoreStories = loadedCount < this.totalStories && newStories.length === this.pageSize;
+
+      const totalTime = performance.now() - loadStart;
+      console.log(`[StoryList] loadStories completed in ${totalTime.toFixed(0)}ms`);
 
     } finally {
       this.isLoadingStories = false;
