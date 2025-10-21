@@ -32,22 +32,17 @@ export class StoryService {
       this.db = await this.databaseService.getDatabase();
       console.log(`[StoryService] getDatabase: ${(performance.now() - dbStart).toFixed(0)}ms`);
 
-      // Use indexed query instead of allDocs for better performance
-      // Query for documents that have chapters field (stories)
+      // Use allDocs with include_docs - faster than find() for small datasets
       const queryStart = performance.now();
-      const result = await this.db.find({
-        selector: {
-          chapters: { $exists: true }
-        },
-        // Note: We'll sort in memory since we need conditional sorting (order vs updatedAt)
-        limit: Math.min(limit || 50, 1000),  // Default 50, max 1000 for safety
-        skip: skip || 0
+      const result = await this.db.allDocs({
+        include_docs: true
       });
-      console.log(`[StoryService] DB find query: ${(performance.now() - queryStart).toFixed(0)}ms, ${result.docs.length} docs`);
+      console.log(`[StoryService] DB allDocs query: ${(performance.now() - queryStart).toFixed(0)}ms, ${result.rows.length} docs`);
 
       const filterStart = performance.now();
-      const stories = result.docs
-        .filter((doc: unknown) => {
+      const stories = result.rows
+        .filter((row) => {
+          const doc = row.doc as unknown;
           if (!doc) return false;
 
           const docWithType = doc as Partial<Story> & {
@@ -55,7 +50,7 @@ export class StoryService {
             content?: string;
           };
 
-          // Filter out design docs (shouldn't appear with chapters field, but be safe)
+          // Filter out design docs
           if (docWithType._id && docWithType._id.startsWith('_design')) {
             return false;
           }
@@ -63,6 +58,11 @@ export class StoryService {
           // If document has a type field, it's not a story (stories don't have type field)
           if (docWithType.type) {
             return false; // This filters out codex, video, image-video-association, etc.
+          }
+
+          // Must have chapters (identifies story documents)
+          if (!docWithType.chapters) {
+            return false;
           }
 
           // Must have an ID
@@ -78,7 +78,7 @@ export class StoryService {
 
           return true;
         })
-        .map((story: unknown) => this.migrateStory(story as Story));
+        .map((row) => this.migrateStory(row.doc as Story));
 
       console.log(`[StoryService] Filter+migrate: ${(performance.now() - filterStart).toFixed(0)}ms, ${stories.length} stories after filtering`);
 
@@ -97,10 +97,15 @@ export class StoryService {
       });
       console.log(`[StoryService] Sort: ${(performance.now() - sortStart).toFixed(0)}ms`);
 
-      const totalTime = performance.now() - startTime;
-      console.log(`[StoryService] getAllStories TOTAL: ${totalTime.toFixed(0)}ms`);
+      // Apply pagination in memory (simpler and faster than indexed queries for small datasets)
+      const skipCount = skip || 0;
+      const limitCount = Math.min(limit || 50, 1000);
+      const paginatedStories = stories.slice(skipCount, skipCount + limitCount);
 
-      return stories;
+      const totalTime = performance.now() - startTime;
+      console.log(`[StoryService] getAllStories TOTAL: ${totalTime.toFixed(0)}ms (${paginatedStories.length} stories returned)`);
+
+      return paginatedStories;
     } catch (error) {
       console.error('Error fetching stories:', error);
       return [];
@@ -109,28 +114,28 @@ export class StoryService {
 
   /**
    * Get total count of stories (for pagination)
-   * Uses lightweight query with only _id field to minimize data transfer
+   * Uses lightweight allDocs query
    */
   async getTotalStoriesCount(): Promise<number> {
     try {
       this.db = await this.databaseService.getDatabase();
 
-      // Query only for _id to minimize data transfer
-      const result = await this.db.find({
-        selector: {
-          chapters: { $exists: true }
-        },
-        fields: ['_id', 'type'],  // Minimal fields
-        limit: 10000  // Reasonable upper limit
-      });
+      // Use allDocs without include_docs for fastest count
+      const result = await this.db.allDocs();
 
-      // Filter out non-stories (same logic as getAllStories)
-      const storyCount = result.docs.filter((doc: unknown) => {
-        if (!doc) return false;
-        const docWithType = doc as { _id?: string; type?: string };
+      // Filter out non-stories by checking ID patterns
+      // Stories don't start with _ and don't have type prefix patterns
+      const storyCount = result.rows.filter((row) => {
+        const id = row.id;
 
-        // Filter out design docs and typed documents
-        if (docWithType._id?.startsWith('_design') || docWithType.type) {
+        // Filter out design docs
+        if (id.startsWith('_design')) {
+          return false;
+        }
+
+        // Filter out typed documents by ID pattern (type-xxx)
+        // Common patterns: video-, codex-, image-video-association-
+        if (id.match(/^(video|codex|image-video-association|beat-suggestion)-/)) {
           return false;
         }
 

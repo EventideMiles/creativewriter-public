@@ -103,32 +103,21 @@ export class DatabaseService {
       (this.db as any).setMaxListeners(20);
     }
 
-    // Create comprehensive indexes for better query performance (in parallel)
+    // Create minimal indexes for non-story documents only
+    // Stories use allDocs() which is faster for small datasets
     const indexes = [
       // Indexes for non-story documents (codex, video, etc.)
       { fields: ['type'] },
-      { fields: ['type', 'createdAt'] },
-      { fields: ['type', 'updatedAt'] },
-      { fields: ['storyId'] },
-
-      // Indexes for stories (stories don't have 'type' field)
-      { fields: ['chapters'] },                    // Identify story documents
-      { fields: ['updatedAt'] },                   // Sort by last update
-      { fields: ['createdAt'] },                   // Sort by creation
-      { fields: ['order'] },                       // Manual ordering
-      { fields: ['id'] },                          // Lookup by id
-
-      // Optimized compound indexes for story queries
-      { fields: ['chapters', 'updatedAt'], name: 'stories-by-updated', ddoc: 'stories-idx' },
-      { fields: ['chapters', 'order'], name: 'stories-by-order', ddoc: 'stories-idx' }
+      { fields: ['storyId'] }
     ];
 
     // Store reference to current db to prevent race conditions
     const currentDb = this.db;
 
-    // Create all indexes in parallel for faster initialization
+    // Create indexes in background - don't block database availability
+    // This prevents slow index creation from delaying app startup
     const indexStart = performance.now();
-    await Promise.all(
+    Promise.all(
       indexes.map(async (indexDef) => {
         try {
           // Only create index if this database instance is still active
@@ -143,8 +132,11 @@ export class DatabaseService {
           }
         }
       })
-    );
-    console.log(`[DatabaseService] Index creation: ${(performance.now() - indexStart).toFixed(0)}ms`);
+    ).then(() => {
+      console.log(`[DatabaseService] Index creation completed: ${(performance.now() - indexStart).toFixed(0)}ms`);
+    }).catch(err => {
+      console.warn('[DatabaseService] Index creation failed:', err);
+    });
 
     // PERFORMANCE FIX: Don't await sync setup - let it happen in background
     // This prevents network delays from blocking database availability
