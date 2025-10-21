@@ -147,24 +147,24 @@ export class DatabaseService {
     console.log(`[DatabaseService] Database '${dbName}' ready for use`);
   }
 
-  private handleUserChange(user: User | null): void {
-    // Use setTimeout to avoid immediate database switching during constructor
-    setTimeout(async () => {
-      if (user) {
-        const userDbName = this.authService.getUserDatabaseName();
-        if (userDbName && userDbName !== (this.db?.name)) {
-          this.initializationPromise = this.initializeDatabase(userDbName);
-          await this.initializationPromise;
-        }
-      } else {
-        // User logged out - switch to anonymous database
-        const anonymousDb = 'creative-writer-stories-anonymous';
-        if (this.db?.name !== anonymousDb) {
-          this.initializationPromise = this.initializeDatabase(anonymousDb);
-          await this.initializationPromise;
-        }
+  private async handleUserChange(user: User | null): Promise<void> {
+    // Immediately switch database when user changes (no setTimeout to avoid race conditions)
+    if (user) {
+      const userDbName = this.authService.getUserDatabaseName();
+      if (userDbName && userDbName !== (this.db?.name)) {
+        console.log(`[DatabaseService] User logged in, switching to database: ${userDbName}`);
+        this.initializationPromise = this.initializeDatabase(userDbName);
+        await this.initializationPromise;
       }
-    }, 100);
+    } else {
+      // User logged out - switch to anonymous database
+      const anonymousDb = 'creative-writer-stories-anonymous';
+      if (this.db?.name !== anonymousDb) {
+        console.log(`[DatabaseService] User logged out, switching to anonymous database`);
+        this.initializationPromise = this.initializeDatabase(anonymousDb);
+        await this.initializationPromise;
+      }
+    }
   }
 
   async getDatabase(): Promise<PouchDB.Database> {
@@ -180,6 +180,7 @@ export class DatabaseService {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
+    console.log(`[DatabaseService] getDatabase() returning database: ${this.db.name}`);
     return this.db;
   }
 
