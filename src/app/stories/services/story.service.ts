@@ -43,7 +43,10 @@ export class StoryService {
       const stories = result.rows
         .filter((row) => {
           const doc = row.doc as unknown;
-          if (!doc) return false;
+          if (!doc) {
+            console.log('[Filter] Row has no doc:', row.id);
+            return false;
+          }
 
           const docWithType = doc as Partial<Story> & {
             type?: string;
@@ -52,30 +55,35 @@ export class StoryService {
 
           // Filter out design docs
           if (docWithType._id && docWithType._id.startsWith('_design')) {
+            console.log('[Filter] Design doc filtered:', docWithType._id);
             return false;
           }
 
           // If document has a type field, it's not a story (stories don't have type field)
           if (docWithType.type) {
+            console.log('[Filter] Has type field, not a story:', docWithType._id, 'type:', docWithType.type);
             return false; // This filters out codex, video, image-video-association, etc.
           }
 
           // Must have chapters (identifies story documents)
           if (!docWithType.chapters) {
+            console.log('[Filter] No chapters field:', docWithType._id, 'has chapters?', !!docWithType.chapters);
             return false;
           }
 
           // Must have an ID
           if (!docWithType.id && !docWithType._id) {
+            console.log('[Filter] No ID field');
             return false;
           }
 
           // Additional validation: Check if it's an empty/abandoned story
           if (this.isEmptyStory(docWithType)) {
-            console.log('Filtering out empty story:', docWithType.title || 'Untitled', docWithType._id);
+            console.log('[Filter] Empty story filtered:', docWithType.title || 'Untitled', docWithType._id);
             return false;
           }
 
+          console.log('[Filter] Story passed all filters:', docWithType._id, docWithType.title);
           return true;
         })
         .map((row) => this.migrateStory(row.doc as Story));
