@@ -35,9 +35,13 @@ export class StoryService {
       // Use allDocs with include_docs - faster than find() for small datasets
       const queryStart = performance.now();
       const result = await this.db.allDocs({
-        include_docs: true
+        include_docs: true,
+        // Explicitly include deleted docs to see if they're the issue
+        // (we'll filter them out later if needed)
       });
       console.log(`[StoryService] DB allDocs query: ${(performance.now() - queryStart).toFixed(0)}ms, ${result.rows.length} docs`);
+      console.log(`[StoryService] Database name: ${this.db.name}, total_rows: ${result.total_rows}`);
+      console.log(`[StoryService] First 5 doc IDs:`, result.rows.slice(0, 5).map(r => r.id));
 
       const filterStart = performance.now();
       const stories = result.rows
