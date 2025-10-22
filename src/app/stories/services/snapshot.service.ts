@@ -97,8 +97,9 @@ export class SnapshotService {
 
     try {
       // Build query parameters with proper JSON encoding
-      const startkey = JSON.stringify([storyId]);
-      const endkey = JSON.stringify([storyId, {}]);
+      // Note: When using descending=true, startkey and endkey must be reversed
+      const startkey = JSON.stringify([storyId, {}]); // Larger key first for descending
+      const endkey = JSON.stringify([storyId]);       // Smaller key second
 
       // Query CouchDB view
       const response = await fetch(
