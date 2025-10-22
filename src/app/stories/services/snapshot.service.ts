@@ -96,10 +96,16 @@ export class SnapshotService {
     const authHeader = this.getAuthHeader();
 
     try {
+      // Build query parameters with proper JSON encoding
+      const startkey = JSON.stringify([storyId]);
+      const endkey = JSON.stringify([storyId, {}]);
+
       // Query CouchDB view
       const response = await fetch(
         `${couchUrl}/_design/snapshots/_view/by_story_and_date?` +
-        `startkey=["${storyId}"]&endkey=["${storyId}",{}]&include_docs=true&descending=true`,
+        `startkey=${encodeURIComponent(startkey)}&` +
+        `endkey=${encodeURIComponent(endkey)}&` +
+        `include_docs=true&descending=true`,
         {
           headers: {
             'Authorization': authHeader,

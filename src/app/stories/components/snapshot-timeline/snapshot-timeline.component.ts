@@ -2,6 +2,8 @@ import { Component, Input, OnInit, inject } from '@angular/core';
 import { ModalController, AlertController, LoadingController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
+import { addIcons } from 'ionicons';
+import { cloudOfflineOutline, timeOutline, bookmarkOutline, bookmark, closeOutline } from 'ionicons/icons';
 import { SnapshotService, SnapshotTimeline, StorySnapshot } from '../../services/snapshot.service';
 import { StoryService } from '../../services/story.service';
 
@@ -26,6 +28,10 @@ export class SnapshotTimelineComponent implements OnInit {
   private readonly modalCtrl = inject(ModalController);
   private readonly alertCtrl = inject(AlertController);
   private readonly loadingCtrl = inject(LoadingController);
+
+  constructor() {
+    addIcons({ cloudOfflineOutline, timeOutline, bookmarkOutline, bookmark, closeOutline });
+  }
 
   async ngOnInit() {
     await this.loadTimeline();
