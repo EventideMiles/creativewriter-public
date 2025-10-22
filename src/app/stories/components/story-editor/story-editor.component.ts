@@ -2,16 +2,16 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef,
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { 
-  IonButton, IonIcon, 
-  IonContent, IonChip, IonLabel, IonMenu, IonSplitPane, MenuController, LoadingController
+import {
+  IonButton, IonIcon,
+  IonContent, IonChip, IonLabel, IonMenu, IonSplitPane, MenuController, LoadingController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { 
+import {
   arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
   saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
   chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
-  listOutline, list, flaskOutline, videocamOutline
+  listOutline, list, flaskOutline, videocamOutline, timeOutline
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { Story, Scene } from '../../models/story.interface';
@@ -40,6 +40,7 @@ import { StoryStatsService } from '../../services/story-stats.service';
 import { VersionService } from '../../../core/services/version.service';
 import { PDFExportService, PDFExportProgress } from '../../../shared/services/pdf-export.service';
 import { DatabaseService } from '../../../core/services/database.service';
+import { SnapshotTimelineComponent } from '../snapshot-timeline/snapshot-timeline.component';
 
 @Component({
   selector: 'app-story-editor',
@@ -74,6 +75,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   private videoService = inject(VideoService);
   private loadingController = inject(LoadingController);
   private databaseService = inject(DatabaseService);
+  private modalController = inject(ModalController);
   private lastSyncTime: Date | undefined;
 
   @ViewChild('headerTitle', { static: true }) headerTitle!: TemplateRef<unknown>;
@@ -165,11 +167,11 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   private hideVideoButtonTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    addIcons({ 
+    addIcons({
       arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
       saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
       chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
-      listOutline, list, flaskOutline, videocamOutline
+      listOutline, list, flaskOutline, videocamOutline, timeOutline
     });
   }
 
@@ -646,6 +648,12 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         color: 'primary'
       },
       {
+        icon: 'time-outline',
+        label: 'Version History',
+        action: () => this.openSnapshotTimeline(),
+        color: 'secondary'
+      },
+      {
         icon: 'bug-outline',
         label: 'Debug Modus',
         action: () => this.toggleDebugMode(),
@@ -786,6 +794,30 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     } else {
       // If no scene is selected, navigate with just the story ID (scene chat can handle this)
       this.router.navigate(['/stories/chat', this.story.id, '', '']);
+    }
+  }
+
+  async openSnapshotTimeline(): Promise<void> {
+    // Save any unsaved changes first
+    if (this.hasUnsavedChanges) {
+      await this.saveStory();
+    }
+
+    const modal = await this.modalController.create({
+      component: SnapshotTimelineComponent,
+      componentProps: {
+        storyId: this.story.id,
+        storyTitle: this.story.title
+      }
+    });
+
+    await modal.present();
+
+    // Wait for modal to be dismissed and check if we need to reload
+    const { data } = await modal.onWillDismiss();
+    if (data?.shouldReload) {
+      // Reload the story after restoration
+      await this.reloadCurrentStory();
     }
   }
 
