@@ -440,7 +440,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 📚 Documentation
 
-- [Beat Version History User Guide](docs/USER-GUIDE-BEAT-VERSION-HISTORY.md) - Learn how to use version history for beat generations
+- [Beat Version History User Guide](docs/beat-version-history/user-guide.md) - Learn how to use version history for beat generations
 - [Multi-Instance Deployment](README-MULTI-INSTANCE.md)
 - [Image Generation Setup](README-IMAGE-GENERATION.md)
 - [Release Process](RELEASE.md)
