@@ -278,7 +278,14 @@ export class DatabaseService {
     const handler = this.db.sync(this.remoteDb, {
       live: true,
       retry: true,
-      timeout: 30000
+      timeout: 30000,
+      // CRITICAL: Filter out snapshot documents from sync
+      // Snapshots stay server-side only, accessed via HTTP on-demand
+      filter: (doc: PouchDB.Core.Document<Record<string, unknown>>) => {
+        // Sync all documents EXCEPT snapshots
+        const docType = (doc as { type?: string }).type;
+        return docType !== 'story-snapshot';
+      }
     }) as unknown as PouchSync;
 
     this.syncHandler = (handler as unknown as PouchDB.Replication.Sync<Record<string, unknown>>)
