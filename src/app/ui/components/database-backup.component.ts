@@ -6,11 +6,12 @@ import {
   AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { 
-  downloadOutline, cloudUploadOutline, informationCircleOutline, 
-  checkmarkCircleOutline, warningOutline, documentTextOutline 
+import {
+  downloadOutline, cloudUploadOutline, informationCircleOutline,
+  checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline
 } from 'ionicons/icons';
 import { DatabaseBackupService } from '../../shared/services/database-backup.service';
+import { BeatHistoryService } from '../../shared/services/beat-history.service';
 
 @Component({
   selector: 'app-database-backup',
@@ -131,6 +132,69 @@ import { DatabaseBackupService } from '../../shared/services/database-backup.ser
                 <li>Make a backup before importing to avoid data loss</li>
                 <li>Documents with images/attachments are fully supported</li>
                 <li>Import will continue even if some documents fail</li>
+              </ul>
+            </ion-label>
+          </ion-item>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Beat Version History Management -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="time-outline" slot="start"></ion-icon>
+          Beat Version History Management
+        </ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <!-- Beat History Info -->
+        <ion-item *ngIf="beatHistoryStats" lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Current Beat History Storage</h3>
+            <p>{{ beatHistoryStats.totalHistories }} beat{{ beatHistoryStats.totalHistories !== 1 ? 's' : '' }} with {{ beatHistoryStats.totalVersions }} version{{ beatHistoryStats.totalVersions !== 1 ? 's' : '' }}</p>
+            <p>Estimated size: {{ formatFileSize(beatHistoryStats.totalSize) }}</p>
+          </ion-label>
+        </ion-item>
+
+        <!-- Delete All Beat Histories Section -->
+        <div class="backup-section">
+          <h3>Delete All Beat Histories</h3>
+          <p class="section-description">
+            Permanently delete all beat version history data. This will free up storage space but cannot be undone. Your current beat content in stories will not be affected.
+          </p>
+
+          <ion-button
+            expand="block"
+            color="danger"
+            (click)="showDeleteBeatHistoriesConfirmation()"
+            [disabled]="isDeletingBeatHistories || !beatHistoryStats || beatHistoryStats.totalHistories === 0">
+            <ion-icon name="trash-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isDeletingBeatHistories" slot="start"></ion-spinner>
+            {{ isDeletingBeatHistories ? 'Deleting...' : 'Delete All Beat Histories' }}
+          </ion-button>
+
+          <ion-progress-bar
+            *ngIf="isDeletingBeatHistories"
+            type="indeterminate"
+            color="danger">
+          </ion-progress-bar>
+        </div>
+
+        <!-- Warning Section -->
+        <div class="warning-section">
+          <ion-item lines="none" color="light">
+            <ion-icon name="warning-outline" slot="start" color="warning"></ion-icon>
+            <ion-label>
+              <h3>Important Notes</h3>
+              <ul>
+                <li>Deleting beat histories removes all version snapshots</li>
+                <li>Current beat content in your stories remains unchanged</li>
+                <li>This action cannot be undone - no way to recover deleted versions</li>
+                <li>Maximum 10 versions are kept per beat automatically</li>
+                <li>History is stored locally and not synced</li>
               </ul>
             </ion-label>
           </ion-item>
@@ -281,6 +345,12 @@ import { DatabaseBackupService } from '../../shared/services/database-backup.ser
       --color: #8bb4f8;
     }
 
+    ion-button[color="danger"] {
+      --background: linear-gradient(135deg, #dc3545 0%, #ff4757 100%);
+      --background-hover: linear-gradient(135deg, #c82333 0%, #e63946 100%);
+      box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+    }
+
     ion-button:hover {
       transform: translateY(-1px);
     }
@@ -305,6 +375,10 @@ import { DatabaseBackupService } from '../../shared/services/database-backup.ser
 
     ion-progress-bar[color="warning"] {
       --progress-background: linear-gradient(90deg, #ff9500 0%, #ffc107 100%);
+    }
+
+    ion-progress-bar[color="danger"] {
+      --progress-background: linear-gradient(90deg, #dc3545 0%, #ff4757 100%);
     }
 
     ion-item {
@@ -352,21 +426,25 @@ import { DatabaseBackupService } from '../../shared/services/database-backup.ser
 })
 export class DatabaseBackupComponent {
   private readonly backupService = inject(DatabaseBackupService);
+  private readonly beatHistoryService = inject(BeatHistoryService);
   private readonly alertController = inject(AlertController);
   private readonly toastController = inject(ToastController);
 
   databaseInfo: { totalDocs: number; dbName: string; lastUpdated?: Date } | null = null;
+  beatHistoryStats: { totalHistories: number; totalVersions: number; totalSize: number } | null = null;
   isExporting = false;
   isImporting = false;
+  isDeletingBeatHistories = false;
   selectedFile: File | null = null;
 
   constructor() {
-    addIcons({ 
+    addIcons({
       downloadOutline, cloudUploadOutline, informationCircleOutline,
-      checkmarkCircleOutline, warningOutline, documentTextOutline 
+      checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline
     });
-    
+
     this.loadDatabaseInfo();
+    this.loadBeatHistoryStats();
   }
 
   async loadDatabaseInfo(): Promise<void> {
@@ -487,6 +565,67 @@ This action CANNOT be undone! Make sure you have exported your current database 
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  async loadBeatHistoryStats(): Promise<void> {
+    try {
+      this.beatHistoryStats = await this.beatHistoryService.getHistoryStats();
+    } catch (error: unknown) {
+      console.error('Failed to load beat history stats:', error);
+      this.showToast('Failed to load beat history statistics', 'danger');
+    }
+  }
+
+  async showDeleteBeatHistoriesConfirmation(): Promise<void> {
+    if (!this.beatHistoryStats || this.beatHistoryStats.totalHistories === 0) {
+      return;
+    }
+
+    const alert = await this.alertController.create({
+      header: '⚠️ DELETE ALL BEAT HISTORIES',
+      message: `This will permanently delete ALL beat version history data:
+
+🗑️ ${this.beatHistoryStats.totalHistories} beat${this.beatHistoryStats.totalHistories !== 1 ? 's' : ''} with ${this.beatHistoryStats.totalVersions} version${this.beatHistoryStats.totalVersions !== 1 ? 's' : ''}
+💾 ~${this.formatFileSize(this.beatHistoryStats.totalSize)} of storage will be freed
+✅ Current beat content in stories will remain unchanged
+
+This action CANNOT be undone! All previous versions will be lost forever.`,
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Delete All Histories',
+          role: 'destructive',
+          handler: () => {
+            this.deleteAllBeatHistories();
+          }
+        }
+      ]
+    });
+
+    await alert.present();
+  }
+
+  async deleteAllBeatHistories(): Promise<void> {
+    this.isDeletingBeatHistories = true;
+
+    try {
+      const deletedCount = await this.beatHistoryService.deleteAllHistories();
+
+      this.showToast(`Successfully deleted ${deletedCount} beat histor${deletedCount !== 1 ? 'ies' : 'y'}!`, 'success');
+
+      // Refresh stats after deletion
+      await this.loadBeatHistoryStats();
+
+    } catch (error: unknown) {
+      console.error('Failed to delete beat histories:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete beat histories. Please try again.';
+      this.showToast(errorMessage, 'danger');
+    } finally {
+      this.isDeletingBeatHistories = false;
+    }
   }
 
   private async showToast(message: string, color: 'success' | 'warning' | 'danger' = 'success'): Promise<void> {
