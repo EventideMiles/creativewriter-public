@@ -95,6 +95,12 @@ export class DatabaseService {
 
     this.db = new this.pouchdbCtor(dbName);
 
+    // Clean up old mrview databases in background (don't block initialization)
+    // This frees up IndexedDB storage without affecting user data
+    this.cleanupOldDatabases().catch(err => {
+      console.warn('[DatabaseService] Background cleanup failed:', err);
+    });
+
     // Increase EventEmitter limit to prevent memory leak warnings
     // PouchDB sync operations create many internal event listeners
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -630,6 +636,75 @@ export class DatabaseService {
     }
 
     return { healthy: true };
+  }
+
+  /**
+   * Clean up old PouchDB mrview databases from IndexedDB
+   * SAFE: Only removes materialized view databases (indexes), NEVER user data
+   * mrview databases can be recreated automatically by PouchDB when needed
+   */
+  async cleanupOldDatabases(): Promise<{ cleaned: number; kept: number; errors: string[] }> {
+    const currentDbName = this.db?.name;
+    const errors: string[] = [];
+    let cleaned = 0;
+    let kept = 0;
+
+    try {
+      // Get all databases from IndexedDB
+      if (!indexedDB.databases) {
+        console.warn('[DatabaseService] IndexedDB.databases() not supported, skipping cleanup');
+        return { cleaned: 0, kept: 0, errors: ['IndexedDB.databases() not supported'] };
+      }
+
+      const databases = await indexedDB.databases();
+      console.log(`[DatabaseService] Found ${databases.length} IndexedDB databases`);
+
+      for (const dbInfo of databases) {
+        const dbName = dbInfo.name;
+        if (!dbName || !dbName.startsWith('_pouch_')) {
+          kept++;
+          continue; // Not a PouchDB database
+        }
+
+        // ONLY delete mrview databases (materialized views / indexes)
+        // NEVER delete user story databases - they contain actual data!
+        const isMrviewDatabase = dbName.includes('-mrview-');
+        const isCurrentMrview = currentDbName && dbName.includes(`${currentDbName}-mrview-`);
+        const isBeatHistoriesMrview = dbName.includes('beat-histories-mrview-');
+
+        if (isMrviewDatabase && !isCurrentMrview && !isBeatHistoriesMrview) {
+          // Safe to delete: old mrview database for inactive user database
+          try {
+            console.log(`[DatabaseService] Cleaning up old mrview database: ${dbName}`);
+            if (!this.pouchdbCtor) {
+              throw new Error('PouchDB not initialized');
+            }
+            const tempDb = new this.pouchdbCtor(dbName);
+            await tempDb.destroy();
+            cleaned++;
+          } catch (error) {
+            const errorMsg = `Failed to delete ${dbName}: ${error}`;
+            console.warn(`[DatabaseService] ${errorMsg}`);
+            errors.push(errorMsg);
+          }
+        } else {
+          kept++;
+          if (isMrviewDatabase) {
+            console.log(`[DatabaseService] Keeping active mrview database: ${dbName}`);
+          } else {
+            console.log(`[DatabaseService] Keeping user data database: ${dbName}`);
+          }
+        }
+      }
+
+      console.log(`[DatabaseService] Cleanup complete: ${cleaned} mrview databases removed, ${kept} kept (all user data preserved)`);
+    } catch (error) {
+      const errorMsg = `Database cleanup failed: ${error}`;
+      console.error(`[DatabaseService] ${errorMsg}`);
+      errors.push(errorMsg);
+    }
+
+    return { cleaned, kept, errors };
   }
 
   /**

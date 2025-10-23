@@ -8,10 +8,11 @@ import {
 import { addIcons } from 'ionicons';
 import {
   downloadOutline, cloudUploadOutline, informationCircleOutline,
-  checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline
+  checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline, albumsOutline, buildOutline
 } from 'ionicons/icons';
 import { DatabaseBackupService } from '../../shared/services/database-backup.service';
 import { BeatHistoryService } from '../../shared/services/beat-history.service';
+import { DatabaseService } from '../../core/services/database.service';
 
 @Component({
   selector: 'app-database-backup',
@@ -195,6 +196,85 @@ import { BeatHistoryService } from '../../shared/services/beat-history.service';
                 <li>This action cannot be undone - no way to recover deleted versions</li>
                 <li>Maximum 10 versions are kept per beat automatically</li>
                 <li>History is stored locally and not synced</li>
+              </ul>
+            </ion-label>
+          </ion-item>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Database Cleanup (IndexedDB) -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="albums-outline" slot="start"></ion-icon>
+          Database Cleanup
+        </ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <!-- Info -->
+        <ion-item lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>IndexedDB Storage Optimization</h3>
+            <p>Remove old database indexes (mrview databases) to free up storage space. This is safe and will not delete any of your stories or data.</p>
+          </ion-label>
+        </ion-item>
+
+        <!-- Cleanup Button -->
+        <div class="backup-section">
+          <h3>Clean Up Old Databases</h3>
+          <p class="section-description">
+            PouchDB creates index databases that can accumulate over time. This removes unused indexes while preserving all your data.
+          </p>
+
+          <ion-button
+            expand="block"
+            color="secondary"
+            (click)="cleanupDatabases()"
+            [disabled]="isCleaningDatabases">
+            <ion-icon name="build-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isCleaningDatabases" slot="start"></ion-spinner>
+            {{ isCleaningDatabases ? 'Cleaning...' : 'Clean Up Databases' }}
+          </ion-button>
+
+          <ion-progress-bar
+            *ngIf="isCleaningDatabases"
+            type="indeterminate"
+            color="secondary">
+          </ion-progress-bar>
+
+          <div *ngIf="cleanupResult" class="cleanup-result">
+            <ion-item lines="none" [color]="cleanupResult.errors.length > 0 ? 'warning' : 'success'">
+              <ion-icon
+                [name]="cleanupResult.errors.length > 0 ? 'warning-outline' : 'checkmark-circle-outline'"
+                slot="start">
+              </ion-icon>
+              <ion-label>
+                <h3>Cleanup Complete</h3>
+                <p>Removed {{ cleanupResult.cleaned }} old indexes</p>
+                <p>Kept {{ cleanupResult.kept }} active databases</p>
+                <p *ngIf="cleanupResult.errors.length > 0" style="color: var(--ion-color-danger);">
+                  {{ cleanupResult.errors.length }} error(s) occurred
+                </p>
+              </ion-label>
+            </ion-item>
+          </div>
+        </div>
+
+        <!-- Warning Section -->
+        <div class="warning-section">
+          <ion-item lines="none" color="light">
+            <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+            <ion-label>
+              <h3>What This Does</h3>
+              <ul>
+                <li><strong>SAFE:</strong> Only removes PouchDB index databases (mrview databases)</li>
+                <li>Your stories and beat content are NEVER touched</li>
+                <li>Indexes can be recreated automatically when needed</li>
+                <li>Helps reduce mobile browser memory usage</li>
+                <li>Recommended if you experience crashes or slowness</li>
               </ul>
             </ion-label>
           </ion-item>
@@ -427,6 +507,7 @@ import { BeatHistoryService } from '../../shared/services/beat-history.service';
 export class DatabaseBackupComponent {
   private readonly backupService = inject(DatabaseBackupService);
   private readonly beatHistoryService = inject(BeatHistoryService);
+  private readonly databaseService = inject(DatabaseService);
   private readonly alertController = inject(AlertController);
   private readonly toastController = inject(ToastController);
 
@@ -435,12 +516,14 @@ export class DatabaseBackupComponent {
   isExporting = false;
   isImporting = false;
   isDeletingBeatHistories = false;
+  isCleaningDatabases = false;
+  cleanupResult: { cleaned: number; kept: number; errors: string[] } | null = null;
   selectedFile: File | null = null;
 
   constructor() {
     addIcons({
       downloadOutline, cloudUploadOutline, informationCircleOutline,
-      checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline
+      checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline, albumsOutline, buildOutline
     });
 
     this.loadDatabaseInfo();
@@ -625,6 +708,28 @@ This action CANNOT be undone! All previous versions will be lost forever.`,
       this.showToast(errorMessage, 'danger');
     } finally {
       this.isDeletingBeatHistories = false;
+    }
+  }
+
+  async cleanupDatabases(): Promise<void> {
+    this.isCleaningDatabases = true;
+    this.cleanupResult = null;
+
+    try {
+      const result = await this.databaseService.cleanupOldDatabases();
+      this.cleanupResult = result;
+
+      if (result.errors.length > 0) {
+        this.showToast(`Cleanup completed with ${result.errors.length} error(s). Removed ${result.cleaned} old indexes.`, 'warning');
+      } else {
+        this.showToast(`Successfully cleaned up ${result.cleaned} old database index${result.cleaned !== 1 ? 'es' : ''}!`, 'success');
+      }
+    } catch (error: unknown) {
+      console.error('Failed to cleanup databases:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to cleanup databases. Please try again.';
+      this.showToast(errorMessage, 'danger');
+    } finally {
+      this.isCleaningDatabases = false;
     }
   }
 
