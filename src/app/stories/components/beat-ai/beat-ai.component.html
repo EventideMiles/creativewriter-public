@@ -7,27 +7,27 @@
           </div>
           <div class="beat-title">Beat AI</div>
           <div class="beat-actions">
-            <button 
+            <button
               class="action-btn collapse-btn"
               (click)="toggleCollapsed($event)"
               [attr.title]="beatData.isCollapsed ? 'Expand prompt' : 'Collapse prompt'">
               <ion-icon [name]="beatData.isCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
             </button>
-            <button 
-              *ngIf="!beatData.isCollapsed" 
-              class="action-btn context-btn"
-              (click)="showSceneSelector = true; $event.stopPropagation()"
-              title="Select context">
-              <ion-icon name="add-outline"></ion-icon>
-            </button>
-            <button 
-              *ngIf="!beatData.isCollapsed" 
-              class="action-btn outline-btn"
-              [class.active]="includeStoryOutline"
-              (click)="toggleStoryOutline(); $event.stopPropagation()"
-              title="Include/exclude story overview">
-              <ion-icon name="reader-outline"></ion-icon>
-            </button>
+            <div class="button-group" *ngIf="!beatData.isCollapsed">
+              <button
+                class="action-btn context-btn group-left"
+                (click)="showSceneSelector = true; $event.stopPropagation()"
+                title="Select context">
+                <ion-icon name="add-outline"></ion-icon>
+              </button>
+              <button
+                class="action-btn outline-btn group-right"
+                [class.active]="includeStoryOutline"
+                (click)="toggleStoryOutline(); $event.stopPropagation()"
+                title="Include/exclude story overview">
+                <ion-icon name="reader-outline"></ion-icon>
+              </button>
+            </div>
             <button
               *ngIf="beatData.generatedContent && !beatData.isGenerating"
               class="action-btn regenerate-btn"
@@ -42,18 +42,20 @@
               title="Version History">
               <ion-icon name="time-outline"></ion-icon>
             </button>
-            <button
-              class="action-btn delete-btn"
-              (click)="deleteContentAfterBeat(); $event.stopPropagation()"
-              title="Delete text until next beat or scene end">
-              <ion-icon name="trash-outline"></ion-icon>
-            </button>
-            <button
-              class="action-btn remove-btn"
-              (click)="removeBeat($event)"
-              title="Remove this beat input">
-              <ion-icon name="close-circle-outline"></ion-icon>
-            </button>
+            <div class="button-group">
+              <button
+                class="action-btn delete-btn group-left"
+                (click)="deleteContentAfterBeat(); $event.stopPropagation()"
+                title="Delete text until next beat or scene end">
+                <ion-icon name="trash-outline"></ion-icon>
+              </button>
+              <button
+                class="action-btn remove-btn group-right"
+                (click)="removeBeat($event)"
+                title="Remove this beat input">
+                <ion-icon name="close-circle-outline"></ion-icon>
+              </button>
+            </div>
           </div>
         </div>
 

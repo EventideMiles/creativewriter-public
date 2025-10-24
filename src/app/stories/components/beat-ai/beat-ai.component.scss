@@ -262,7 +262,46 @@
       color: #51cf66;
       box-shadow: 0 2px 8px rgba(64, 192, 87, 0.3);
     }
-    
+
+    /* Button Group Styles */
+    .button-group {
+      display: flex;
+      gap: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(255, 255, 255, 0.03) 100%
+      );
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .button-group .action-btn {
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    .button-group .action-btn.group-left {
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0;
+    }
+
+    .button-group .action-btn.group-right {
+      border-radius: 0;
+    }
+
+    .button-group:hover {
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+    }
+
     @media (max-width: 768px) {
       .beat-actions {
         gap: 0.35rem;
@@ -280,6 +319,10 @@
 
       .action-btn ion-icon {
         font-size: 0.95rem;
+      }
+
+      .button-group {
+        border-radius: 10px;
       }
     }
 
@@ -1210,15 +1253,15 @@
       .beat-ai-container {
         margin: 0.25rem 0;
       }
-      
+
       .beat-prompt-section {
         padding: 0.3rem;
       }
-      
+
       .beat-header {
         margin-bottom: 0.3rem;
       }
-      
+
       .beat-actions {
         gap: 0.3rem;
         /* More padding on very small screens */
@@ -1240,15 +1283,19 @@
       .action-btn ion-icon {
         font-size: 0.95rem;
       }
-      
+
+      .button-group {
+        border-radius: 12px;
+      }
+
       .prompt-actions {
         justify-content: center;
       }
-      
+
       .generate-btn, .cancel-btn {
         flex: 1;
         min-width: auto;
         max-width: 120px;
       }
-      
+
     }
