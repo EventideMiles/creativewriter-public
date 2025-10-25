@@ -41,9 +41,14 @@ export class BeatAINodeView implements NodeView {
     // Create the DOM element
     this.dom = document.createElement('div');
     this.dom.classList.add('beat-ai-wrapper');
-    
+
     // Initialize beat data from node attributes
     this.beatData = this.createBeatDataFromNode(node);
+
+    // Add beat ID as data attribute for navigation
+    if (this.beatData.id) {
+      this.dom.setAttribute('data-beat-id', this.beatData.id);
+    }
     
     // Create Angular component
     this.componentRef = createComponent(BeatAIComponent, {
