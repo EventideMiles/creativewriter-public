@@ -22,14 +22,14 @@
     <div class="beat-count-badge" *ngIf="beats.length > 0">
       {{ beats.length }}
     </div>
-    <ion-icon name="git-commit-outline" class="edge-icon"></ion-icon>
+    <span class="material-symbols-outlined edge-icon">read_more</span>
   </div>
 
   <!-- Expanded Panel Content -->
   <div class="panel-content" [class.visible]="isOpen">
     <div class="panel-header">
       <div class="header-title">
-        <ion-icon name="git-commit-outline"></ion-icon>
+        <span class="material-symbols-outlined">read_more</span>
         <span>Beat Navigation</span>
       </div>
       <ion-button fill="clear" size="small" (click)="close()">
@@ -65,7 +65,7 @@
         </div>
 
         <div *ngIf="beats.length === 0" class="no-beats">
-          <ion-icon name="git-commit-outline" class="no-beats-icon"></ion-icon>
+          <span class="material-symbols-outlined no-beats-icon">read_more</span>
           <p>No beats in this scene</p>
           <p class="hint">Use /beat to add AI prompts</p>
         </div>

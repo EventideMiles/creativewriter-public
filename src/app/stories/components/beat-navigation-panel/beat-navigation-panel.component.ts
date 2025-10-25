@@ -2,7 +2,7 @@ import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy
 import { CommonModule } from '@angular/common';
 import { IonIcon, IonButton, IonChip, IonLabel } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, gitCommitOutline, checkmarkCircle, ellipseOutline } from 'ionicons/icons';
+import { closeOutline, checkmarkCircle, ellipseOutline } from 'ionicons/icons';
 import { Story } from '../../models/story.interface';
 
 interface BeatItem {
@@ -34,7 +34,7 @@ export class BeatNavigationPanelComponent implements OnInit {
   beats: BeatItem[] = [];
 
   constructor() {
-    addIcons({ closeOutline, gitCommitOutline, checkmarkCircle, ellipseOutline });
+    addIcons({ closeOutline, checkmarkCircle, ellipseOutline });
   }
 
   ngOnInit(): void {
