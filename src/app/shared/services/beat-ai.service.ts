@@ -955,6 +955,8 @@ export class BeatAIService implements OnDestroy {
       includeStoryOutline: boolean;
       selectedSceneContexts: { sceneId: string; chapterId: string; content: string; }[];
     };
+    action?: 'generate' | 'rewrite';
+    existingText?: string;
   }): Observable<string> {
     if (!options.storyId) {
       return of(userPrompt);
@@ -1131,6 +1133,18 @@ export class BeatAIService implements OnDestroy {
           }
         }
 
+        // Build the prompt - for rewrites, include the existing text
+        let finalPrompt = userPrompt;
+        if (options.action === 'rewrite' && options.existingText) {
+          finalPrompt = `EXISTING TEXT TO REWRITE:
+${options.existingText}
+
+REWRITE INSTRUCTIONS:
+${userPrompt}
+
+Please rewrite the above text according to the instructions. Only output the rewritten text, nothing else.`;
+        }
+
         // Build template placeholders
         const placeholdersRaw = {
           systemMessage: story.settings!.systemMessage,
@@ -1139,10 +1153,10 @@ export class BeatAIService implements OnDestroy {
           storyTitle: story.title || 'Story',
           sceneFullText: sceneContext, // Use the sceneContext we built above
           wordCount: (options.wordCount || 200).toString(),
-          prompt: userPrompt,
+          prompt: finalPrompt,
           pointOfView: pointOfView,
-          writingStyle: story.settings!.beatInstruction === 'continue' 
-            ? 'Continue the story' 
+          writingStyle: story.settings!.beatInstruction === 'continue'
+            ? 'Continue the story'
             : 'Stay in the moment'
         } as const;
 

@@ -882,27 +882,16 @@ export class ProseMirrorEditorService {
       return;
     }
 
-    // Handle rewrite action - delete old content and prepare rewrite prompt
-    let promptToUse = event.prompt || '';
+    // Handle rewrite action - delete old content before rewriting
     if (event.action === 'rewrite' && event.existingText) {
-      // Delete existing content before rewriting
       this.deleteContentAfterBeat(event.beatId);
-
-      // Build a rewrite prompt that includes the existing text
-      promptToUse = `EXISTING TEXT TO REWRITE:
-${event.existingText}
-
-REWRITE INSTRUCTIONS:
-${event.prompt}
-
-Please rewrite the above text according to the instructions. Only output the rewritten text, nothing else.`;
     }
 
     // Start generation process and update prompt
     this.updateBeatNode(event.beatId, {
       isGenerating: true,
       generatedContent: '',
-      prompt: event.prompt || '' // Store the original prompt, not the augmented one
+      prompt: event.prompt || ''
     });
 
     // Find the beat node position to insert content after it
@@ -944,8 +933,8 @@ Please rewrite the above text according to the instructions. Only output the rew
     });
 
     // Generate AI content with streaming
-    // Use the potentially modified prompt (for rewrites) or the original prompt
-    this.beatAIService.generateBeatContent(promptToUse, event.beatId, {
+    // Pass raw prompt - the service will handle rewrite formatting internally
+    this.beatAIService.generateBeatContent(event.prompt || '', event.beatId, {
       wordCount: event.wordCount,
       model: event.model,
       storyId: event.storyId,
