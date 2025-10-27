@@ -610,7 +610,7 @@ export class StoryService {
 
   /**
    * Migrate beat IDs from legacy data-id to data-beat-id attribute
-   * This ensures all beats use the standardized data-beat-id attribute
+   * and ensure all beats have an ID
    */
   private migrateBeatIds(html: string): string {
     if (!html) return html;
@@ -619,20 +619,36 @@ export class StoryService {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
-    // Find all elements with data-id attribute
-    const elementsWithDataId = doc.querySelectorAll('[data-id]');
+    // Find all beat elements
+    const beatElements = doc.querySelectorAll('.beat-ai-node');
 
-    elementsWithDataId.forEach(element => {
+    beatElements.forEach(element => {
       const dataId = element.getAttribute('data-id');
       const dataBeatId = element.getAttribute('data-beat-id');
 
-      // If element has data-id but not data-beat-id, migrate it
+      // Case 1: Has data-id but not data-beat-id - migrate from legacy
       if (dataId && !dataBeatId) {
         element.setAttribute('data-beat-id', dataId);
         element.removeAttribute('data-id');
       }
-      // If element has both, remove the legacy data-id
+      // Case 2: Has both - remove legacy data-id
       else if (dataId && dataBeatId) {
+        element.removeAttribute('data-id');
+      }
+      // Case 3: Has neither - generate new ID
+      else if (!dataId && !dataBeatId) {
+        const newId = this.generateId();
+        element.setAttribute('data-beat-id', newId);
+      }
+      // Case 4: Has data-beat-id only - already correct, do nothing
+    });
+
+    // Also migrate non-beat elements with data-id (for completeness)
+    const elementsWithDataId = doc.querySelectorAll('[data-id]:not(.beat-ai-node)');
+    elementsWithDataId.forEach(element => {
+      const dataId = element.getAttribute('data-id');
+      if (dataId) {
+        element.setAttribute('data-beat-id', dataId);
         element.removeAttribute('data-id');
       }
     });

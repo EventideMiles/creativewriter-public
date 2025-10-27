@@ -161,6 +161,96 @@ describe('StoryService', () => {
       expect(result).toContain('<h2>Chapter Title</h2>');
       expect(result).toContain('<p>Nested content</p>');
     });
+
+    it('should generate ID for beat without any ID attribute', () => {
+      const htmlWithoutId = `
+        <p>Some text</p>
+        <div class="beat-ai-node" data-prompt="Test prompt">
+          <span>Beat content without ID</span>
+        </div>
+        <p>More text</p>
+      `;
+
+      const result = (service as unknown as { migrateBeatIds: (html: string) => string }).migrateBeatIds(htmlWithoutId);
+
+      // Should have data-beat-id attribute
+      expect(result).toContain('data-beat-id=');
+      // Should not have data-id
+      expect(result).not.toContain('data-id=');
+      // Extract the generated ID to verify it's valid
+      const idMatch = result.match(/data-beat-id="([^"]+)"/);
+      expect(idMatch).toBeTruthy();
+      expect(idMatch![1]).toBeTruthy();
+      expect(idMatch![1].length).toBeGreaterThan(0);
+    });
+
+    it('should generate unique IDs for multiple beats without IDs', () => {
+      const htmlWithMultipleBeatsNoIds = `
+        <div class="beat-ai-node" data-prompt="Prompt 1">Beat 1</div>
+        <div class="beat-ai-node" data-prompt="Prompt 2">Beat 2</div>
+        <div class="beat-ai-node" data-prompt="Prompt 3">Beat 3</div>
+      `;
+
+      const result = (service as unknown as { migrateBeatIds: (html: string) => string }).migrateBeatIds(htmlWithMultipleBeatsNoIds);
+
+      // Extract all generated IDs
+      const idMatches = Array.from(result.matchAll(/data-beat-id="([^"]+)"/g));
+      expect(idMatches.length).toBe(3);
+
+      const ids = idMatches.map(match => match[1]);
+
+      // All should have IDs
+      ids.forEach(id => {
+        expect(id).toBeTruthy();
+        expect(id.length).toBeGreaterThan(0);
+      });
+
+      // All IDs should be unique
+      const uniqueIds = new Set(ids);
+      expect(uniqueIds.size).toBe(3);
+    });
+
+    it('should handle mixed beats: some with IDs, some without', () => {
+      const mixedHtml = `
+        <div class="beat-ai-node" data-beat-id="beat-with-id" data-prompt="Has ID">Beat 1</div>
+        <div class="beat-ai-node" data-prompt="No ID">Beat 2</div>
+        <div class="beat-ai-node" data-id="beat-legacy" data-prompt="Legacy ID">Beat 3</div>
+        <div class="beat-ai-node" data-prompt="Also no ID">Beat 4</div>
+      `;
+
+      const result = (service as unknown as { migrateBeatIds: (html: string) => string }).migrateBeatIds(mixedHtml);
+
+      // Should have 4 data-beat-id attributes
+      const idMatches = Array.from(result.matchAll(/data-beat-id="([^"]+)"/g));
+      expect(idMatches.length).toBe(4);
+
+      // Should preserve existing ID
+      expect(result).toContain('data-beat-id="beat-with-id"');
+
+      // Should migrate legacy ID
+      expect(result).toContain('data-beat-id="beat-legacy"');
+      expect(result).not.toContain('data-id="beat-legacy"');
+
+      // Should not have any data-id attributes
+      expect(result).not.toContain('data-id=');
+    });
+
+    it('should not add IDs to non-beat elements', () => {
+      const htmlWithNonBeats = `
+        <div class="regular-node">Regular div</div>
+        <div class="beat-ai-node" data-prompt="Beat">Beat content</div>
+        <span class="other-element">Span</span>
+      `;
+
+      const result = (service as unknown as { migrateBeatIds: (html: string) => string }).migrateBeatIds(htmlWithNonBeats);
+
+      // Should have exactly 1 data-beat-id (only for the beat)
+      const idMatches = Array.from(result.matchAll(/data-beat-id="([^"]+)"/g));
+      expect(idMatches.length).toBe(1);
+
+      // Verify the ID is only on the beat element
+      expect(result).toMatch(/<div class="beat-ai-node"[^>]*data-beat-id="[^"]+"[^>]*>/);
+    });
   });
 
   describe('migrateStory integration', () => {
