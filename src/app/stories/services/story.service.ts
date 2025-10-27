@@ -406,7 +406,9 @@ export class StoryService {
           sceneNumber: scene.sceneNumber || sceneIndex + 1,
           createdAt: new Date(scene.createdAt),
           updatedAt: new Date(scene.updatedAt),
-          summaryGeneratedAt: scene.summaryGeneratedAt ? new Date(scene.summaryGeneratedAt) : undefined
+          summaryGeneratedAt: scene.summaryGeneratedAt ? new Date(scene.summaryGeneratedAt) : undefined,
+          // Migrate beat IDs from legacy data-id to data-beat-id
+          content: this.migrateBeatIds(scene.content)
         }))
       }));
     }
@@ -604,6 +606,39 @@ export class StoryService {
     
     // If no chapters and no content, consider empty
     return true;
+  }
+
+  /**
+   * Migrate beat IDs from legacy data-id to data-beat-id attribute
+   * This ensures all beats use the standardized data-beat-id attribute
+   */
+  private migrateBeatIds(html: string): string {
+    if (!html) return html;
+
+    // Use DOMParser to safely parse and manipulate HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    // Find all elements with data-id attribute
+    const elementsWithDataId = doc.querySelectorAll('[data-id]');
+
+    elementsWithDataId.forEach(element => {
+      const dataId = element.getAttribute('data-id');
+      const dataBeatId = element.getAttribute('data-beat-id');
+
+      // If element has data-id but not data-beat-id, migrate it
+      if (dataId && !dataBeatId) {
+        element.setAttribute('data-beat-id', dataId);
+        element.removeAttribute('data-id');
+      }
+      // If element has both, remove the legacy data-id
+      else if (dataId && dataBeatId) {
+        element.removeAttribute('data-id');
+      }
+    });
+
+    // Return the migrated HTML
+    return doc.body.innerHTML;
   }
 
   /**
