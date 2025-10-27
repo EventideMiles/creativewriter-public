@@ -165,7 +165,7 @@ export class ProseMirrorEditorService {
         toDOM: (node: ProseMirrorNode) => {
           const attrs = {
             class: 'beat-ai-node',
-            'data-id': node.attrs['id'] || '',
+            'data-beat-id': node.attrs['id'] || '',
             'data-prompt': node.attrs['prompt'] || '',
             'data-content': node.attrs['generatedContent'] || '',
             'data-generating': node.attrs['isGenerating'] ? 'true' : 'false',
