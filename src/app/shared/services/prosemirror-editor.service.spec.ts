@@ -720,5 +720,106 @@ describe('ProseMirrorEditorService', () => {
       const scrollToBeatSource = service.scrollToBeat.toString();
       expect(scrollToBeatSource).toContain('data-beat-id');
     });
+
+    it('should support backward compatibility with legacy data-id attribute in parseDOM', () => {
+      /**
+       * This test verifies backward compatibility with beats saved using the old
+       * data-id attribute name. The parseDOM should accept both data-beat-id (new)
+       * and data-id (legacy) to ensure existing content continues to load.
+       */
+
+      // Access the internal schema from the service
+      // @ts-expect-error - accessing private property for testing
+      const schema = service.editorSchema;
+      const beatAINodeType = schema?.nodes?.['beatAI'];
+
+      // Skip test if schema isn't available
+      if (!beatAINodeType) {
+        pending('BeatAI node not available in simple editor schema');
+        return;
+      }
+
+      // Create a mock DOM element with LEGACY data-id attribute (not data-beat-id)
+      const legacyBeatHTML = document.createElement('div');
+      legacyBeatHTML.className = 'beat-ai-node';
+      legacyBeatHTML.setAttribute('data-id', 'legacy-beat-id'); // OLD attribute name
+      legacyBeatHTML.setAttribute('data-prompt', 'Legacy prompt');
+      legacyBeatHTML.setAttribute('data-content', 'Legacy content');
+      legacyBeatHTML.setAttribute('data-generating', 'false');
+      legacyBeatHTML.setAttribute('data-collapsed', 'false');
+      legacyBeatHTML.setAttribute('data-created', new Date().toISOString());
+      legacyBeatHTML.setAttribute('data-updated', new Date().toISOString());
+      legacyBeatHTML.setAttribute('data-word-count', '400');
+      legacyBeatHTML.setAttribute('data-beat-type', 'story');
+
+      // Parse the DOM using the parseDOM rule
+      const parseRule = beatAINodeType.spec.parseDOM?.[0];
+      expect(parseRule).toBeTruthy();
+
+      if (parseRule && parseRule.getAttrs) {
+        const attrs = parseRule.getAttrs(legacyBeatHTML);
+
+        // Verify the legacy beat's ID is correctly parsed
+        expect(attrs).toBeTruthy();
+        if (typeof attrs === 'object' && attrs !== null && 'id' in attrs) {
+          expect(attrs['id']).toBe('legacy-beat-id');
+        } else {
+          fail('parseDOM did not return expected attributes object');
+        }
+      } else {
+        fail('parseDOM rule not configured correctly');
+      }
+
+      // Now test with NEW data-beat-id attribute
+      const newBeatHTML = document.createElement('div');
+      newBeatHTML.className = 'beat-ai-node';
+      newBeatHTML.setAttribute('data-beat-id', 'new-beat-id'); // NEW attribute name
+      newBeatHTML.setAttribute('data-prompt', 'New prompt');
+      newBeatHTML.setAttribute('data-content', 'New content');
+      newBeatHTML.setAttribute('data-generating', 'false');
+      newBeatHTML.setAttribute('data-collapsed', 'false');
+      newBeatHTML.setAttribute('data-created', new Date().toISOString());
+      newBeatHTML.setAttribute('data-updated', new Date().toISOString());
+      newBeatHTML.setAttribute('data-word-count', '400');
+      newBeatHTML.setAttribute('data-beat-type', 'story');
+
+      if (parseRule && parseRule.getAttrs) {
+        const attrs = parseRule.getAttrs(newBeatHTML);
+
+        // Verify the new beat's ID is correctly parsed
+        expect(attrs).toBeTruthy();
+        if (typeof attrs === 'object' && attrs !== null && 'id' in attrs) {
+          expect(attrs['id']).toBe('new-beat-id');
+        } else {
+          fail('parseDOM did not return expected attributes object');
+        }
+      }
+
+      // Test precedence: data-beat-id should take priority over data-id
+      const bothAttrsHTML = document.createElement('div');
+      bothAttrsHTML.className = 'beat-ai-node';
+      bothAttrsHTML.setAttribute('data-beat-id', 'new-id');
+      bothAttrsHTML.setAttribute('data-id', 'old-id'); // Should be ignored
+      bothAttrsHTML.setAttribute('data-prompt', 'Prompt');
+      bothAttrsHTML.setAttribute('data-content', 'Content');
+      bothAttrsHTML.setAttribute('data-generating', 'false');
+      bothAttrsHTML.setAttribute('data-collapsed', 'false');
+      bothAttrsHTML.setAttribute('data-created', new Date().toISOString());
+      bothAttrsHTML.setAttribute('data-updated', new Date().toISOString());
+      bothAttrsHTML.setAttribute('data-word-count', '400');
+      bothAttrsHTML.setAttribute('data-beat-type', 'story');
+
+      if (parseRule && parseRule.getAttrs) {
+        const attrs = parseRule.getAttrs(bothAttrsHTML);
+
+        // Verify data-beat-id takes precedence
+        expect(attrs).toBeTruthy();
+        if (typeof attrs === 'object' && attrs !== null && 'id' in attrs) {
+          expect(attrs['id']).toBe('new-id'); // Should use data-beat-id, not data-id
+        } else {
+          fail('parseDOM did not return expected attributes object');
+        }
+      }
+    });
   });
 });

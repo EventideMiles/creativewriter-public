@@ -207,7 +207,8 @@ export class ProseMirrorEditorService {
             }
             
             const attrs = {
-              id: dom.getAttribute('data-id') || '',
+              // Support both new (data-beat-id) and legacy (data-id) attributes for backward compatibility
+              id: dom.getAttribute('data-beat-id') || dom.getAttribute('data-id') || '',
               prompt: dom.getAttribute('data-prompt') || '',
               generatedContent: dom.getAttribute('data-content') || '',
               isGenerating: dom.getAttribute('data-generating') === 'true',
