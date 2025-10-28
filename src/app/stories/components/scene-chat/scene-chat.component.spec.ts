@@ -1,5 +1,6 @@
 import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
 import { convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 
@@ -51,6 +52,7 @@ describe('SceneChatComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SceneChatComponent],
       providers: [
+        provideHttpClient(),
         {
           provide: ActivatedRoute,
           useValue: {
