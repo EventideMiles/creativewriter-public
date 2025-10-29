@@ -216,6 +216,9 @@ export class StoryOutlineOverviewComponent implements OnInit {
   }
 
   onAccordionChange(ev: CustomEvent<{ value: string[] | string | null | undefined }>) {
+    // Ignore accordion changes during story updates to preserve expanded state
+    if (this.isUpdatingStory) return;
+
     const raw = ev?.detail?.value;
     let values: string[] = [];
     if (Array.isArray(raw)) values = raw;
@@ -246,6 +249,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
   // Inline summary editing state
   editingSummaries: Record<string, string> = {};
   private savingSet = new Set<string>();
+  private isUpdatingStory = false; // Flag to prevent accordion state changes during updates
 
   isEditing(sceneId: string): boolean {
     return Object.prototype.hasOwnProperty.call(this.editingSummaries, sceneId);
@@ -276,6 +280,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
     this.savingSet.add(sceneId);
     try {
       await this.storyService.updateScene(s.id, chapterId, sceneId, { summary });
+      // Preserve expanded state during update
+      this.isUpdatingStory = true;
       // Update local story signal immutably to avoid full reload
       const updatedChapters = s.chapters.map(ch => {
         if (ch.id !== chapterId) return ch;
@@ -287,8 +293,13 @@ export class StoryOutlineOverviewComponent implements OnInit {
       });
       this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
       this.cancelEdit(sceneId);
+      // Allow accordion state changes after a brief delay to ensure rendering is complete
+      setTimeout(() => {
+        this.isUpdatingStory = false;
+      }, 100);
     } catch (e) {
       console.error('Failed to save scene summary', e);
+      this.isUpdatingStory = false;
     } finally {
       this.savingSet.delete(sceneId);
     }
@@ -342,6 +353,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
     this.savingTitleSet.add(sceneId);
     try {
       await this.storyService.updateScene(s.id, chapterId, sceneId, { title });
+      // Preserve expanded state during update
+      this.isUpdatingStory = true;
       const updatedChapters = s.chapters.map(ch => {
         if (ch.id !== chapterId) return ch;
         return {
@@ -352,8 +365,13 @@ export class StoryOutlineOverviewComponent implements OnInit {
       });
       this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
       this.cancelEditTitle(sceneId);
+      // Allow accordion state changes after a brief delay
+      setTimeout(() => {
+        this.isUpdatingStory = false;
+      }, 100);
     } catch (e) {
       console.error('Failed to save scene title', e);
+      this.isUpdatingStory = false;
     } finally {
       this.savingTitleSet.delete(sceneId);
     }
@@ -490,6 +508,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
       if (summary && !summary.match(/[.!?]$/)) summary += '.';
       // Update local signal story immutably and persist
       const current = this.story(); if (!current) return;
+      // Preserve expanded state during update
+      this.isUpdatingStory = true;
       const updatedChapters = current.chapters.map(ch => ch.id === chapterId ? {
         ...ch,
         scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, summary, summaryGeneratedAt: new Date(), updatedAt: new Date() } : sc),
@@ -504,6 +524,10 @@ export class StoryOutlineOverviewComponent implements OnInit {
         newSet.delete(sceneId);
         return newSet;
       });
+      // Allow accordion state changes after a brief delay
+      setTimeout(() => {
+        this.isUpdatingStory = false;
+      }, 100);
     };
 
     if (useGemini) {
@@ -619,6 +643,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
       title = (title || '').trim().replace(/^\s*"|"\s*$/g, '');
       if (!title) return;
       const current = this.story(); if (!current) return;
+      // Preserve expanded state during update
+      this.isUpdatingStory = true;
       const updatedChapters = current.chapters.map(ch => ch.id === chapterId ? {
         ...ch,
         scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, title, updatedAt: new Date() } : sc),
@@ -633,6 +659,10 @@ export class StoryOutlineOverviewComponent implements OnInit {
         newSet.delete(sceneId);
         return newSet;
       });
+      // Allow accordion state changes after a brief delay
+      setTimeout(() => {
+        this.isUpdatingStory = false;
+      }, 100);
     };
 
     if (useGemini) {
@@ -743,11 +773,18 @@ export class StoryOutlineOverviewComponent implements OnInit {
     this.savingChapterTitleSet.add(chapterId);
     try {
       await this.storyService.updateChapter(s.id, chapterId, { title });
+      // Preserve expanded state during update
+      this.isUpdatingStory = true;
       const updatedChapters = s.chapters.map(ch => ch.id === chapterId ? { ...ch, title, updatedAt: new Date() } : ch);
       this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
       this.cancelEditChapterTitle(chapterId);
+      // Allow accordion state changes after a brief delay
+      setTimeout(() => {
+        this.isUpdatingStory = false;
+      }, 100);
     } catch (e) {
       console.error('Failed to save chapter title', e);
+      this.isUpdatingStory = false;
     } finally {
       this.savingChapterTitleSet.delete(chapterId);
     }
