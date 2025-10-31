@@ -272,8 +272,8 @@ describe('SceneNavigationService', () => {
       service.navigationState$.subscribe(state => {
         emissionCount++;
 
-        if (emissionCount === 2) {
-          // Second emission after setActiveScene
+        if (emissionCount === 3) {
+          // Third emission after both setStory and setActiveScene
           expect(state.currentIndex).toBe(2);
           expect(state.hasPrevious).toBe(true);
           expect(state.hasNext).toBe(true);

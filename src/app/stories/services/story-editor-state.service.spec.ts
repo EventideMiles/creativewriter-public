@@ -148,6 +148,10 @@ describe('StoryEditorStateService', () => {
       service.updateSceneContent('<p>Updated content</p>');
       service.updateStoryTitle('Updated Title');
 
+      // getStory is called again during save to check if title changed
+      // Return a fresh copy with original title to simulate fetching from DB
+      storyServiceSpy.getStory.and.returnValue(Promise.resolve({ ...mockStory, title: 'Test Story' }));
+
       await service.saveStory();
 
       expect(storyServiceSpy.updateScene).toHaveBeenCalled();
@@ -211,8 +215,8 @@ describe('StoryEditorStateService', () => {
       service.state$.subscribe(state => {
         emissionCount++;
 
-        if (emissionCount === 2) {
-          // Second emission after content update
+        if (emissionCount === 3) {
+          // Third emission after content update (1: initial, 2: loadStory, 3: updateSceneContent)
           expect(state.hasUnsavedChanges).toBe(true);
           done();
         }
