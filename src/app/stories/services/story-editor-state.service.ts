@@ -256,26 +256,30 @@ export class StoryEditorStateService {
 
     const saveOperation = (async () => {
       try {
+        // Get fresh state right before saving to avoid stale content
+        const freshState = this.stateSubject.value;
+
         // Save active scene changes
-        if (state.activeScene && state.activeChapterId && state.story) {
+        if (freshState.activeScene && freshState.activeChapterId && freshState.story) {
           await this.storyService.updateScene(
-            state.story.id,
-            state.activeChapterId,
-            state.activeScene.id,
+            freshState.story.id,
+            freshState.activeChapterId,
+            freshState.activeScene.id,
             {
-              title: state.activeScene.title,
-              content: state.activeScene.content
+              title: freshState.activeScene.title,
+              content: freshState.activeScene.content
             }
           );
         }
 
-        // Save story title if changed
-        if (state.story) {
-          const currentStory = await this.storyService.getStory(state.story.id);
-          if (currentStory && currentStory.title !== state.story.title) {
+        // Save story title if changed (get fresh state again for title)
+        const currentState = this.stateSubject.value;
+        if (currentState.story) {
+          const currentStory = await this.storyService.getStory(currentState.story.id);
+          if (currentStory && currentStory.title !== currentState.story.title) {
             await this.storyService.updateStory({
               ...currentStory,
-              title: state.story.title,
+              title: currentState.story.title,
               updatedAt: new Date()
             });
           }
@@ -284,10 +288,11 @@ export class StoryEditorStateService {
         this.updateState({ hasUnsavedChanges: false });
 
         // Refresh prompt manager unless skipped
-        if (!options.skipPromptManagerRefresh && state.story) {
+        const finalState = this.stateSubject.value;
+        if (!options.skipPromptManagerRefresh && finalState.story) {
           await this.promptManager.setCurrentStory(null);
           await new Promise(resolve => setTimeout(resolve, 50));
-          await this.promptManager.setCurrentStory(state.story.id);
+          await this.promptManager.setCurrentStory(finalState.story.id);
         }
 
       } catch (error) {
