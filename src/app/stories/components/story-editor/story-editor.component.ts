@@ -1362,23 +1362,22 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       return true;
     }
 
+    // Get latest content from editor
     const latestContent = this.proseMirrorService.getHTMLContent();
 
+    // Update scene content if changed
     if (this.activeScene.content !== latestContent) {
       this.editorState.updateSceneContent(latestContent);
     }
 
-    if (this.editorState.hasPendingSave()) {
+    // Check if save is needed (either pending or unsaved changes)
+    const state = this.editorState.getCurrentState();
+    if (this.editorState.hasPendingSave() || state.hasUnsavedChanges) {
+      // Save once and wait for completion
       await this.editorState.saveStory();
     }
 
-    const state = this.editorState.getCurrentState();
-    if (!state.hasUnsavedChanges) {
-      return true;
-    }
-
-    await this.saveStory();
-
+    // Return true if save succeeded (no unsaved changes remain)
     return !this.editorState.getCurrentState().hasUnsavedChanges;
   }
 
