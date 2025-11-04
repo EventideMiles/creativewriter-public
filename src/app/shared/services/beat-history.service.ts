@@ -42,7 +42,6 @@ export class BeatHistoryService {
     try {
       this.historyDb = new PouchDB('beat-histories');
       this.isInitialized = true;
-      console.log('[BeatHistoryService] Initialized beat-histories database');
     } catch (error) {
       console.error('[BeatHistoryService] Failed to initialize database:', error);
       throw error;
@@ -139,7 +138,6 @@ export class BeatHistoryService {
         loadedAt: new Date()
       });
 
-      console.log(`[BeatHistoryService] Saved version ${versionId} for beat ${beatId}`);
       return versionId;
     } catch (error) {
       console.error(`[BeatHistoryService] Failed to save version for beat ${beatId}:`, error);
@@ -159,7 +157,6 @@ export class BeatHistoryService {
     // Check cache first
     const cached = this.historyCache.get(beatId);
     if (cached && Date.now() - cached.loadedAt.getTime() < this.CACHE_TTL) {
-      console.log(`[BeatHistoryService] Cache hit for beat ${beatId}`);
       return cached.history;
     }
 
@@ -185,7 +182,6 @@ export class BeatHistoryService {
         loadedAt: new Date()
       });
 
-      console.log(`[BeatHistoryService] Loaded history for beat ${beatId} (${history.versions.length} versions)`);
       return history;
     } catch (error) {
       if ((error as {status?: number}).status === 404) {
@@ -249,8 +245,6 @@ export class BeatHistoryService {
 
       // Clear cache to force reload
       this.historyCache.delete(beatId);
-
-      console.log(`[BeatHistoryService] Set current version to ${versionId} for beat ${beatId}`);
     } catch (error) {
       console.error(`[BeatHistoryService] Failed to set current version for beat ${beatId}:`, error);
       throw error;
@@ -273,8 +267,6 @@ export class BeatHistoryService {
 
       // Clear from cache
       this.historyCache.delete(beatId);
-
-      console.log(`[BeatHistoryService] Deleted history for beat ${beatId}`);
     } catch (error) {
       if ((error as {status?: number}).status === 404) {
         // Already deleted, that's fine
@@ -315,8 +307,6 @@ export class BeatHistoryService {
 
       // Clear cache
       this.historyCache.delete(beatId);
-
-      console.log(`[BeatHistoryService] Pruned history for beat ${beatId}, kept ${keepCount} versions`);
     } catch (error) {
       if ((error as {status?: number}).status === 404) {
         return; // No history to prune
@@ -357,7 +347,6 @@ export class BeatHistoryService {
         this.historyCache.delete(history.beatId);
       });
 
-      console.log(`[BeatHistoryService] Deleted ${storyHistories.length} histories for story ${storyId}`);
       return storyHistories.length;
     } catch (error) {
       console.error(`[BeatHistoryService] Failed to delete histories for story ${storyId}:`, error);
@@ -393,7 +382,6 @@ export class BeatHistoryService {
       // Clear entire cache
       this.historyCache.clear();
 
-      console.log(`[BeatHistoryService] Deleted all ${historyDocs.length} histories`);
       return historyDocs.length;
     } catch (error) {
       console.error('[BeatHistoryService] Failed to delete all histories:', error);
@@ -444,7 +432,6 @@ export class BeatHistoryService {
    */
   clearCache(): void {
     this.historyCache.clear();
-    console.log('[BeatHistoryService] Cache cleared');
   }
 
   /**

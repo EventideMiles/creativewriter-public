@@ -29,31 +29,22 @@ export class StoryService {
    * @returns Array of stories
    */
   async getAllStories(limit?: number, skip?: number): Promise<Story[]> {
-    const startTime = performance.now();
     try {
-      const dbStart = performance.now();
       // ALWAYS get fresh database reference - don't cache it
       // The database can change when user logs in/out
       const db = await this.databaseService.getDatabase();
-      console.log(`[StoryService] getDatabase: ${(performance.now() - dbStart).toFixed(0)}ms`);
 
       // Use allDocs with include_docs - faster than find() for small datasets
-      const queryStart = performance.now();
       const result = await db.allDocs({
         include_docs: true,
         // Explicitly include deleted docs to see if they're the issue
         // (we'll filter them out later if needed)
       });
-      console.log(`[StoryService] DB allDocs query: ${(performance.now() - queryStart).toFixed(0)}ms, ${result.rows.length} docs`);
-      console.log(`[StoryService] Database name: ${db.name}, total_rows: ${result.total_rows}`);
-      console.log(`[StoryService] First 5 doc IDs:`, result.rows.slice(0, 5).map(r => r.id));
 
-      const filterStart = performance.now();
       const stories = result.rows
         .filter((row) => {
           const doc = row.doc as unknown;
           if (!doc) {
-            console.log('[Filter] Row has no doc:', row.id);
             return false;
           }
 
@@ -64,43 +55,34 @@ export class StoryService {
 
           // Filter out design docs
           if (docWithType._id && docWithType._id.startsWith('_design')) {
-            console.log('[Filter] Design doc filtered:', docWithType._id);
             return false;
           }
 
           // If document has a type field, it's not a story (stories don't have type field)
           if (docWithType.type) {
-            console.log('[Filter] Has type field, not a story:', docWithType._id, 'type:', docWithType.type);
             return false; // This filters out codex, video, image-video-association, etc.
           }
 
           // Must have chapters (identifies story documents)
           if (!docWithType.chapters) {
-            console.log('[Filter] No chapters field:', docWithType._id, 'has chapters?', !!docWithType.chapters);
             return false;
           }
 
           // Must have an ID
           if (!docWithType.id && !docWithType._id) {
-            console.log('[Filter] No ID field');
             return false;
           }
 
           // Additional validation: Check if it's an empty/abandoned story
           if (this.isEmptyStory(docWithType)) {
-            console.log('[Filter] Empty story filtered:', docWithType.title || 'Untitled', docWithType._id);
             return false;
           }
 
-          console.log('[Filter] Story passed all filters:', docWithType._id, docWithType.title);
           return true;
         })
         .map((row) => this.migrateStory(row.doc as Story));
 
-      console.log(`[StoryService] Filter+migrate: ${(performance.now() - filterStart).toFixed(0)}ms, ${stories.length} stories after filtering`);
-
       // Sort stories by order field (if exists) or by updatedAt (descending)
-      const sortStart = performance.now();
       stories.sort((a, b) => {
         // If both have order, sort by order (ascending)
         if (a.order !== undefined && b.order !== undefined) {
@@ -112,15 +94,11 @@ export class StoryService {
         // Otherwise sort by updatedAt (descending - newest first)
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
-      console.log(`[StoryService] Sort: ${(performance.now() - sortStart).toFixed(0)}ms`);
 
       // Apply pagination in memory (simpler and faster than indexed queries for small datasets)
       const skipCount = skip || 0;
       const limitCount = Math.min(limit || 50, 1000);
       const paginatedStories = stories.slice(skipCount, skipCount + limitCount);
-
-      const totalTime = performance.now() - startTime;
-      console.log(`[StoryService] getAllStories TOTAL: ${totalTime.toFixed(0)}ms (${paginatedStories.length} stories returned)`);
 
       return paginatedStories;
     } catch (error) {
@@ -284,8 +262,7 @@ export class StoryService {
 
       // Delete all associated beat version histories
       try {
-        const deletedCount = await this.beatHistoryService.deleteAllHistoriesForStory(storyId);
-        console.log(`[StoryService] Deleted ${deletedCount} beat histor${deletedCount !== 1 ? 'ies' : 'y'} for story ${storyId}`);
+        await this.beatHistoryService.deleteAllHistoriesForStory(storyId);
       } catch (historyError) {
         // Log but don't fail the story deletion if history cleanup fails
         console.error('[StoryService] Failed to delete beat histories:', historyError);

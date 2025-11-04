@@ -123,7 +123,6 @@ export class DatabaseService {
 
     // Create indexes in background - don't block database availability
     // This prevents slow index creation from delaying app startup
-    const indexStart = performance.now();
     Promise.all(
       indexes.map(async (indexDef) => {
         try {
@@ -140,7 +139,7 @@ export class DatabaseService {
         }
       })
     ).then(() => {
-      console.log(`[DatabaseService] Index creation completed: ${(performance.now() - indexStart).toFixed(0)}ms`);
+      // Index creation completed
     }).catch(err => {
       console.warn('[DatabaseService] Index creation failed:', err);
     });
@@ -150,8 +149,6 @@ export class DatabaseService {
     this.setupSync().catch(err => {
       console.warn('[DatabaseService] Background sync setup failed:', err);
     });
-
-    console.log(`[DatabaseService] Database '${dbName}' ready for use`);
   }
 
   private async handleUserChange(user: User | null): Promise<void> {
@@ -159,7 +156,6 @@ export class DatabaseService {
     if (user) {
       const userDbName = this.authService.getUserDatabaseName();
       if (userDbName && userDbName !== (this.db?.name)) {
-        console.log(`[DatabaseService] User logged in, switching to database: ${userDbName}`);
         this.initializationPromise = this.initializeDatabase(userDbName);
         await this.initializationPromise;
       }
@@ -167,7 +163,6 @@ export class DatabaseService {
       // User logged out - switch to anonymous database
       const anonymousDb = 'creative-writer-stories-anonymous';
       if (this.db?.name !== anonymousDb) {
-        console.log(`[DatabaseService] User logged out, switching to anonymous database`);
         this.initializationPromise = this.initializeDatabase(anonymousDb);
         await this.initializationPromise;
       }
@@ -177,17 +172,11 @@ export class DatabaseService {
   async getDatabase(): Promise<PouchDB.Database> {
     // Wait for initialization to complete
     if (this.initializationPromise) {
-      const waitStart = performance.now();
       await this.initializationPromise;
-      const waitTime = performance.now() - waitStart;
-      if (waitTime > 10) {
-        console.log(`[DatabaseService] Waited ${waitTime.toFixed(0)}ms for database initialization`);
-      }
     }
     if (!this.db) {
       throw new Error('Database not initialized');
     }
-    console.log(`[DatabaseService] getDatabase() returning database: ${this.db.name}`);
     return this.db;
   }
 
@@ -659,7 +648,6 @@ export class DatabaseService {
       }
 
       const databases = await indexedDB.databases();
-      console.log(`[DatabaseService] Found ${databases.length} IndexedDB databases`);
 
       for (const dbInfo of databases) {
         const dbName = dbInfo.name;
@@ -677,7 +665,6 @@ export class DatabaseService {
         if (isMrviewDatabase && !isCurrentMrview && !isBeatHistoriesMrview) {
           // Safe to delete: old mrview database for inactive user database
           try {
-            console.log(`[DatabaseService] Cleaning up old mrview database: ${dbName}`);
             if (!this.pouchdbCtor) {
               throw new Error('PouchDB not initialized');
             }
@@ -691,15 +678,8 @@ export class DatabaseService {
           }
         } else {
           kept++;
-          if (isMrviewDatabase) {
-            console.log(`[DatabaseService] Keeping active mrview database: ${dbName}`);
-          } else {
-            console.log(`[DatabaseService] Keeping user data database: ${dbName}`);
-          }
         }
       }
-
-      console.log(`[DatabaseService] Cleanup complete: ${cleaned} mrview databases removed, ${kept} kept (all user data preserved)`);
     } catch (error) {
       const errorMsg = `Database cleanup failed: ${error}`;
       console.error(`[DatabaseService] ${errorMsg}`);
@@ -733,7 +713,6 @@ export class DatabaseService {
     try {
       // Check if we have a remote database connection
       if (!this.remoteDb) {
-        console.log('[DatabaseService] No remote database connection, skipping missing stories check');
         return null;
       }
 
@@ -754,8 +733,6 @@ export class DatabaseService {
         countStoriesInDb(localDb),
         countStoriesInDb(this.remoteDb)
       ]);
-
-      console.log(`[DatabaseService] Story count check - Local: ${localCount}, Remote: ${remoteCount}`);
 
       return {
         hasMissing: remoteCount > localCount,
