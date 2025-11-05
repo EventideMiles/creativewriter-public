@@ -740,15 +740,20 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       for (const persistedScene of this.beatData.selectedScenes) {
         const chapter = this.story.chapters.find(c => c.id === persistedScene.chapterId);
         const scene = chapter?.scenes.find(s => s.id === persistedScene.sceneId);
-        
+
         if (chapter && scene) {
+          const isCurrentScene = scene.id === this.sceneId;
+
           this.selectedScenes.push({
             chapterId: chapter.id,
             sceneId: scene.id,
             chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
             sceneTitle: `S${scene.sceneNumber || scene.order}:${scene.title}`,
-            content: this.extractFullTextFromScene(scene),
-            selected: true
+            content: isCurrentScene
+              ? this.extractFullTextFromScene(scene, this.beatData.id) // Truncate current scene at beat
+              : this.extractFullTextFromScene(scene), // Other scenes: full text
+            selected: true,
+            isTruncated: isCurrentScene
           });
         }
       }
@@ -1120,7 +1125,9 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
             sceneId: scene.id,
             chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
             sceneTitle: `S${scene.sceneNumber || scene.order}:${scene.title}`,
-            content: this.extractFullTextFromScene(scene),
+            content: isCurrentScene
+              ? this.extractFullTextFromScene(scene, this.beatData.id) // Truncate current scene at beat
+              : this.extractFullTextFromScene(scene), // Other scenes: full text
             selected: true,
             isTruncated: isCurrentScene // Mark as truncated if it's the current scene
           });
@@ -1132,8 +1139,8 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       const scene = chapter?.scenes.find(s => s.id === this.sceneId);
 
       if (chapter && scene) {
-        // Add current scene as default context
-        const currentSceneContent = this.extractFullTextFromScene(scene);
+        // Add current scene as default context, truncated at beat position
+        const currentSceneContent = this.extractFullTextFromScene(scene, this.beatData.id);
 
         // If current scene has no content, try to find the previous scene with content
         let contentToUse = currentSceneContent;
@@ -1205,7 +1212,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       const scene = chapter?.scenes.find(s => s.id === sceneId);
 
       if (chapter && scene) {
-        // Check if this is the current scene - if so, mark as truncated
+        // Check if this is the current scene - if so, truncate at beat position
         const isCurrentScene = sceneId === this.sceneId;
 
         this.selectedScenes.push({
@@ -1213,7 +1220,9 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
           sceneId: scene.id,
           chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
           sceneTitle: `S${scene.sceneNumber || scene.order}:${scene.title}`,
-          content: this.extractFullTextFromScene(scene),
+          content: isCurrentScene
+            ? this.extractFullTextFromScene(scene, this.beatData.id) // Truncate current scene at beat
+            : this.extractFullTextFromScene(scene), // Other scenes: full text
           selected: true,
           isTruncated: isCurrentScene // Mark as truncated if it's the current scene
         });
@@ -1264,6 +1273,9 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
     if (truncateAtBeatId) {
       const targetBeat = doc.querySelector(`.beat-ai-node[data-beat-id="${truncateAtBeatId}"]`);
       if (targetBeat) {
+        // Save parent reference BEFORE removing the beat node
+        const parentParagraph = targetBeat.parentElement;
+
         // Remove the beat itself and all following siblings
         let currentNode: Node | null = targetBeat;
         while (currentNode) {
@@ -1272,8 +1284,7 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
           currentNode = nextNode;
         }
 
-        // Also check if beat is within a paragraph and remove content after it
-        const parentParagraph = targetBeat.parentElement;
+        // Also check if beat was within a paragraph and remove content after it
         if (parentParagraph?.tagName === 'P') {
           let sibling: Node | null = parentParagraph.nextSibling;
           while (sibling) {
