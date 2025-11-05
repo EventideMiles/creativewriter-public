@@ -1338,7 +1338,20 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
     const updatedContexts = selectedSceneContexts.map(context => {
       if (this.activeScene && context.sceneId === this.activeScene.id) {
-        const sanitizedContent = this.promptManager.extractPlainTextFromHtml(this.activeScene.content || '');
+        // Get latest content from editor and truncate at beat position if this is the current scene
+        let sanitizedContent: string;
+
+        // Check if this scene should be truncated (i.e., it contains the current beat)
+        const shouldTruncate = event.beatId && this.activeScene.id === this.activeSceneId;
+
+        if (shouldTruncate) {
+          // Extract content up to the beat position
+          sanitizedContent = this.extractTextBeforeBeat(this.activeScene.content || '', event.beatId);
+        } else {
+          // Extract full content
+          sanitizedContent = this.promptManager.extractPlainTextFromHtml(this.activeScene.content || '');
+        }
+
         return {
           ...context,
           content: sanitizedContent
@@ -1355,6 +1368,45 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         selectedScenes: updatedContexts.map(ctx => ctx.content)
       }
     };
+  }
+
+  /**
+   * Extract text content from HTML scene content, stopping at the specified beat ID
+   */
+  private extractTextBeforeBeat(htmlContent: string, beatId: string): string {
+    if (!htmlContent) return '';
+
+    // Parse the HTML content
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+    // Find the target beat node
+    const targetBeat = doc.querySelector(`.beat-ai-node[data-beat-id="${beatId}"]`);
+    if (targetBeat) {
+      // Save parent reference BEFORE removing the beat node
+      const parentParagraph = targetBeat.parentElement;
+
+      // Remove the beat itself and all following siblings
+      let currentNode: Node | null = targetBeat;
+      while (currentNode) {
+        const nextNode: Node | null = currentNode.nextSibling;
+        currentNode.parentNode?.removeChild(currentNode);
+        currentNode = nextNode;
+      }
+
+      // Also check if beat was within a paragraph and remove content after it
+      if (parentParagraph?.tagName === 'P') {
+        let sibling: Node | null = parentParagraph.nextSibling;
+        while (sibling) {
+          const nextSibling: Node | null = sibling.nextSibling;
+          sibling.parentNode?.removeChild(sibling);
+          sibling = nextSibling;
+        }
+      }
+    }
+
+    // Now extract plain text from the truncated content
+    return this.promptManager.extractPlainTextFromHtml(doc.body.innerHTML);
   }
 
   private async persistSceneBeforeBeatAction(): Promise<boolean> {
