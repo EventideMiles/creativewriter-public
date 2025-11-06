@@ -1,3 +1,11 @@
+// Override ion-app's justify-content: space-between which centers content vertically
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+}
+
 .sync-history-container {
   max-width: 1200px;
   margin: 0 auto;
