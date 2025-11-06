@@ -8,7 +8,7 @@ import {
   IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonList, IonItem, IonLabel, IonChip, IonIcon, IonButton,
   IonSegment, IonSegmentButton, IonSelect, IonSelectOption,
-  IonSpinner, IonBadge, IonText, IonNote, IonSearchbar,
+  IonSpinner, IonBadge, IonNote, IonSearchbar,
   ActionSheetController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -44,7 +44,7 @@ interface StoryModification {
     IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
     IonList, IonItem, IonLabel, IonChip, IonIcon, IonButton,
     IonSegment, IonSegmentButton, IonSelect, IonSelectOption,
-    IonSpinner, IonBadge, IonText, IonNote, IonSearchbar,
+    IonSpinner, IonBadge, IonNote, IonSearchbar,
     AppHeaderComponent
   ],
   templateUrl: './sync-history.component.html',

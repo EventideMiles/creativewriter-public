@@ -1,4 +1,6 @@
 import { Injectable, signal, computed, effect, inject } from '@angular/core';
+import { Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
 import { SettingsService } from '../../core/services/settings.service';
 import { SyncedCustomBackgroundService } from './synced-custom-background.service';
 
@@ -8,19 +10,36 @@ import { SyncedCustomBackgroundService } from './synced-custom-background.servic
 export class BackgroundService {
   private settingsService = inject(SettingsService);
   private customBackgroundService = inject(SyncedCustomBackgroundService);
+  private router = inject(Router);
+
+  // Routes where background should be disabled
+  private readonly noBackgroundRoutes = [
+    '/stories/sync-history'
+  ];
 
   // Signal for the current background image
   private backgroundImage = signal<string>('none');
-  
+
   // Signal for preview background (for settings page preview)
   private previewBackgroundImage = signal<string | null>(null);
 
+  // Signal to track if background should be disabled for current route
+  private backgroundDisabled = signal<boolean>(false);
+
   // Computed background style (uses preview if available, otherwise saved background)
   backgroundStyle = computed(() => {
+    // If background is disabled for this route, return no background
+    if (this.backgroundDisabled()) {
+      return {
+        backgroundImage: 'none',
+        backgroundColor: '#1a1a1a'
+      };
+    }
+
     const previewImage = this.previewBackgroundImage();
     const savedImage = this.backgroundImage();
     const image = previewImage !== null ? previewImage : savedImage;
-    
+
     if (image === 'none' || !image) {
       return {
         backgroundImage: 'none',
@@ -61,6 +80,16 @@ export class BackgroundService {
     const settings = this.settingsService.getSettings();
     this.backgroundImage.set(settings.appearance.backgroundImage);
 
+    // Check initial route
+    this.checkCurrentRoute();
+
+    // Subscribe to route changes
+    this.router.events
+      .pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe(() => {
+        this.checkCurrentRoute();
+      });
+
     // Subscribe to settings changes
     this.settingsService.settings$.subscribe(settings => {
       this.backgroundImage.set(settings.appearance.backgroundImage);
@@ -70,13 +99,19 @@ export class BackgroundService {
     effect(() => {
       this.applyBackgroundToBody();
     });
-    
+
     // React to custom background changes
     effect(() => {
       // Trigger re-evaluation when custom backgrounds change
       this.customBackgroundService.backgrounds();
       this.applyBackgroundToBody();
     });
+  }
+
+  private checkCurrentRoute(): void {
+    const currentUrl = this.router.url;
+    const shouldDisable = this.noBackgroundRoutes.some(route => currentUrl.startsWith(route));
+    this.backgroundDisabled.set(shouldDisable);
   }
 
   private applyBackgroundToBody(): void {

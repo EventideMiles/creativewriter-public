@@ -1,7 +1,15 @@
+// Override global background for this page
+:host {
+  ion-content {
+    --background: var(--ion-background-color, #1a1a1a);
+  }
+}
+
 .sync-history-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 1rem;
+  min-height: 100%;
 }
 
 .controls-section {
