@@ -45,6 +45,11 @@ export interface Story {
   schemaVersion?: number; // Schema version for migration tracking
   createdAt: Date;
   updatedAt: Date;
+  lastModifiedBy?: {
+    deviceId: string;
+    deviceName: string;
+    timestamp: Date;
+  };
   // Legacy support for old stories
   content?: string;
 }

@@ -51,6 +51,10 @@ export class HeaderNavigationService {
     }
   }
 
+  goToSyncHistory(): void {
+    this.router.navigate(['/stories/sync-history']);
+  }
+
   // Get common burger menu items
   getCommonBurgerMenuItems(): BurgerMenuItem[] {
     return [
@@ -58,6 +62,11 @@ export class HeaderNavigationService {
         icon: 'stats-chart',
         label: 'AI Logs',
         action: () => this.goToAILogger()
+      },
+      {
+        icon: 'sync',
+        label: 'Sync History',
+        action: () => this.goToSyncHistory()
       },
       {
         icon: 'settings',

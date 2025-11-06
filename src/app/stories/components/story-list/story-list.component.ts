@@ -11,7 +11,7 @@ import {
 } from '@ionic/angular/standalone';
 import { CdkDropList, CdkDrag, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { addIcons } from 'ionicons';
-import { add, download, settings, statsChart, trash, create, images, menu, close, reorderThree, swapVertical, move, appsOutline, cloudDownload, warning, checkmarkCircle, alertCircle } from 'ionicons/icons';
+import { add, download, settings, statsChart, trash, create, images, menu, close, reorderThree, swapVertical, move, appsOutline, cloudDownload, warning, checkmarkCircle, alertCircle, sync } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { Story } from '../../models/story.interface';
 import { StoryLanguage } from '../../../ui/components/language-selection-dialog/language-selection-dialog.component';
@@ -81,7 +81,7 @@ export class StoryListComponent implements OnInit, OnDestroy {
 
   constructor() {
     // Register Ionic icons
-    addIcons({ add, download, settings, statsChart, trash, create, images, menu, close, reorderThree, swapVertical, move, appsOutline, cloudDownload, warning, checkmarkCircle, alertCircle });
+    addIcons({ add, download, settings, statsChart, trash, create, images, menu, close, reorderThree, swapVertical, move, appsOutline, cloudDownload, warning, checkmarkCircle, alertCircle, sync });
   }
 
   /**

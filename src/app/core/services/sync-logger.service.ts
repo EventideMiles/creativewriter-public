@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { DeviceService } from './device.service';
 
 export interface SyncLog {
   id: string;
@@ -11,15 +12,19 @@ export interface SyncLog {
   itemCount?: number;
   duration?: number;
   status: 'success' | 'error' | 'warning' | 'info';
+  deviceId?: string;
+  deviceName?: string;
+  storyIds?: string[]; // Track which stories were affected
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class SyncLoggerService {
+  private readonly deviceService = inject(DeviceService);
   private readonly STORAGE_KEY = 'creative-writer-sync-logs';
   private readonly MAX_LOGS = 100;
-  
+
   private logsSubject = new BehaviorSubject<SyncLog[]>([]);
   public logs$: Observable<SyncLog[]> = this.logsSubject.asObservable();
 
@@ -61,10 +66,12 @@ export class SyncLoggerService {
       itemCount?: number;
       duration?: number;
       status?: SyncLog['status'];
+      storyIds?: string[];
     }
   ): string {
     const logId = this.generateId();
-    
+    const deviceInfo = this.deviceService.getDeviceInfo();
+
     const log: SyncLog = {
       id: logId,
       timestamp: new Date(),
@@ -74,15 +81,18 @@ export class SyncLoggerService {
       userId: options?.userId,
       itemCount: options?.itemCount,
       duration: options?.duration,
-      status: options?.status || this.getDefaultStatus(type)
+      status: options?.status || this.getDefaultStatus(type),
+      deviceId: deviceInfo.deviceId,
+      deviceName: deviceInfo.deviceName,
+      storyIds: options?.storyIds
     };
 
     const currentLogs = this.logsSubject.value;
     const updatedLogs = [log, ...currentLogs].slice(0, this.MAX_LOGS);
-    
+
     this.logsSubject.next(updatedLogs);
     this.saveLogs();
-    
+
     return logId;
   }
 

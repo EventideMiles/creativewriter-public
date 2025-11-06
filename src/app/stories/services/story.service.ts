@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Story, Chapter, Scene, DEFAULT_STORY_SETTINGS } from '../models/story.interface';
 import { DatabaseService } from '../../core/services/database.service';
+import { DeviceService } from '../../core/services/device.service';
 import { getSystemMessage, getBeatGenerationTemplate } from '../../shared/resources/system-messages';
 import { StoryLanguage } from '../../ui/components/language-selection-dialog/language-selection-dialog.component';
 import { BeatHistoryService } from '../../shared/services/beat-history.service';
@@ -16,6 +17,7 @@ const CURRENT_SCHEMA_VERSION = 1;
 export class StoryService {
   private readonly databaseService = inject(DatabaseService);
   private readonly beatHistoryService = inject(BeatHistoryService);
+  private readonly deviceService = inject(DeviceService);
   private db: PouchDB.Database | null = null;
 
   // Performance optimization: Cache for story previews and word counts
@@ -188,6 +190,8 @@ export class StoryService {
       getBeatGenerationTemplate(language)
     ]);
     
+    const deviceInfo = this.deviceService.getDeviceInfo();
+
     const newStory: Story = {
       _id: storyId,
       id: storyId,
@@ -202,7 +206,12 @@ export class StoryService {
       schemaVersion: CURRENT_SCHEMA_VERSION, // Mark as current version
       // Don't set order here - let it be undefined so it appears at top with latest updatedAt
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      lastModifiedBy: {
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        timestamp: new Date()
+      }
     };
 
     try {
@@ -227,6 +236,14 @@ export class StoryService {
       if (!updatedStory.schemaVersion) {
         updatedStory.schemaVersion = CURRENT_SCHEMA_VERSION;
       }
+
+      // Track device modification
+      const deviceInfo = this.deviceService.getDeviceInfo();
+      updatedStory.lastModifiedBy = {
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        timestamp: new Date()
+      };
 
       await this.db.put(updatedStory);
     } catch (error) {
