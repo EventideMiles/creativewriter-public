@@ -95,6 +95,9 @@ export class StoryListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Clear active story for selective sync - when at story list, sync all stories
+    this.databaseService.setActiveStoryId(null);
+
     // Subscribe to user changes FIRST (before initial load)
     // This prevents duplicate loads on initialization
     this.authService.currentUser$

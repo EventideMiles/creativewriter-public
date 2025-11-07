@@ -5,6 +5,7 @@ import { Story, Scene } from '../models/story.interface';
 import { StoryService } from './story.service';
 import { PromptManagerService } from '../../shared/services/prompt-manager.service';
 import { StoryStatsService } from './story-stats.service';
+import { DatabaseService } from '../../core/services/database.service';
 
 export interface EditorState {
   story: Story | null;
@@ -36,6 +37,7 @@ export class StoryEditorStateService {
   private storyService = inject(StoryService);
   private promptManager = inject(PromptManagerService);
   private storyStatsService = inject(StoryStatsService);
+  private databaseService = inject(DatabaseService);
 
   // State subjects
   private stateSubject = new BehaviorSubject<EditorState>({
@@ -104,6 +106,9 @@ export class StoryEditorStateService {
     if (!story) {
       throw new Error(`Story with ID ${storyId} not found`);
     }
+
+    // Set active story for selective sync
+    this.databaseService.setActiveStoryId(story.id);
 
     // Initialize prompt manager with current story
     await this.promptManager.setCurrentStory(story.id);

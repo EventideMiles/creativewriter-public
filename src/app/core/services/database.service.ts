@@ -57,6 +57,9 @@ export class DatabaseService {
   // Types for PouchDB usage remain via the ambient PouchDB namespace
   private pouchdbCtor: PouchDBStatic | null = null;
 
+  // Track the active story for selective sync
+  private activeStoryId: string | null = null;
+
   public syncStatus$: Observable<SyncStatus> = this.syncStatusSubject.asObservable();
 
   constructor() {
@@ -185,6 +188,32 @@ export class DatabaseService {
     return this.db;
   }
 
+  /**
+   * Set the active story ID for selective sync.
+   * Only the active story and its related documents will be synced.
+   * Set to null to sync all documents.
+   */
+  setActiveStoryId(storyId: string | null): void {
+    const changed = this.activeStoryId !== storyId;
+    this.activeStoryId = storyId;
+
+    // If the active story changed and sync is running, restart sync to apply new filter
+    if (changed && this.syncHandler) {
+      this.stopSync().then(() => {
+        this.startSync();
+      }).catch(err => {
+        console.error('Error restarting sync after story change:', err);
+      });
+    }
+  }
+
+  /**
+   * Get the currently active story ID for selective sync
+   */
+  getActiveStoryId(): string | null {
+    return this.activeStoryId;
+  }
+
   async setupSync(remoteUrl?: string): Promise<void> {
     try {
       // Use provided URL or try to detect from environment/location
@@ -275,12 +304,44 @@ export class DatabaseService {
       live: true,
       retry: true,
       timeout: 30000,
-      // CRITICAL: Filter out snapshot documents from sync
-      // Snapshots stay server-side only, accessed via HTTP on-demand
+      // SELECTIVE SYNC: Filter to only sync active story and related documents
+      // This significantly reduces memory usage and sync operations on mobile
       filter: (doc: PouchDB.Core.Document<Record<string, unknown>>) => {
-        // Sync all documents EXCEPT snapshots
         const docType = (doc as { type?: string }).type;
-        return docType !== 'story-snapshot';
+        const docId = doc._id;
+
+        // Always exclude snapshots
+        if (docType === 'story-snapshot') {
+          return false;
+        }
+
+        // If no active story is set, sync everything (backward compatible)
+        if (!this.activeStoryId) {
+          return true;
+        }
+
+        // SELECTIVE SYNC ENABLED: Only sync active story and related documents
+
+        // 1. Sync the active story document (stories have no type field)
+        if (!docType && docId === this.activeStoryId) {
+          return true;
+        }
+
+        // 2. Sync codex for the active story
+        const storyId = (doc as { storyId?: string }).storyId;
+        if (docType === 'codex' && storyId === this.activeStoryId) {
+          return true;
+        }
+
+        // 3. Sync user-wide documents (not story-specific)
+        // These include: custom backgrounds, videos, etc.
+        const userWideTypes = ['custom-background', 'video', 'image-video-association'];
+        if (docType && userWideTypes.includes(docType)) {
+          return true;
+        }
+
+        // 4. Exclude all other documents (other stories, their codex entries, etc.)
+        return false;
       }
     }) as unknown as PouchSync;
 
