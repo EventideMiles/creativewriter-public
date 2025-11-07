@@ -824,7 +824,7 @@ export class StoryService {
   async reorderStories(stories: Story[]): Promise<void> {
     try {
       this.db = await this.databaseService.getDatabase();
-      
+
       // Update each story with new order field
       const bulkDocs = stories.map((story, index) => ({
         ...story,
@@ -833,6 +833,19 @@ export class StoryService {
       }));
 
       await this.db.bulkDocs(bulkDocs);
+
+      // Update metadata index for all reordered stories
+      // Run in background - don't block reordering
+      Promise.all(
+        bulkDocs.map(story =>
+          this.metadataIndexService.updateStoryMetadata(story as Story)
+            .catch(err => {
+              console.error(`[StoryService] Failed to update metadata index for story ${story.id}:`, err);
+            })
+        )
+      ).catch(err => {
+        console.error('[StoryService] Failed to update metadata index after reordering:', err);
+      });
     } catch (error) {
       console.error('Error reordering stories:', error);
       throw error;
