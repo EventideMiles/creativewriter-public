@@ -247,6 +247,11 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
             this.loadingMessage = 'Loading story...';
             this.cdr.markForCheck();
 
+            // CRITICAL: Set activeStoryId BEFORE loading so selective sync knows to sync this story
+            // Without this, the sync filter won't sync the story document (only metadata index)
+            console.info(`[StoryEditor] Setting activeStoryId to ${storyId} for selective sync`);
+            this.databaseService.setActiveStoryId(storyId);
+
             // Wait for story to sync from remote (with 5s timeout)
             await this.waitForStorySynced(storyId);
 
@@ -255,6 +260,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
             this.cdr.markForCheck();
 
             // Load story using editor state service
+            // Note: loadStory will also call setActiveStoryId, but we need it set earlier for sync
             await this.editorState.loadStory(storyId, preferredChapterId || undefined, preferredSceneId || undefined);
 
             // Hide loading indicator
@@ -652,51 +658,77 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
    * Phase 5: Provides better UX by waiting for story data to be available
    *
    * @param storyId - The ID of the story to wait for
-   * @param timeoutMs - Maximum time to wait (default: 5 seconds)
+   * @param timeoutMs - Maximum time to wait (default: 10 seconds)
    * @returns Promise that resolves when story is synced or timeout occurs
    */
-  private async waitForStorySynced(storyId: string, timeoutMs = 5000): Promise<void> {
-    return new Promise((resolve) => {
-      const startTime = Date.now();
-      let syncSubscription: Subscription | null = null;
+  private async waitForStorySynced(storyId: string, timeoutMs = 10000): Promise<void> {
+    const startTime = Date.now();
+    console.info(`[StoryEditor] Waiting for story ${storyId} to sync...`);
 
-      const checkTimeout = () => {
-        if (Date.now() - startTime >= timeoutMs) {
-          if (syncSubscription) {
-            syncSubscription.unsubscribe();
-          }
-          resolve(); // Timeout - proceed anyway
+    return new Promise((resolve) => {
+      let syncSubscription: Subscription | null = null;
+      let checkInterval: ReturnType<typeof setInterval> | null = null;
+
+      const cleanup = () => {
+        if (syncSubscription) {
+          syncSubscription.unsubscribe();
+          syncSubscription = null;
+        }
+        if (checkInterval) {
+          clearInterval(checkInterval);
+          checkInterval = null;
         }
       };
 
-      // Subscribe to sync status changes
+      const checkTimeout = () => {
+        if (Date.now() - startTime >= timeoutMs) {
+          cleanup();
+          console.warn(`[StoryEditor] Timeout waiting for story ${storyId} to sync (${timeoutMs}ms)`);
+          resolve(); // Timeout - proceed anyway and let loadStory handle the error
+        }
+      };
+
+      // Periodically check if the story document exists
+      const checkStoryExists = async () => {
+        try {
+          const db = await this.databaseService.getDatabase();
+          await db.get(storyId);
+          // Story exists!
+          cleanup();
+          const elapsed = Date.now() - startTime;
+          console.info(`[StoryEditor] Story ${storyId} found in database after ${elapsed}ms`);
+          resolve();
+        } catch {
+          // Story doesn't exist yet, keep waiting
+          checkTimeout();
+        }
+      };
+
+      // Check immediately
+      void checkStoryExists();
+
+      // Then check every 500ms
+      checkInterval = setInterval(() => {
+        void checkStoryExists();
+      }, 500);
+
+      // Subscribe to sync status to check when sync completes
       syncSubscription = this.databaseService.syncStatus$.subscribe(status => {
-        // Check if we've exceeded timeout
         checkTimeout();
 
-        // If sync just completed, check if our story is available
+        // When sync completes or becomes idle, check if story exists
         if (status.lastSync && status.lastSync > new Date(startTime)) {
-          // Story might be synced now - resolve
-          if (syncSubscription) {
-            syncSubscription.unsubscribe();
-          }
-          resolve();
+          void checkStoryExists();
         }
-
-        // If not syncing and not connecting, resolve (story is already local or won't sync)
         if (!status.isSync && !status.isConnecting) {
-          if (syncSubscription) {
-            syncSubscription.unsubscribe();
-          }
-          resolve();
+          void checkStoryExists();
         }
       });
 
-      // Also set a hard timeout
+      // Hard timeout
       setTimeout(() => {
-        if (syncSubscription) {
-          syncSubscription.unsubscribe();
-        }
+        cleanup();
+        console.warn(`[StoryEditor] Hard timeout reached for story ${storyId}`);
         resolve();
       }, timeoutMs);
     });
