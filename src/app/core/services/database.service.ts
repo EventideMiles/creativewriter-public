@@ -60,6 +60,10 @@ export class DatabaseService {
   // Track the active story for selective sync
   private activeStoryId: string | null = null;
 
+  // Track if this is initial sync (before metadata index is established)
+  // BUGFIX: After browser data deletion, we need to allow stories to sync initially
+  private isInitialSync = true;
+
   public syncStatus$: Observable<SyncStatus> = this.syncStatusSubject.asObservable();
 
   constructor() {
@@ -145,6 +149,22 @@ export class DatabaseService {
       // Index creation completed
     }).catch(err => {
       console.warn('[DatabaseService] Index creation failed:', err);
+    });
+
+    // BUGFIX: Check if database already has documents (not a fresh install)
+    // If so, skip initial sync mode and use optimized sync immediately
+    currentDb.info().then(info => {
+      if (info.doc_count > 0) {
+        console.info('[DatabaseService] Database has existing documents, using optimized sync');
+        this.isInitialSync = false;
+      } else {
+        console.info('[DatabaseService] Fresh database detected, will sync all documents initially');
+        this.isInitialSync = true;
+      }
+    }).catch(err => {
+      console.warn('[DatabaseService] Error checking database info:', err);
+      // Default to initial sync mode if we can't determine
+      this.isInitialSync = true;
     });
 
     // PERFORMANCE FIX: Don't await sync setup - let it happen in background
@@ -315,6 +335,14 @@ export class DatabaseService {
           return false;
         }
 
+        // BUGFIX: During initial sync (e.g., after browser data deletion),
+        // allow all documents to sync so the metadata index can be built
+        if (this.isInitialSync) {
+          // Exclude snapshots (already handled above)
+          // Allow everything else to sync initially
+          return true;
+        }
+
         // ALWAYS sync the story metadata index (lightweight document for story list)
         if (docId === 'story-metadata-index' || docType === 'story-metadata-index') {
           return true;
@@ -378,6 +406,13 @@ export class DatabaseService {
           const change = info.change as { docs?: unknown[] };
           if (change.docs && Array.isArray(change.docs)) {
             docsProcessed = change.docs.length;
+
+            // BUGFIX: Disable initial sync mode after receiving documents
+            // This means we have data and can switch to optimized sync
+            if (this.isInitialSync && docsProcessed > 0) {
+              console.info('[DatabaseService] Initial sync received documents, switching to optimized sync');
+              this.isInitialSync = false;
+            }
 
             // Get the last document details
             if (change.docs.length > 0) {
