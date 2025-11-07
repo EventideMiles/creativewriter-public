@@ -8,11 +8,12 @@ import {
 import { addIcons } from 'ionicons';
 import {
   downloadOutline, cloudUploadOutline, informationCircleOutline,
-  checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline, albumsOutline, buildOutline
+  checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline, albumsOutline, buildOutline, syncOutline, refreshOutline
 } from 'ionicons/icons';
 import { DatabaseBackupService } from '../../shared/services/database-backup.service';
 import { BeatHistoryService } from '../../shared/services/beat-history.service';
 import { DatabaseService } from '../../core/services/database.service';
+import { StoryMetadataIndexService } from '../../stories/services/story-metadata-index.service';
 
 @Component({
   selector: 'app-database-backup',
@@ -281,6 +282,109 @@ import { DatabaseService } from '../../core/services/database.service';
         </div>
       </ion-card-content>
     </ion-card>
+
+    <!-- Metadata Index Sync -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="sync-outline" slot="start"></ion-icon>
+          Metadata Index Management
+        </ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <!-- Info -->
+        <ion-item lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Story Metadata Index</h3>
+            <p>The metadata index powers the story list with lightweight previews. Syncing ensures the index matches your remote stories.</p>
+          </ion-label>
+        </ion-item>
+
+        <!-- Sync Button -->
+        <div class="backup-section">
+          <h3>Sync Metadata Index</h3>
+          <p class="section-description">
+            Fetch the latest metadata index from the remote server. This is useful after browser data deletion or if stories aren't showing in the list.
+          </p>
+
+          <ion-button
+            expand="block"
+            color="primary"
+            (click)="syncMetadataIndex()"
+            [disabled]="isSyncingMetadataIndex">
+            <ion-icon name="sync-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isSyncingMetadataIndex" slot="start"></ion-spinner>
+            {{ isSyncingMetadataIndex ? 'Syncing...' : 'Sync Metadata Index' }}
+          </ion-button>
+
+          <ion-progress-bar
+            *ngIf="isSyncingMetadataIndex"
+            type="indeterminate"
+            color="primary">
+          </ion-progress-bar>
+
+          <div *ngIf="metadataIndexResult" class="cleanup-result">
+            <ion-item lines="none" [color]="metadataIndexResult.success ? 'success' : 'warning'">
+              <ion-icon
+                [name]="metadataIndexResult.success ? 'checkmark-circle-outline' : 'warning-outline'"
+                slot="start">
+              </ion-icon>
+              <ion-label>
+                <h3>{{ metadataIndexResult.title }}</h3>
+                <p>{{ metadataIndexResult.message }}</p>
+                <p *ngIf="metadataIndexResult.storiesCount !== undefined">
+                  Found {{ metadataIndexResult.storiesCount }} stor{{ metadataIndexResult.storiesCount !== 1 ? 'ies' : 'y' }} in index
+                </p>
+              </ion-label>
+            </ion-item>
+          </div>
+        </div>
+
+        <!-- Rebuild Button -->
+        <div class="backup-section">
+          <h3>Rebuild Metadata Index</h3>
+          <p class="section-description">
+            Rebuild the metadata index from all stories in the local database. Use this if the index is corrupted or out of sync.
+          </p>
+
+          <ion-button
+            expand="block"
+            fill="outline"
+            color="secondary"
+            (click)="rebuildMetadataIndex()"
+            [disabled]="isRebuildingMetadataIndex">
+            <ion-icon name="refresh-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isRebuildingMetadataIndex" slot="start"></ion-spinner>
+            {{ isRebuildingMetadataIndex ? 'Rebuilding...' : 'Rebuild Metadata Index' }}
+          </ion-button>
+
+          <ion-progress-bar
+            *ngIf="isRebuildingMetadataIndex"
+            type="indeterminate"
+            color="secondary">
+          </ion-progress-bar>
+        </div>
+
+        <!-- Info Section -->
+        <div class="warning-section">
+          <ion-item lines="none" color="light">
+            <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+            <ion-label>
+              <h3>What These Do</h3>
+              <ul>
+                <li><strong>Sync:</strong> Fetches the metadata index from remote CouchDB (~500KB)</li>
+                <li><strong>Rebuild:</strong> Creates new index from local stories (no remote fetch)</li>
+                <li>Metadata index contains story previews, word counts, and thumbnails</li>
+                <li>Story list loads from this index instead of loading all stories</li>
+                <li>Much faster and uses less memory on mobile</li>
+              </ul>
+            </ion-label>
+          </ion-item>
+        </div>
+      </ion-card-content>
+    </ion-card>
   `,
   styles: [`
     :host {
@@ -508,6 +612,7 @@ export class DatabaseBackupComponent {
   private readonly backupService = inject(DatabaseBackupService);
   private readonly beatHistoryService = inject(BeatHistoryService);
   private readonly databaseService = inject(DatabaseService);
+  private readonly metadataIndexService = inject(StoryMetadataIndexService);
   private readonly alertController = inject(AlertController);
   private readonly toastController = inject(ToastController);
 
@@ -517,13 +622,16 @@ export class DatabaseBackupComponent {
   isImporting = false;
   isDeletingBeatHistories = false;
   isCleaningDatabases = false;
+  isSyncingMetadataIndex = false;
+  isRebuildingMetadataIndex = false;
   cleanupResult: { cleaned: number; kept: number; errors: string[] } | null = null;
+  metadataIndexResult: { success: boolean; title: string; message: string; storiesCount?: number } | null = null;
   selectedFile: File | null = null;
 
   constructor() {
     addIcons({
       downloadOutline, cloudUploadOutline, informationCircleOutline,
-      checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline, albumsOutline, buildOutline
+      checkmarkCircleOutline, warningOutline, documentTextOutline, timeOutline, trashOutline, albumsOutline, buildOutline, syncOutline, refreshOutline
     });
 
     this.loadDatabaseInfo();
@@ -730,6 +838,99 @@ This action CANNOT be undone! All previous versions will be lost forever.`,
       this.showToast(errorMessage, 'danger');
     } finally {
       this.isCleaningDatabases = false;
+    }
+  }
+
+  async syncMetadataIndex(): Promise<void> {
+    this.isSyncingMetadataIndex = true;
+    this.metadataIndexResult = null;
+
+    try {
+      console.info('[DatabaseBackup] Starting metadata index sync from remote');
+
+      // Get the database
+      const db = await this.databaseService.getDatabase();
+
+      // Fetch the story-metadata-index document from local database
+      // (which should sync from remote if available)
+      try {
+        const indexDoc = await db.get('story-metadata-index');
+        const storiesCount = (indexDoc as { stories?: unknown[] }).stories?.length || 0;
+
+        console.info(`[DatabaseBackup] Successfully synced metadata index with ${storiesCount} stories`);
+
+        this.metadataIndexResult = {
+          success: true,
+          title: 'Sync Successful',
+          message: 'Metadata index synced from remote server',
+          storiesCount
+        };
+
+        this.showToast(`Metadata index synced successfully with ${storiesCount} stor${storiesCount !== 1 ? 'ies' : 'y'}!`, 'success');
+      } catch (error) {
+        // Document doesn't exist locally - might not be synced yet
+        if ((error as { status?: number }).status === 404) {
+          console.warn('[DatabaseBackup] Metadata index not found in local database. Sync may be in progress.');
+          this.metadataIndexResult = {
+            success: false,
+            title: 'Index Not Found',
+            message: 'Metadata index not found. It may still be syncing from remote, or the remote index may not exist yet.'
+          };
+          this.showToast('Metadata index not found. Try rebuilding or wait for sync to complete.', 'warning');
+        } else {
+          throw error;
+        }
+      }
+    } catch (error: unknown) {
+      console.error('[DatabaseBackup] Failed to sync metadata index:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sync metadata index';
+
+      this.metadataIndexResult = {
+        success: false,
+        title: 'Sync Failed',
+        message: errorMessage
+      };
+
+      this.showToast('Failed to sync metadata index. Please try again.', 'danger');
+    } finally {
+      this.isSyncingMetadataIndex = false;
+    }
+  }
+
+  async rebuildMetadataIndex(): Promise<void> {
+    this.isRebuildingMetadataIndex = true;
+    this.metadataIndexResult = null;
+
+    try {
+      console.info('[DatabaseBackup] Starting metadata index rebuild from local stories');
+
+      // Rebuild the index from local stories
+      const index = await this.metadataIndexService.rebuildIndex();
+      const storiesCount = index.stories.length;
+
+      console.info(`[DatabaseBackup] Successfully rebuilt metadata index with ${storiesCount} stories`);
+
+      this.metadataIndexResult = {
+        success: true,
+        title: 'Rebuild Successful',
+        message: 'Metadata index rebuilt from local stories',
+        storiesCount
+      };
+
+      this.showToast(`Metadata index rebuilt successfully with ${storiesCount} stor${storiesCount !== 1 ? 'ies' : 'y'}!`, 'success');
+    } catch (error: unknown) {
+      console.error('[DatabaseBackup] Failed to rebuild metadata index:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rebuild metadata index';
+
+      this.metadataIndexResult = {
+        success: false,
+        title: 'Rebuild Failed',
+        message: errorMessage
+      };
+
+      this.showToast('Failed to rebuild metadata index. Please try again.', 'danger');
+    } finally {
+      this.isRebuildingMetadataIndex = false;
     }
   }
 
