@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, TemplateRef, ViewChild, inject, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Subject } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -196,6 +196,13 @@ export class StoryListComponent implements OnInit, OnDestroy {
     }
 
     try {
+      // BUGFIX: Wait for initial sync to complete if database is fresh
+      // This prevents race condition where we try to load before metadata index has synced
+      if (reset && this.syncStatus.isSync) {
+        console.info('[StoryList] Waiting for initial sync to complete before loading metadata index');
+        await this.waitForInitialSync();
+      }
+
       // Load story metadata from index (lightweight)
       const index = await this.metadataIndexService.getMetadataIndex();
 
@@ -296,6 +303,47 @@ export class StoryListComponent implements OnInit, OnDestroy {
 
     this.currentPage++;
     await this.loadStories(false);
+  }
+
+  /**
+   * Wait for initial sync to complete (used after browser data deletion)
+   * BUGFIX: Prevents race condition where we try to load metadata index
+   * before it has synced from remote
+   */
+  private async waitForInitialSync(timeoutMs = 10000): Promise<void> {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+      let syncSubscription: Subscription | null = null;
+
+      const checkAndResolve = () => {
+        if (syncSubscription) {
+          syncSubscription.unsubscribe();
+        }
+        resolve();
+      };
+
+      // Subscribe to sync status changes
+      syncSubscription = this.databaseService.syncStatus$.subscribe(status => {
+        // Check timeout
+        if (Date.now() - startTime >= timeoutMs) {
+          console.warn('[StoryList] Initial sync wait timed out, proceeding anyway');
+          checkAndResolve();
+          return;
+        }
+
+        // Wait for sync to complete (not syncing and has synced at least once)
+        if (!status.isSync && !status.isConnecting && status.lastSync) {
+          console.info('[StoryList] Initial sync completed, loading metadata index');
+          checkAndResolve();
+        }
+      });
+
+      // Hard timeout as backup
+      setTimeout(() => {
+        console.warn('[StoryList] Hard timeout reached for initial sync wait');
+        checkAndResolve();
+      }, timeoutMs);
+    });
   }
 
   async drop(event: CdkDragDrop<StoryMetadata[]>): Promise<void> {
