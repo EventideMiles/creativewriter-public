@@ -2242,8 +2242,8 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     await new Promise(resolve => setTimeout(resolve, 300));
 
     // Scroll to the selected beat using ProseMirror service
-    // This uses native scrollIntoView which handles the complex layout correctly
-    this.proseMirrorService.scrollToBeat(beatId);
+    // Pass IonContent to ensure header stays fixed on mobile
+    await this.proseMirrorService.scrollToBeat(beatId, this.ionContent);
   }
 
   private updateBeatList(): void {

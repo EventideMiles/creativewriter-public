@@ -8,7 +8,7 @@ import { keymap } from 'prosemirror-keymap';
 import { baseKeymap, splitBlock, chainCommands, newlineInCode, createParagraphNear, liftEmptyBlock, deleteSelection, joinForward, selectNodeForward } from 'prosemirror-commands';
 import { history, undo, redo } from 'prosemirror-history';
 import { Subject } from 'rxjs';
-import { ModalController } from '@ionic/angular/standalone';
+import { ModalController, IonContent } from '@ionic/angular/standalone';
 import { BeatAINodeView } from './beat-ai-nodeview';
 import { ResizableImageNodeView } from './resizable-image-nodeview';
 import { BeatAI, BeatAIPromptEvent } from '../../stories/models/beat-ai.interface';
@@ -2161,15 +2161,30 @@ export class ProseMirrorEditorService {
   /**
    * Scroll to a specific beat in the editor
    */
-  scrollToBeat(beatId: string): void {
+  async scrollToBeat(beatId: string, ionContent?: IonContent): Promise<void> {
     if (!this.editorView) return;
 
     // Find the beat element by data-beat-id attribute
     const beatElement = document.querySelector(`[data-beat-id="${beatId}"]`) as HTMLElement;
 
     if (beatElement) {
-      // Scroll the beat element into view
-      beatElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      if (ionContent) {
+        // Use IonContent's scroll methods to keep header fixed
+        // Get the beat element's position relative to the scrollable content
+        const contentElement = await ionContent.getScrollElement();
+        const beatRect = beatElement.getBoundingClientRect();
+        const contentRect = contentElement.getBoundingClientRect();
+
+        // Calculate the scroll position
+        // We want to position the beat near the top, accounting for header
+        const scrollTop = contentElement.scrollTop + beatRect.top - contentRect.top - 80;
+
+        // Scroll to the position smoothly
+        await ionContent.scrollToPoint(0, scrollTop, 500);
+      } else {
+        // Fallback to native scrollIntoView
+        beatElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      }
 
       // Flash the beat to indicate selection
       setTimeout(() => {
