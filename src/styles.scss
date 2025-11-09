@@ -914,9 +914,15 @@ ion-card-content {
   // Mobile - bottom sheet
   @media (max-width: 768px) {
     --width: 100%;
-    --height: 85vh;
+    --height: calc(100vh - 60px); // Leave space for browser/nav chrome
+    --max-height: 85vh;
     --border-radius: 12px 12px 0 0;
     align-items: flex-end;
+
+    // Ensure modal content respects safe areas
+    .modal-wrapper {
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
   }
 
   // Ensure proper backdrop

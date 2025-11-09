@@ -15,6 +15,11 @@
     --overflow: auto;
     overflow-y: auto;
     min-height: 0;
+
+    @media (max-width: 768px) {
+      // Add bottom padding to prevent content from hiding under footer
+      --padding-bottom: calc(100px + env(safe-area-inset-bottom, 20px));
+    }
   }
 
   ion-footer {
@@ -418,8 +423,9 @@ ion-footer {
 
     @media (max-width: 768px) {
       padding: 1rem 0.75rem;
-      padding-bottom: max(1rem, env(safe-area-inset-bottom));
-      min-height: 80px;
+      // Add significant bottom padding for Android navigation bar
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 20px));
+      min-height: calc(80px + env(safe-area-inset-bottom, 20px));
     }
 
     .spacer {
