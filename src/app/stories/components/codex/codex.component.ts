@@ -447,9 +447,9 @@ export class CodexComponent implements OnInit, OnDestroy {
     const modal = await this.modalController.create({
       component: CodexTransferModalComponent,
       cssClass: 'codex-transfer-modal',
-      breakpoints: [0, 0.5, 0.75, 0.95],
-      initialBreakpoint: 0.95,
-      backdropDismiss: false
+      backdropDismiss: false,
+      canDismiss: true,
+      showBackdrop: true
     });
 
     await modal.present();
