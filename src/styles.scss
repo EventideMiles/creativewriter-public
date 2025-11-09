@@ -900,3 +900,42 @@ ion-card-content {
     }
   }
 }
+
+/* Codex Transfer Modal */
+.codex-transfer-modal {
+  // Desktop/tablet - full modal
+  @media (min-width: 769px) {
+    --width: 90%;
+    --max-width: 900px;
+    --height: 85vh;
+    --max-height: 85vh;
+    --border-radius: 12px;
+  }
+
+  // Mobile - bottom sheet style
+  @media (max-width: 768px) {
+    --width: 100%;
+    --height: auto;
+    --max-height: 95vh;
+    --border-radius: 12px 12px 0 0;
+
+    align-items: flex-end;
+
+    .ion-page {
+      position: relative;
+      display: block;
+      contain: layout size style;
+    }
+  }
+
+  // Ensure proper backdrop
+  &::part(backdrop) {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+  }
+
+  // Ensure content is scrollable
+  ion-content {
+    --overflow: auto;
+  }
+}
