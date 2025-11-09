@@ -915,16 +915,19 @@ ion-card-content {
   // Mobile - bottom sheet style
   @media (max-width: 768px) {
     --width: 100%;
-    --height: auto;
-    --max-height: 95vh;
+    --height: 90vh;
+    --max-height: 90vh;
     --border-radius: 12px 12px 0 0;
 
     align-items: flex-end;
 
     .ion-page {
       position: relative;
-      display: block;
+      display: flex;
+      flex-direction: column;
       contain: layout size style;
+      height: 100%;
+      max-height: 90vh;
     }
   }
 
@@ -937,5 +940,10 @@ ion-card-content {
   // Ensure content is scrollable
   ion-content {
     --overflow: auto;
+  }
+
+  // Ensure footer is always visible
+  ion-footer {
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
   }
 }

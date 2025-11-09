@@ -1,36 +1,46 @@
 // Modal sizing and positioning
 :host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
   ion-header {
-    position: sticky;
-    top: 0;
+    flex-shrink: 0;
+    position: relative;
     z-index: 10;
   }
 
   ion-content {
+    flex: 1;
     --overflow: auto;
     overflow-y: auto;
+    min-height: 0; // Important for flex scrolling
   }
 
   ion-footer {
-    position: sticky;
-    bottom: 0;
+    flex-shrink: 0;
+    position: relative;
     z-index: 10;
+    background: var(--ion-background-color, #1a1a1a);
+    border-top: 1px solid var(--ion-color-step-150, #353535);
   }
 }
 
 // Ensure modal fits within viewport on mobile
 @media (max-width: 768px) {
   :host {
-    ion-modal {
-      --height: 95vh;
-      --max-height: 95vh;
-      --border-radius: 12px 12px 0 0;
-    }
-
     ion-content {
       --padding-top: 0;
       --padding-bottom: 0;
-      max-height: calc(95vh - 160px); // Account for header and footer
+    }
+
+    ion-footer {
+      // Ensure footer is always visible on mobile
+      ion-toolbar {
+        --min-height: 60px;
+        --padding-top: 8px;
+        --padding-bottom: 8px;
+      }
     }
   }
 }
@@ -395,8 +405,10 @@ ion-card {
 ion-footer {
   .footer-buttons {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem;
+    padding: 0.75rem;
+    min-height: 60px;
 
     .spacer {
       flex: 1;
@@ -404,6 +416,9 @@ ion-footer {
 
     ion-button {
       margin: 0;
+      min-height: 44px; // Touch target size
+      --padding-start: 1rem;
+      --padding-end: 1rem;
     }
   }
 }
@@ -492,11 +507,15 @@ ion-footer {
   }
 
   .footer-buttons {
-    flex-wrap: wrap;
+    padding: 0.75rem;
 
     ion-button {
-      flex: 1;
-      min-width: 120px;
+      min-width: 100px;
+      font-size: 1rem;
+
+      ion-icon {
+        font-size: 1.25rem;
+      }
     }
   }
 
