@@ -18,7 +18,8 @@
 
     @media (max-width: 768px) {
       // Add bottom padding to prevent content from hiding under footer
-      --padding-bottom: calc(100px + env(safe-area-inset-bottom, 20px));
+      // Following app-wide pattern: base + safe-area + 48px for Android nav bar
+      --padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px) + 48px);
     }
   }
 
@@ -423,9 +424,9 @@ ion-footer {
 
     @media (max-width: 768px) {
       padding: 1rem 0.75rem;
-      // Add significant bottom padding for Android navigation bar
-      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 20px));
-      min-height: calc(80px + env(safe-area-inset-bottom, 20px));
+      // Following app-wide pattern: base + safe-area + 48px for Android nav bar
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px) + 48px);
+      min-height: calc(80px + env(safe-area-inset-bottom, 0px) + 48px);
     }
 
     .spacer {
