@@ -41,6 +41,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   private imageGenService = inject(ImageGenerationService);
 
   availableModels: ImageGenerationModel[] = [];
+  modelsLoading = false;
   selectedModelId = '';
   selectedModel: ImageGenerationModel | null = null;
   parameters: Record<string, unknown> = {};
@@ -48,7 +49,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   isGenerating = false;
   showToast = false;
   toastMessage = '';
-  
+
   private subscription: Subscription = new Subscription();
 
   constructor() {
@@ -59,21 +60,36 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.availableModels = this.imageGenService.getAvailableModels();
-    
-    // Try to load last prompt and parameters
-    const lastPrompt = this.imageGenService.getLastPrompt();
-    if (lastPrompt && this.availableModels.find(m => m.id === lastPrompt.modelId)) {
-      this.selectedModelId = lastPrompt.modelId;
-      this.onModelChange();
-      // Restore parameters after model change
-      setTimeout(() => {
-        this.parameters = { ...lastPrompt.parameters };
-      }, 0);
-    } else if (this.availableModels.length > 0) {
-      this.selectedModelId = this.availableModels[0].id;
-      this.onModelChange();
-    }
+    // Subscribe to available models updates
+    this.subscription.add(
+      this.imageGenService.availableModels$.subscribe(models => {
+        this.availableModels = models;
+
+        // Initialize selection when models first load
+        if (models.length > 0 && !this.selectedModelId) {
+          // Try to load last prompt and parameters
+          const lastPrompt = this.imageGenService.getLastPrompt();
+          if (lastPrompt && models.find(m => m.id === lastPrompt.modelId)) {
+            this.selectedModelId = lastPrompt.modelId;
+            this.onModelChange();
+            // Restore parameters after model change
+            setTimeout(() => {
+              this.parameters = { ...lastPrompt.parameters };
+            }, 0);
+          } else {
+            this.selectedModelId = models[0].id;
+            this.onModelChange();
+          }
+        }
+      })
+    );
+
+    // Subscribe to models loading state
+    this.subscription.add(
+      this.imageGenService.modelsLoading$.subscribe(loading => {
+        this.modelsLoading = loading;
+      })
+    );
 
     // Subscribe to jobs updates
     this.subscription.add(

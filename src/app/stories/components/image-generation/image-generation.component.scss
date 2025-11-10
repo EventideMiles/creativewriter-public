@@ -85,6 +85,33 @@ ion-card-title {
   font-style: italic;
 }
 
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 1rem;
+
+  ion-spinner {
+    --color: #4776e6;
+  }
+
+  p {
+    color: #adb5bd;
+    margin: 0;
+    font-size: 0.9rem;
+  }
+}
+
+.no-models-message {
+  color: #dc3545;
+  text-align: center;
+  padding: 1rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
 .parameter-item {
   margin-bottom: 1rem;
 }

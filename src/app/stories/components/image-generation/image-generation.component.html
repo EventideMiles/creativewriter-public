@@ -26,15 +26,25 @@
           </ion-card-title>
         </ion-card-header>
         <ion-card-content>
-          <ion-item >
+          <div *ngIf="modelsLoading" class="loading-container">
+            <ion-spinner name="crescent"></ion-spinner>
+            <p>Loading models from Replicate...</p>
+          </div>
+
+          <ion-item  *ngIf="!modelsLoading">
             <ion-label>Modell</ion-label>
-            <ion-select [(ngModel)]="selectedModelId" (ionChange)="onModelChange()">
+            <ion-select [(ngModel)]="selectedModelId" (ionChange)="onModelChange()" [disabled]="availableModels.length === 0">
               <ion-select-option *ngFor="let model of availableModels" [value]="model.id">
                 {{ model.name }}
               </ion-select-option>
             </ion-select>
           </ion-item>
-          <p *ngIf="selectedModel" class="model-description">
+
+          <p *ngIf="!modelsLoading && availableModels.length === 0" class="no-models-message">
+            No models available. Please configure your Replicate API key in settings.
+          </p>
+
+          <p *ngIf="selectedModel && !modelsLoading" class="model-description">
             {{ selectedModel.description }}
           </p>
         </ion-card-content>

@@ -23,6 +23,11 @@ export class ImageGenerationService {
   private jobsSubject = new BehaviorSubject<ImageGenerationJob[]>([]);
   public jobs$ = this.jobsSubject.asObservable();
 
+  private availableModelsSubject = new BehaviorSubject<ImageGenerationModel[]>([]);
+  public availableModels$ = this.availableModelsSubject.asObservable();
+  private modelsLoadingSubject = new BehaviorSubject<boolean>(false);
+  public modelsLoading$ = this.modelsLoadingSubject.asObservable();
+
   // Predefined models configuration
   private models: ImageGenerationModel[] = [
     {
@@ -231,14 +236,101 @@ export class ImageGenerationService {
 
   constructor() {
     this.loadJobsFromStorage();
+    this.loadModelsFromApi();
+  }
+
+  loadModelsFromApi(): void {
+    const settings = this.settingsService.getSettings();
+
+    if (!settings.replicate.enabled || !settings.replicate.apiKey) {
+      // Use default hardcoded models if Replicate is not configured
+      this.availableModelsSubject.next(this.models);
+      return;
+    }
+
+    this.modelsLoadingSubject.next(true);
+
+    const headers = new HttpHeaders({
+      'X-API-Token': settings.replicate.apiKey,
+      'Content-Type': 'application/json'
+    });
+
+    this.http.get<any>(`${this.apiUrl}/collections/text-to-image`, { headers })
+      .pipe(
+        map(response => {
+          // Transform Replicate models to our format
+          const apiModels: ImageGenerationModel[] = response.models.slice(0, 20).map((model: any) => ({
+            id: model.url.replace('https://replicate.com/', ''),
+            name: model.name,
+            description: model.description || '',
+            version: model.latest_version?.id || '',
+            owner: model.owner,
+            inputs: this.getDefaultInputsForModel(model.url.replace('https://replicate.com/', ''))
+          }));
+
+          // Combine with hardcoded models (put hardcoded first)
+          return [...this.models, ...apiModels];
+        }),
+        catchError(error => {
+          console.error('Failed to load image generation models from API:', error);
+          // Fall back to hardcoded models
+          return [this.models];
+        })
+      )
+      .subscribe(models => {
+        this.availableModelsSubject.next(models);
+        this.modelsLoadingSubject.next(false);
+      });
+  }
+
+  private getDefaultInputsForModel(modelId: string): any[] {
+    // Return default inputs that work with most text-to-image models
+    return [
+      {
+        name: 'prompt',
+        type: 'string',
+        description: 'Input prompt for image generation',
+        required: true
+      },
+      {
+        name: 'negative_prompt',
+        type: 'string',
+        description: 'Negative prompt to avoid certain elements',
+        default: ''
+      },
+      {
+        name: 'width',
+        type: 'integer',
+        description: 'Width of output image',
+        default: 1024,
+        minimum: 256,
+        maximum: 2048
+      },
+      {
+        name: 'height',
+        type: 'integer',
+        description: 'Height of output image',
+        default: 1024,
+        minimum: 256,
+        maximum: 2048
+      },
+      {
+        name: 'num_outputs',
+        type: 'integer',
+        description: 'Number of images to output',
+        default: 1,
+        minimum: 1,
+        maximum: 4
+      }
+    ];
   }
 
   getAvailableModels(): ImageGenerationModel[] {
-    return this.models;
+    return this.availableModelsSubject.value;
   }
 
   getModel(modelId: string): ImageGenerationModel | undefined {
-    return this.models.find(model => model.id === modelId);
+    return this.availableModelsSubject.value.find(model => model.id === modelId);
   }
 
   generateImage(modelId: string, input: Record<string, unknown>): Observable<ImageGenerationJob> {
