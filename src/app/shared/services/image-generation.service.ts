@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, BehaviorSubject, interval, switchMap, takeWhile, map, catchError } from 'rxjs';
+import { Observable, BehaviorSubject, interval, switchMap, takeWhile, map, catchError, forkJoin, of } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
 import { 
   ImageGenerationModel, 
@@ -255,32 +255,60 @@ export class ImageGenerationService {
       'Content-Type': 'application/json'
     });
 
-    this.http.get<any>(`${this.apiUrl}/collections/text-to-image`, { headers })
-      .pipe(
-        map(response => {
-          // Transform Replicate models to our format
-          const apiModels: ImageGenerationModel[] = response.models.map((model: any) => ({
-            id: model.url.replace('https://replicate.com/', ''),
-            name: model.name,
-            description: model.description || '',
-            version: model.latest_version?.id || '',
-            owner: model.owner,
-            inputs: this.getDefaultInputsForModel(model.url.replace('https://replicate.com/', ''))
-          }));
-
-          // Combine with hardcoded models (put hardcoded first)
-          return [...this.models, ...apiModels];
-        }),
+    // Fetch from multiple sources in parallel
+    forkJoin({
+      collection: this.http.get<any>(`${this.apiUrl}/collections/text-to-image`, { headers }).pipe(
         catchError(error => {
-          console.error('Failed to load image generation models from API:', error);
-          // Fall back to hardcoded models
-          return [this.models];
+          console.error('Failed to load text-to-image collection:', error);
+          return of({ models: [] });
+        })
+      ),
+      searchResults: this.http.get<any>(`${this.apiUrl}/models?search=text-to-image`, { headers }).pipe(
+        catchError(error => {
+          console.error('Failed to search for models:', error);
+          return of({ results: [] });
         })
       )
-      .subscribe(models => {
-        this.availableModelsSubject.next(models);
-        this.modelsLoadingSubject.next(false);
-      });
+    }).pipe(
+      map(({ collection, searchResults }) => {
+        // Transform collection models
+        const collectionModels: ImageGenerationModel[] = (collection.models || []).map((model: any) => ({
+          id: model.url.replace('https://replicate.com/', ''),
+          name: model.name,
+          description: model.description || '',
+          version: model.latest_version?.id || '',
+          owner: model.owner,
+          inputs: this.getDefaultInputsForModel(model.url.replace('https://replicate.com/', ''))
+        }));
+
+        // Transform search results
+        const communityModels: ImageGenerationModel[] = (searchResults.results || []).map((model: any) => ({
+          id: model.url?.replace('https://replicate.com/', '') || `${model.owner}/${model.name}`,
+          name: model.name,
+          description: model.description || '',
+          version: model.latest_version?.id || '',
+          owner: model.owner,
+          inputs: this.getDefaultInputsForModel(model.url?.replace('https://replicate.com/', '') || `${model.owner}/${model.name}`)
+        }));
+
+        // Combine and deduplicate models by ID
+        const allModels = [...collectionModels, ...communityModels];
+        const uniqueModels = Array.from(
+          new Map(allModels.map(model => [model.id, model])).values()
+        );
+
+        // Combine with hardcoded models (put hardcoded first)
+        return [...this.models, ...uniqueModels];
+      }),
+      catchError(error => {
+        console.error('Failed to load image generation models from API:', error);
+        // Fall back to hardcoded models
+        return of(this.models);
+      })
+    ).subscribe(models => {
+      this.availableModelsSubject.next(models);
+      this.modelsLoadingSubject.next(false);
+    });
   }
 
   private getDefaultInputsForModel(modelId: string): any[] {
