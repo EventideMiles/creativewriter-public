@@ -23,7 +23,7 @@ export class ModelService {
   private claudeApiService = inject(ClaudeApiService);
 
   private readonly OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
-  private readonly REPLICATE_API_URL = '/api/replicate';
+  private readonly REPLICATE_API_URL = '/api/replicate/v1';
   private readonly USD_TO_EUR_RATE = 0.92; // Approximate rate, you might want to fetch this dynamically
 
   private openRouterModelsSubject = new BehaviorSubject<ModelOption[]>([]);
