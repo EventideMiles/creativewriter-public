@@ -442,12 +442,16 @@ export class ImageGenerationService {
               console.log('Final response received:', finalResponse.status, finalResponse);
               
               if (finalResponse.status === 'succeeded') {
-                const outputs: string[] = Array.isArray(finalResponse.output) 
+                console.log('Raw API output:', finalResponse.output);
+                console.log('Is output array?', Array.isArray(finalResponse.output));
+
+                const outputs: string[] = Array.isArray(finalResponse.output)
                   ? finalResponse.output.filter((url): url is string => !!url) // Filter out undefined values
                   : [finalResponse.output].filter((url): url is string => !!url);
-                
+
                 console.log('Processing outputs:', outputs);
-                
+                console.log('Number of outputs:', outputs.length);
+
                 // Store all images in a single job
                 this.updateJob(job.id, {
                   status: 'completed',
@@ -455,7 +459,7 @@ export class ImageGenerationService {
                   imageUrl: outputs[0], // Keep first image for backward compatibility
                   imageUrls: outputs // Store all images
                 });
-                
+
                 return { ...job, status: 'completed', imageUrl: outputs[0], imageUrls: outputs } as ImageGenerationJob;
               } else if (finalResponse.status === 'failed') {
                 this.updateJob(job.id, {

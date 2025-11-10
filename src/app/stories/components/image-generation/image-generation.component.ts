@@ -100,6 +100,13 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
     this.subscription.add(
       this.imageGenService.jobs$.subscribe(jobs => {
         this.jobs = jobs.slice().reverse(); // Show newest first
+
+        // Debug logging for multiple images
+        jobs.forEach(job => {
+          if (job.imageUrls && job.imageUrls.length > 0) {
+            console.log(`Job ${job.id}: ${job.imageUrls.length} images`, job.imageUrls);
+          }
+        });
       })
     );
   }
