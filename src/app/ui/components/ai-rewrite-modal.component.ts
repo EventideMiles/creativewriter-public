@@ -15,6 +15,7 @@ import { StoryService } from '../../stories/services/story.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { AIRequestLoggerService } from '../../core/services/ai-request-logger.service';
 import { ModelService } from '../../core/services/model.service';
+import { AIProviderValidationService } from '../../core/services/ai-provider-validation.service';
 import { ModelSelectorComponent } from '../../shared/components/model-selector/model-selector.component';
 import { ModelOption } from '../../core/models/model.interface';
 import { Story, Scene, Chapter, StorySettings, DEFAULT_STORY_SETTINGS } from '../../stories/models/story.interface';
@@ -460,6 +461,7 @@ export class AIRewriteModalComponent implements OnInit, OnDestroy {
   private settingsService = inject(SettingsService);
   private aiLogger = inject(AIRequestLoggerService);
   private modelService = inject(ModelService);
+  private aiProviderValidation = inject(AIProviderValidationService);
   private rewriteSubscription?: Subscription;
 
   customPrompt = '';
@@ -912,20 +914,19 @@ export class AIRewriteModalComponent implements OnInit, OnDestroy {
     }
     
     // Check which API to use based on the selected model's provider
-    const useGoogleGemini = provider === 'gemini' && settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    const useOpenRouter = provider === 'openrouter' && settings.openRouter.enabled && settings.openRouter.apiKey;
-    
-    if (!useGoogleGemini && !useOpenRouter) {
+    if (!provider || !this.aiProviderValidation.isProviderAvailable(provider, settings)) {
       console.warn('No AI API configured or no model selected');
       return of('Sorry, no AI API configured or no model selected.');
     }
-    
+
+    const useGoogleGemini = provider === 'gemini';
+
     // For direct calls, we bypass the beat AI service and call the API directly
     return new Observable<string>(observer => {
       let accumulatedResponse = '';
       let logId: string;
       const startTime = Date.now();
-      
+
       // Create a simple API call based on configuration
       const apiCall = useGoogleGemini 
         ? this.callGeminiAPI(prompt, { ...options, model: actualModelId })

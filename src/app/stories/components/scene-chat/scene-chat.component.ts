@@ -26,6 +26,7 @@ import { CodexService } from '../../services/codex.service';
 import { AIRequestLoggerService } from '../../../core/services/ai-request-logger.service';
 import { ModelService } from '../../../core/services/model.service';
 import { ChatHistoryService } from '../../services/chat-history.service';
+import { AIProviderValidationService } from '../../../core/services/ai-provider-validation.service';
 import { OpenRouterIconComponent } from '../../../ui/icons/openrouter-icon.component';
 import { ClaudeIconComponent } from '../../../ui/icons/claude-icon.component';
 import { ReplicateIconComponent } from '../../../ui/icons/replicate-icon.component';
@@ -145,6 +146,7 @@ export class SceneChatComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private readonly alertController = inject(AlertController);
   private chatHistoryService = inject(ChatHistoryService);
+  private aiProviderValidation = inject(AIProviderValidationService);
 
   @ViewChild('scrollContainer') scrollContainer!: ElementRef;
   @ViewChild('messageInput') messageInput!: ElementRef;
@@ -1046,21 +1048,20 @@ Separate each object block with a blank line.`
     }
     
     // Check which API to use based on the selected model's provider
-    const useGoogleGemini = provider === 'gemini' && settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    const useOpenRouter = provider === 'openrouter' && settings.openRouter.enabled && settings.openRouter.apiKey;
-    
-    if (!useGoogleGemini && !useOpenRouter) {
+    if (!provider || !this.aiProviderValidation.isProviderAvailable(provider, settings)) {
       console.warn('No AI API configured or no model selected');
       return of('Sorry, no AI API configured or no model selected.');
     }
-    
+
+    const useGoogleGemini = provider === 'gemini';
+
     // For direct calls, we bypass the beat AI service and call the API directly
     // We'll use the beat AI service's internal methods by creating a minimal wrapper
     return new Observable<string>(observer => {
       let accumulatedResponse = '';
       let logId: string;
       const startTime = Date.now();
-      
+
       // Create a simple API call based on configuration
       const apiCall = useGoogleGemini 
         ? this.callGeminiAPI(prompt, { ...options, model: actualModelId })

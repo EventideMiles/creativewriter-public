@@ -8,6 +8,7 @@ import { GoogleGeminiApiService } from '../../core/services/google-gemini-api.se
 import { OllamaApiService } from '../../core/services/ollama-api.service';
 import { ClaudeApiService } from '../../core/services/claude-api.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { AIProviderValidationService } from '../../core/services/ai-provider-validation.service';
 import { StoryService } from '../../stories/services/story.service';
 import { CodexService } from '../../stories/services/codex.service';
 import { PromptManagerService } from './prompt-manager.service';
@@ -51,6 +52,7 @@ export class BeatAIService implements OnDestroy {
   private readonly codexRelevanceService = inject(CodexRelevanceService);
   private readonly beatHistoryService = inject(BeatHistoryService);
   private readonly document = inject(DOCUMENT);
+  private readonly aiProviderValidation = inject(AIProviderValidationService);
   
   private generationSubject = new Subject<BeatAIGenerationEvent>();
   public generation$ = this.generationSubject.asObservable();
@@ -409,12 +411,7 @@ export class BeatAIService implements OnDestroy {
       actualModelId = modelIdParts.join(':');
     }
 
-    const useGoogleGemini = provider === 'gemini' && settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    const useOpenRouter = provider === 'openrouter' && settings.openRouter.enabled && settings.openRouter.apiKey;
-    const useOllama = provider === 'ollama' && settings.ollama.enabled && settings.ollama.baseUrl;
-    const useClaude = provider === 'claude' && settings.claude.enabled && settings.claude.apiKey;
-
-    if (!useGoogleGemini && !useOpenRouter && !useOllama && !useClaude) {
+    if (!provider || !this.aiProviderValidation.isProviderAvailable(provider, settings)) {
       console.warn('No AI API configured, using fallback content');
       return this.generateFallbackContent(prompt, beatId);
     }
@@ -432,13 +429,8 @@ export class BeatAIService implements OnDestroy {
       switchMap(enhancedPrompt => {
         const calculatedTokens = Math.ceil(wordCount * 2.5);
         const maxTokens = Math.max(calculatedTokens, 3000);
-        const resolvedProvider: ProviderType = useOllama
-          ? 'ollama'
-          : useClaude
-            ? 'claude'
-            : useGoogleGemini
-              ? 'gemini'
-              : 'openrouter';
+        // Use provider directly as it's already validated
+        const resolvedProvider: ProviderType = provider;
         const requestId = this.createProviderRequestId(resolvedProvider);
 
         this.activeGenerations.set(beatId, requestId);

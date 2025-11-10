@@ -21,6 +21,7 @@ import { PromptManagerService } from '../../../shared/services/prompt-manager.se
 import { PromptTemplateService } from '../../../shared/services/prompt-template.service';
 import { StoryStatsService } from '../../services/story-stats.service';
 import { CodexContextService } from '../../../shared/services/codex-context.service';
+import { AIProviderValidationService } from '../../../core/services/ai-provider-validation.service';
 
 @Component({
   selector: 'app-story-outline-overview',
@@ -51,6 +52,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
   private promptTemplateService = inject(PromptTemplateService);
   private storyStats = inject(StoryStatsService);
   private codexContextService = inject(CodexContextService);
+  private aiProviderValidation = inject(AIProviderValidationService);
 
   // Header config
   leftActions: HeaderAction[] = [];
@@ -409,14 +411,14 @@ export class StoryOutlineOverviewComponent implements OnInit {
     const modelToUse = settings.sceneSummaryGeneration.selectedModel || this.selectedModel || settings.selectedModel;
     if (!modelToUse) { alert('No AI model configured.'); return; }
 
-    const openRouterAvailable = settings.openRouter.enabled && settings.openRouter.apiKey;
-    const geminiAvailable = settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    const ollamaAvailable = settings.ollama.enabled && settings.ollama.baseUrl;
-    const claudeAvailable = settings.claude.enabled && settings.claude.apiKey;
-    if (!openRouterAvailable && !geminiAvailable && !ollamaAvailable && !claudeAvailable) {
-      alert('No AI API configured. Please configure an AI provider in settings.');
+    if (!this.aiProviderValidation.hasAnyProviderConfigured(settings)) {
+      alert(this.aiProviderValidation.getNoProviderConfiguredMessage());
       return;
     }
+
+    // Check individual provider availability for API routing
+    const openRouterAvailable = this.aiProviderValidation.isProviderAvailable('openrouter', settings);
+    const geminiAvailable = this.aiProviderValidation.isProviderAvailable('gemini', settings);
 
     this.generatingSummary.update(set => new Set(set).add(sceneId));
     const timeoutId = setTimeout(() => {
@@ -608,14 +610,14 @@ export class StoryOutlineOverviewComponent implements OnInit {
     const modelToUse = titleSettings.selectedModel || this.selectedModel || settings.selectedModel;
     if (!modelToUse) { alert('No AI model configured.'); return; }
 
-    const openRouterAvailable = settings.openRouter.enabled && settings.openRouter.apiKey;
-    const geminiAvailable = settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    const ollamaAvailable = settings.ollama.enabled && settings.ollama.baseUrl;
-    const claudeAvailable = settings.claude.enabled && settings.claude.apiKey;
-    if (!openRouterAvailable && !geminiAvailable && !ollamaAvailable && !claudeAvailable) {
-      alert('No AI API configured. Please configure an AI provider in settings.');
+    if (!this.aiProviderValidation.hasAnyProviderConfigured(settings)) {
+      alert(this.aiProviderValidation.getNoProviderConfiguredMessage());
       return;
     }
+
+    // Check individual provider availability for API routing
+    const openRouterAvailable = this.aiProviderValidation.isProviderAvailable('openrouter', settings);
+    const geminiAvailable = this.aiProviderValidation.isProviderAvailable('gemini', settings);
 
     this.generatingTitle.update(set => new Set(set).add(sceneId));
     const timeoutId = setTimeout(() => {

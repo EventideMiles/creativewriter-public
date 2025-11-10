@@ -8,6 +8,7 @@ import { OpenRouterApiService, OpenRouterResponse } from '../../core/services/op
 import { GoogleGeminiApiService, GoogleGeminiResponse } from '../../core/services/google-gemini-api.service';
 import { OllamaApiService, OllamaResponse, OllamaChatResponse } from '../../core/services/ollama-api.service';
 import { ClaudeApiService, ClaudeResponse } from '../../core/services/claude-api.service';
+import { AIProviderValidationService } from '../../core/services/ai-provider-validation.service';
 import { Story, DEFAULT_STORY_SETTINGS } from '../../stories/models/story.interface';
 
 export interface SceneFromOutlineOptions {
@@ -34,6 +35,7 @@ export class SceneGenerationService {
   private gemini = inject(GoogleGeminiApiService);
   private ollama = inject(OllamaApiService);
   private claude = inject(ClaudeApiService);
+  private aiProviderValidation = inject(AIProviderValidationService);
 
   async generateFromOutline(
     options: SceneFromOutlineOptions,
@@ -51,6 +53,12 @@ export class SceneGenerationService {
     const { systemMessage, messages, languageInstruction } = await this.buildInitialBeatMessages(story, options);
     const { provider, modelId } = this.splitProvider(options.model);
     const temperature = options.temperature ?? this.getDefaultTemperature(provider);
+
+    // Validate that the provider is configured and available
+    const settings = this.settingsService.getSettings();
+    if (!this.aiProviderValidation.isProviderAvailable(provider, settings)) {
+      throw new Error(`AI provider '${provider}' is not configured or not available. Please configure it in settings.`);
+    }
 
     const targetWords = Math.max(200, Math.min(25000, options.wordCount || 600));
     const segmentMax = 3000; // conservative per-call word goal to stay within limits
