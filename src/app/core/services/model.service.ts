@@ -2,9 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject, of, forkJoin } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
-import { 
-  OpenRouterModelsResponse, 
-  ReplicateModelsResponse, 
+import {
+  OpenRouterModelsResponse,
+  ReplicateCollectionResponse,
   ModelOption,
   OpenRouterModel,
   ReplicateModel
@@ -71,7 +71,7 @@ export class ModelService {
 
   loadReplicateModels(): Observable<ModelOption[]> {
     const settings = this.settingsService.getSettings();
-    
+
     if (!settings.replicate.enabled || !settings.replicate.apiKey) {
       return of([]);
     }
@@ -83,11 +83,10 @@ export class ModelService {
       'Content-Type': 'application/json'
     });
 
-    // Load popular language models from Replicate
-    // We'll focus on text generation models
-    return this.http.get<ReplicateModelsResponse>(`${this.REPLICATE_API_URL}/models?cursor=&search=llama`, { headers })
+    // Load language models from Replicate's language-models collection
+    return this.http.get<ReplicateCollectionResponse>(`${this.REPLICATE_API_URL}/collections/language-models`, { headers })
       .pipe(
-        map(response => this.transformReplicateModels(response.results)),
+        map(response => this.transformReplicateModels(response.models)),
         tap(models => {
           this.replicateModelsSubject.next(models);
           this.loadingSubject.next(false);
