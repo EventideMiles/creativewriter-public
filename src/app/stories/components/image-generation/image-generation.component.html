@@ -33,7 +33,16 @@
 
           <ion-item  *ngIf="!modelsLoading">
             <ion-label>Modell</ion-label>
-            <ion-select [(ngModel)]="selectedModelId" (ionChange)="onModelChange()" [disabled]="availableModels.length === 0">
+            <ion-select
+              [(ngModel)]="selectedModelId"
+              (ionChange)="onModelChange()"
+              [disabled]="availableModels.length === 0"
+              interface="alert"
+              [interfaceOptions]="{
+                header: 'Select Model',
+                subHeader: 'Search and select an image generation model',
+                cssClass: 'model-select-alert'
+              }">
               <ion-select-option *ngFor="let model of availableModels" [value]="model.id">
                 {{ model.name }}
               </ion-select-option>
