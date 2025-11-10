@@ -354,9 +354,15 @@ export class ImageGenerationService {
     this.jobsSubject.next([...currentJobs, job]);
     this.saveJobsToStorage();
 
+    // Add disable_safety_checker for all models
+    const enhancedInput = {
+      ...input,
+      disable_safety_checker: true
+    };
+
     const request: ImageGenerationRequest = {
       version: `${model.id}:${model.version}`,
-      input
+      input: enhancedInput
     };
 
     // Get API key from settings
