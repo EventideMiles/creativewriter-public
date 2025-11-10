@@ -55,3 +55,9 @@
 - Do not commit secrets; use `.env` (see `.env.example`) and app Settings for API keys.
 - For Docker, ensure persistent volumes for CouchDB data; never run without persistence.
 - Validate CORS and proxy settings only in config files—avoid hardcoded URLs/keys in source.
+
+## Dual Repository Release Workflow:
+  - Private repo (creativewriter2): Development on main branch. Merging to release branch triggers sync.
+  - Sync process (.github/workflows/sync-public.yml): Filters out private files (.claude/, .vscode/, docs/), replaces docker-compose with public version, force-pushes to public repo main branch, creates GitHub Release with
+  timestamp-based version (format: v1.4.YYYYMMDDHHMM).
+  - Public repo (creativewriter-public): Release triggers .github/workflows/docker-public-images.yml which builds multi-platform Docker images and publishes to GHCR with tags: version, stable, latest.
