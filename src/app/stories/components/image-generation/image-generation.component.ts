@@ -109,9 +109,17 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   }
 
   onModelChange(): void {
+    // Preserve the current prompt before reinitializing parameters
+    const currentPrompt = this.parameters['prompt'];
+
     this.selectedModel = this.imageGenService.getModel(this.selectedModelId) || null;
     if (this.selectedModel) {
       this.initializeParameters();
+
+      // Restore the prompt if it existed
+      if (currentPrompt) {
+        this.parameters['prompt'] = currentPrompt;
+      }
     }
   }
 
