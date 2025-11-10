@@ -948,16 +948,20 @@ export class ApiSettingsComponent implements OnDestroy {
     if (this.settings.selectedModel) {
       const [provider, ...modelIdParts] = this.settings.selectedModel.split(':');
       const modelId = modelIdParts.join(':'); // Rejoin in case model ID contains colons
-      
+
       if (provider === 'openrouter') {
         this.settings.openRouter.model = modelId;
       } else if (provider === 'gemini') {
         this.settings.googleGemini.model = modelId;
       } else if (provider === 'claude') {
         this.settings.claude.model = modelId;
+      } else if (provider === 'ollama') {
+        this.settings.ollama.model = modelId;
+      } else if (provider === 'replicate') {
+        this.settings.replicate.model = modelId;
       }
     }
-    
+
     this.settingsChange.emit();
   }
 

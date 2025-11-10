@@ -411,8 +411,10 @@ export class StoryOutlineOverviewComponent implements OnInit {
 
     const openRouterAvailable = settings.openRouter.enabled && settings.openRouter.apiKey;
     const geminiAvailable = settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    if (!openRouterAvailable && !geminiAvailable) {
-      alert('No AI API configured. Please configure OpenRouter or Google Gemini in settings.');
+    const ollamaAvailable = settings.ollama.enabled && settings.ollama.baseUrl;
+    const claudeAvailable = settings.claude.enabled && settings.claude.apiKey;
+    if (!openRouterAvailable && !geminiAvailable && !ollamaAvailable && !claudeAvailable) {
+      alert('No AI API configured. Please configure an AI provider in settings.');
       return;
     }
 
@@ -608,8 +610,10 @@ export class StoryOutlineOverviewComponent implements OnInit {
 
     const openRouterAvailable = settings.openRouter.enabled && settings.openRouter.apiKey;
     const geminiAvailable = settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    if (!openRouterAvailable && !geminiAvailable) {
-      alert('No AI API configured. Please configure OpenRouter or Google Gemini in settings.');
+    const ollamaAvailable = settings.ollama.enabled && settings.ollama.baseUrl;
+    const claudeAvailable = settings.claude.enabled && settings.claude.apiKey;
+    if (!openRouterAvailable && !geminiAvailable && !ollamaAvailable && !claudeAvailable) {
+      alert('No AI API configured. Please configure an AI provider in settings.');
       return;
     }
 
