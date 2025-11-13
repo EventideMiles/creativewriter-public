@@ -47,6 +47,12 @@ export interface SimpleEditorConfig {
   };
 }
 
+/**
+ * Delay in milliseconds to wait for DOM updates to complete before restoring editor state.
+ * This ensures that any layout changes from modal dismissal have finished rendering.
+ */
+const DOM_UPDATE_DELAY_MS = 50;
+
 @Injectable({
   providedIn: 'root'
 })
@@ -2081,7 +2087,7 @@ export class ProseMirrorEditorService {
           scrollElement.scrollTop = savedScrollTop;
         }
         view.focus();
-      }, 50);
+      }, DOM_UPDATE_DELAY_MS);
     });
   }
 
