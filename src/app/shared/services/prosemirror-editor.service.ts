@@ -2077,15 +2077,22 @@ export class ProseMirrorEditorService {
    * Uses requestAnimationFrame to wait for the next browser repaint, ensuring
    * the DOM has been updated after the modal dismissal before restoring state.
    *
-   * Note: If timing issues occur (e.g., scroll position not restored correctly),
+   * Note: Scroll restoration and focus restoration are independent operations.
+   * Focus is always restored, even if scroll restoration is skipped (e.g., when
+   * scrollElement is null). This ensures the editor remains interactive.
+   *
+   * If timing issues occur (e.g., scroll position not restored correctly),
    * consider wrapping the restoration logic in setTimeout with a small delay
    * (e.g., 50ms) and document why the additional delay is necessary.
    */
   private restoreEditorState(view: EditorView, scrollElement: Element | null, savedScrollTop: number): void {
     requestAnimationFrame(() => {
+      // Restore scroll position if available
       if (scrollElement) {
         scrollElement.scrollTop = savedScrollTop;
       }
+
+      // Always restore focus, regardless of scroll restoration success
       view.focus();
     });
   }
