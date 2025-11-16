@@ -1039,10 +1039,12 @@ export class BeatAIService implements OnDestroy {
             }
         
             // Find protagonist for point of view
+            // Default to "third person limited" as it's the most common narrative mode
+            // TODO: Add narrativePerspective field to StorySettings for user configuration
             const protagonist = this.findProtagonist(filteredCodexEntries);
-            const pointOfView = protagonist 
-              ? `<pointOfView type="first person" character="${this.escapeXml(protagonist)}"/>`
-              : '';
+            const pointOfView = protagonist
+              ? `<pointOfView type="third person limited" character="${this.escapeXml(protagonist)}"/>`
+              : '<pointOfView type="third person"/>';
         
         
         const codexText = filteredCodexEntries.length > 0 
