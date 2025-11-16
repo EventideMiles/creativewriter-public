@@ -16,13 +16,39 @@
 {sceneFullText}
 </current_scene>
 
-<instructions>
-{pointOfView}
-Écrivez environ {wordCount} mots qui continuent cette histoire.
-{writingStyle}
+<beat_generation_task>
+  <objective>
+    Générez le prochain beat de l'histoire qui fait avancer le récit depuis la fin de la scène actuelle.
+  </objective>
 
-Tâche: {prompt}
-</instructions>
+  <narrative_parameters>
+    {pointOfView}
+    <word_count>{wordCount} mots (±50 mots acceptable)</word_count>
+    <tense>Correspondre au temps établi (généralement le passé)</tense>
+  </narrative_parameters>
 
-Continuez l'histoire maintenant avec {wordCount} mots:</message>
+  <beat_requirements>
+    {prompt}
+  </beat_requirements>
+
+  <style_guidance>
+    - Correspondre exactement au ton et à la voix narrative de la scène actuelle
+    - Maintenir l'équilibre établi entre dialogue, action et introspection
+    - {writingStyle}
+    - Terminer sur un moment de signification, un point de décision ou une transition naturelle
+  </style_guidance>
+
+  <constraints>
+    - NE PAS résoudre les fils narratifs principaux ou les conflits
+    - NE PAS faire agir les personnages de manière incohérente avec leur personnalité établie
+    - NE PAS introduire d'intrigues secondaires non liées ou de nouveaux éléments majeurs
+    - NE PAS écrire au-delà de ce qui est spécifiquement demandé dans les exigences du beat
+  </constraints>
+
+  <output_format>
+    Prose narrative pure. Aucun méta-commentaire, marqueur de scène, titre de chapitre ou note d'auteur.
+  </output_format>
+</beat_generation_task>
+
+Générez le beat maintenant:</message>
 </messages>
