@@ -304,12 +304,29 @@ export class StoryMetadataIndexService {
     const firstScene = firstChapter.scenes[0];
     const content = firstScene.content || '';
 
-    // Strip HTML tags using a simple regex
-    // Note: This is safe for preview text, not for sanitization
-    const text = content.replace(/<[^>]*>/g, '');
+    if (!content) {
+      return '';
+    }
+
+    // Remove Beat AI nodes completely before extracting text
+    // They are editor-only components and should not appear in preview
+    const cleanHtml = content.replace(/<div[^>]*class="beat-ai-node"[^>]*>.*?<\/div>/gs, '');
+
+    // Use DOMParser for safe HTML parsing and text extraction
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(cleanHtml, 'text/html');
+    const textContent = doc.body.textContent || '';
+
+    // Remove any remaining Beat AI artifacts
+    const cleanText = textContent
+      .replace(/🎭\s*Beat\s*AI/gi, '')
+      .replace(/Prompt:\s*/gi, '')
+      .replace(/BeatAIPrompt/gi, '')
+      .trim()
+      .replace(/\s+/g, ' '); // Normalize whitespace
 
     // Get first 5 lines
-    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    const lines = cleanText.split('\n').filter(line => line.trim().length > 0);
     const first5Lines = lines.slice(0, 5).join('\n');
 
     // Truncate to 200 characters if longer
