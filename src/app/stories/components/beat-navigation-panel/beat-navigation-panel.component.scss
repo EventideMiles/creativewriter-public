@@ -131,13 +131,36 @@
   .panel-body {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px;
+    -webkit-overflow-scrolling: touch; // Smooth momentum scrolling on iOS
+    overscroll-behavior-y: contain; // Prevent scroll chaining
+    will-change: scroll-position; // Optimize for scrolling performance
+
+    // Custom scrollbar styling
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+    }
   }
 
   .beat-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: min-content; // Ensure proper scrolling behavior
   }
 
   .beat-item {
