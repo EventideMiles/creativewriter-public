@@ -1,12 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, BehaviorSubject, interval, switchMap, takeWhile, map, catchError, forkJoin, of } from 'rxjs';
+import { Observable, BehaviorSubject, interval, switchMap, takeWhile, map, catchError, of } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
-import { 
-  ImageGenerationModel, 
-  ImageGenerationRequest, 
+import {
+  ImageGenerationModel,
+  ImageGenerationRequest,
   ImageGenerationResponse,
-  ImageGenerationJob
+  ImageGenerationJob,
+  ModelInput
 } from '../models/image-generation.interface';
 
 @Injectable({
@@ -19,7 +20,6 @@ export class ImageGenerationService {
   private readonly apiUrl = '/api/replicate';
   private readonly storageKey = 'creative-writer-image-jobs';
   private readonly lastPromptKey = 'creative-writer-last-prompt';
-  private readonly lastParametersKey = 'creative-writer-last-parameters';
   private jobsSubject = new BehaviorSubject<ImageGenerationJob[]>([]);
   public jobs$ = this.jobsSubject.asObservable();
 
@@ -256,17 +256,17 @@ export class ImageGenerationService {
     });
 
     // Fetch from collection only (most reliable and comprehensive)
-    this.http.get<any>(`${this.apiUrl}/collections/text-to-image`, { headers })
+    this.http.get<{ models: { url: string; name: string; description?: string; latest_version?: { id: string }; owner: string }[] }>(`${this.apiUrl}/collections/text-to-image`, { headers })
       .pipe(
         map(response => {
           // Transform collection models
-          const collectionModels: ImageGenerationModel[] = (response.models || []).map((model: any) => ({
+          const collectionModels: ImageGenerationModel[] = (response.models || []).map((model) => ({
             id: model.url.replace('https://replicate.com/', ''),
             name: model.name,
             description: model.description || '',
             version: model.latest_version?.id || '',
             owner: model.owner,
-            inputs: this.getDefaultInputsForModel(model.url.replace('https://replicate.com/', ''))
+            inputs: this.getDefaultInputsForModel()
           }));
 
           console.log(`Loaded ${collectionModels.length} image generation models from collection`);
@@ -286,7 +286,7 @@ export class ImageGenerationService {
       });
   }
 
-  private getDefaultInputsForModel(modelId: string): any[] {
+  private getDefaultInputsForModel(): ModelInput[] {
     // Return default inputs that work with most text-to-image models
     return [
       {
@@ -361,7 +361,7 @@ export class ImageGenerationService {
     });
 
     // Fetch model details from Replicate
-    return this.http.get<any>(`${this.apiUrl}/models/${modelId}`, { headers }).pipe(
+    return this.http.get<{ name?: string; description?: string; latest_version?: { id: string }; owner?: string }>(`${this.apiUrl}/models/${modelId}`, { headers }).pipe(
       map(response => {
         const modelVersion = version || response.latest_version?.id || '';
 
@@ -371,7 +371,7 @@ export class ImageGenerationService {
           description: response.description || 'Custom model',
           version: modelVersion,
           owner: response.owner || modelId.split('/')[0],
-          inputs: this.getDefaultInputsForModel(modelId)
+          inputs: this.getDefaultInputsForModel()
         };
 
         // Add to available models if not already present
@@ -435,12 +435,12 @@ export class ImageGenerationService {
         switchMap(response => {
           // Update job status
           this.updateJobStatus(job.id, 'processing');
-          
+
           // Poll for completion
           return this.pollPrediction(response.id, job.id).pipe(
             map(finalResponse => {
               console.log('Final response received:', finalResponse.status, finalResponse);
-              
+
               if (finalResponse.status === 'succeeded') {
                 console.log('Raw API output:', finalResponse.output);
                 console.log('Is output array?', Array.isArray(finalResponse.output));
@@ -467,17 +467,17 @@ export class ImageGenerationService {
                   completedAt: new Date(),
                   error: finalResponse.error || 'Generation failed'
                 });
-                
+
                 throw new Error(finalResponse.error || 'Generation failed');
               }
-              
+
               return job;
             })
           );
         }),
         catchError(error => {
           console.error('Full error object:', error);
-          
+
           // Extract detailed error message from HTTP response
           let errorMessage = error.message;
           if (error.error && typeof error.error === 'object') {
@@ -490,13 +490,13 @@ export class ImageGenerationService {
           } else if (error.error && typeof error.error === 'string') {
             errorMessage = error.error;
           }
-          
+
           this.updateJob(job.id, {
             status: 'failed',
             completedAt: new Date(),
             error: errorMessage
           });
-          
+
           // Create enhanced error object for component
           const enhancedError = new Error(errorMessage);
           throw enhancedError;
@@ -518,7 +518,7 @@ export class ImageGenerationService {
         if (response.status === 'processing' || response.status === 'starting') {
           this.updateJobStatus(jobId, 'processing');
         }
-        
+
         return response;
       }),
       takeWhile(response => {
@@ -530,7 +530,7 @@ export class ImageGenerationService {
 
   private updateJobStatus(jobId: string, status: ImageGenerationJob['status']): void {
     const currentJobs = this.jobsSubject.value;
-    const updatedJobs = currentJobs.map(job => 
+    const updatedJobs = currentJobs.map(job =>
       job.id === jobId ? { ...job, status } : job
     );
     this.jobsSubject.next(updatedJobs);
@@ -539,7 +539,7 @@ export class ImageGenerationService {
 
   private updateJob(jobId: string, updates: Partial<ImageGenerationJob>): void {
     const currentJobs = this.jobsSubject.value;
-    const updatedJobs = currentJobs.map(job => 
+    const updatedJobs = currentJobs.map(job =>
       job.id === jobId ? { ...job, ...updates } : job
     );
     this.jobsSubject.next(updatedJobs);

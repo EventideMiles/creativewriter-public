@@ -10,15 +10,15 @@ import {
   IonImg, IonChip, IonProgressBar, IonToast, IonSearchbar, IonList
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { 
+import {
   arrowBack, imageOutline, downloadOutline, refreshOutline,
   settingsOutline, checkmarkCircle, closeCircle, timeOutline
 } from 'ionicons/icons';
 import { ImageGenerationService } from '../../../shared/services/image-generation.service';
-import { 
-  ImageGenerationModel, 
-  ModelInput, 
-  ImageGenerationJob 
+import {
+  ImageGenerationModel,
+  ModelInput,
+  ImageGenerationJob
 } from '../../../shared/models/image-generation.interface';
 import { Subscription } from 'rxjs';
 
@@ -57,7 +57,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   private subscription: Subscription = new Subscription();
 
   constructor() {
-    addIcons({ 
+    addIcons({
       arrowBack, imageOutline, downloadOutline, refreshOutline,
       settingsOutline, checkmarkCircle, closeCircle, timeOutline
     });
@@ -132,7 +132,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
 
   private initializeParameters(): void {
     if (!this.selectedModel) return;
-    
+
     this.parameters = {};
     this.selectedModel.inputs.forEach(input => {
       if (input.default !== undefined) {
@@ -153,7 +153,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
     this.imageGenService.saveLastPrompt(this.selectedModelId, this.parameters);
 
     this.isGenerating = true;
-    
+
     this.subscription.add(
       this.imageGenService.generateImage(this.selectedModelId, this.parameters)
         .subscribe({
@@ -166,7 +166,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
           error: (error) => {
             this.isGenerating = false;
             console.error('Generation error:', error);
-            
+
             // Show detailed error message
             const errorMessage = error.message || 'Unbekannter Fehler';
             this.showToastMessage(`Fehler: ${errorMessage}`);
@@ -241,23 +241,10 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
     if (input.name === 'width' || input.name === 'height') {
       return 8;
     }
-    
+
     // Use 0.5 for guidance_scale for finer control
     if (input.name === 'guidance_scale') {
       return 0.5;
-    }
-    
-    // Default step sizes for other inputs
-    return input.type === 'integer' ? 1 : 0.1;
-  }
-
-  filterModels(event: any): void {
-    const searchTerm = event.target.value?.toLowerCase() || '';
-    this.modelSearchTerm = searchTerm;
-
-    if (!searchTerm.trim()) {
-      this.filteredModels = this.availableModels;
-      return;
     }
 
     this.filteredModels = this.availableModels.filter(model =>
