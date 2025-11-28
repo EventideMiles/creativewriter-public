@@ -147,46 +147,46 @@ jobs:
             CUSTOM_NOTES="No detailed release notes provided for this release."
           fi
 
-          # Write release notes to a temporary file to handle multiline content
-          cat > /tmp/release_notes.md << RELEASE_EOF
-## 🚀 Release v${VERSION}
-
-### 📋 Release Details
-- **Version**: v${VERSION}
-- **Build Date**: ${BUILD_DATE}
-- **Source Commit**: ${COMMIT_HASH}
-
----
-
-${CUSTOM_NOTES}
-
----
-
-### 📦 Docker Images
-The following stable Docker images are available:
-
-| Image | Pull Command |
-|-------|--------------|
-| Main Application | \`docker pull ghcr.io/marcodroll/creativewriter-public:stable\` |
-| Proxy Service | \`docker pull ghcr.io/marcodroll/creativewriter-public-proxy:stable\` |
-| Gemini Proxy | \`docker pull ghcr.io/marcodroll/creativewriter-public-gemini-proxy:stable\` |
-| Nginx Reverse Proxy | \`docker pull ghcr.io/marcodroll/creativewriter-public-nginx:stable\` |
-| CouchDB Database | \`docker pull ghcr.io/marcodroll/creativewriter-public-couchdb:stable\` |
-
-### 🎯 Quick Start
-\`\`\`bash
-# Download docker-compose.yml
-curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
-
-# Start the application
-docker compose up -d
-
-# Access at http://localhost:3080
-\`\`\`
-
----
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-RELEASE_EOF
+          # Write release notes to a temporary file using echo to avoid heredoc YAML issues
+          {
+            echo "## 🚀 Release v${VERSION}"
+            echo ""
+            echo "### 📋 Release Details"
+            echo "* **Version**: v${VERSION}"
+            echo "* **Build Date**: ${BUILD_DATE}"
+            echo "* **Source Commit**: ${COMMIT_HASH}"
+            echo ""
+            echo "---"
+            echo ""
+            echo "${CUSTOM_NOTES}"
+            echo ""
+            echo "---"
+            echo ""
+            echo "### 📦 Docker Images"
+            echo "The following stable Docker images are available:"
+            echo ""
+            echo "| Image | Pull Command |"
+            echo "|-------|--------------|"
+            echo "| Main Application | \`docker pull ghcr.io/marcodroll/creativewriter-public:stable\` |"
+            echo "| Proxy Service | \`docker pull ghcr.io/marcodroll/creativewriter-public-proxy:stable\` |"
+            echo "| Gemini Proxy | \`docker pull ghcr.io/marcodroll/creativewriter-public-gemini-proxy:stable\` |"
+            echo "| Nginx Reverse Proxy | \`docker pull ghcr.io/marcodroll/creativewriter-public-nginx:stable\` |"
+            echo "| CouchDB Database | \`docker pull ghcr.io/marcodroll/creativewriter-public-couchdb:stable\` |"
+            echo ""
+            echo "### 🎯 Quick Start"
+            echo "\`\`\`bash"
+            echo "# Download docker-compose.yml"
+            echo "curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml"
+            echo ""
+            echo "# Start the application"
+            echo "docker compose up -d"
+            echo ""
+            echo "# Access at http://localhost:3080"
+            echo "\`\`\`"
+            echo ""
+            echo "---"
+            echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+          } > /tmp/release_notes.md
 
           # Create the release in the public repository using the notes file
           gh release create "v${VERSION}" \
