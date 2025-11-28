@@ -123,64 +123,78 @@ jobs:
             --field version="v${VERSION}" \
             2>/dev/null || echo "Note: Could not trigger workflow (may not exist yet)"
       
+      - name: Checkout for release notes
+        uses: actions/checkout@v4
+        with:
+          ref: release
+          sparse-checkout: RELEASE_NOTES.md
+          sparse-checkout-cone-mode: false
+
       - name: Create release in public repository
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
         run: |
           VERSION="${{ needs.sync-public.outputs.version }}"
           COMMIT_HASH="${{ needs.sync-public.outputs.commit_hash }}"
-          COMMIT_MESSAGE="${{ needs.sync-public.outputs.commit_message }}"
           BUILD_DATE="${{ needs.sync-public.outputs.build_date }}"
-          
-          # Create release notes
-          RELEASE_NOTES="$(cat <<EOF
-          ## 🚀 Automated Release v${VERSION}
-          
-          This release was automatically created from the private repository sync.
-          
-          ### 📋 Release Details
-          - **Version**: v${VERSION}
-          - **Build Date**: ${BUILD_DATE}
-          - **Source Commit**: ${COMMIT_HASH}
-          - **Commit Message**: ${COMMIT_MESSAGE}
-          
-          ### 📦 Docker Images
-          The following stable Docker images are being built and will be available shortly:
-          
-          - **Main Application**: \`ghcr.io/marcodroll/creativewriter-public:v${VERSION}\`
-          - **Proxy Service**: \`ghcr.io/marcodroll/creativewriter-public-proxy:v${VERSION}\`
-          - **Gemini Proxy**: \`ghcr.io/marcodroll/creativewriter-public-gemini-proxy:v${VERSION}\`
-          - **Nginx Reverse Proxy**: \`ghcr.io/marcodroll/creativewriter-public-nginx:v${VERSION}\`
-          - **CouchDB Database**: \`ghcr.io/marcodroll/creativewriter-public-couchdb:v${VERSION}\`
-          
-          ### 🎯 Quick Start
-          \`\`\`bash
-          # Pull the stable images
-          docker pull ghcr.io/marcodroll/creativewriter-public:stable
-          docker pull ghcr.io/marcodroll/creativewriter-public-proxy:stable
-          docker pull ghcr.io/marcodroll/creativewriter-public-gemini-proxy:stable
-          docker pull ghcr.io/marcodroll/creativewriter-public-nginx:stable
-          docker pull ghcr.io/marcodroll/creativewriter-public-couchdb:stable
-          \`\`\`
-          
-          ### 🔧 Features in this Release
-          - Multi-platform Docker images (AMD64, ARM64)
-          - Build provenance attestation and SBOM
-          - Automated stable image tagging
-          - Enhanced security and performance optimizations
-          
-          ---
-          🤖 This release was automatically created when the private repository was synced to public.
-          EOF
-          )"
-          
-          # Create the release in the public repository
+
+          # Check if RELEASE_NOTES.md exists and read it
+          if [ -f "RELEASE_NOTES.md" ]; then
+            echo "📝 Found RELEASE_NOTES.md, using prepared release notes"
+            CUSTOM_NOTES=$(cat RELEASE_NOTES.md)
+          else
+            echo "⚠️ No RELEASE_NOTES.md found, using default notes"
+            CUSTOM_NOTES="No detailed release notes provided for this release."
+          fi
+
+          # Write release notes to a temporary file to handle multiline content
+          cat > /tmp/release_notes.md << RELEASE_EOF
+## 🚀 Release v${VERSION}
+
+### 📋 Release Details
+- **Version**: v${VERSION}
+- **Build Date**: ${BUILD_DATE}
+- **Source Commit**: ${COMMIT_HASH}
+
+---
+
+${CUSTOM_NOTES}
+
+---
+
+### 📦 Docker Images
+The following stable Docker images are available:
+
+| Image | Pull Command |
+|-------|--------------|
+| Main Application | \`docker pull ghcr.io/marcodroll/creativewriter-public:stable\` |
+| Proxy Service | \`docker pull ghcr.io/marcodroll/creativewriter-public-proxy:stable\` |
+| Gemini Proxy | \`docker pull ghcr.io/marcodroll/creativewriter-public-gemini-proxy:stable\` |
+| Nginx Reverse Proxy | \`docker pull ghcr.io/marcodroll/creativewriter-public-nginx:stable\` |
+| CouchDB Database | \`docker pull ghcr.io/marcodroll/creativewriter-public-couchdb:stable\` |
+
+### 🎯 Quick Start
+\`\`\`bash
+# Download docker-compose.yml
+curl -O https://raw.githubusercontent.com/MarcoDroll/creativewriter-public/main/docker-compose.yml
+
+# Start the application
+docker compose up -d
+
+# Access at http://localhost:3080
+\`\`\`
+
+---
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+RELEASE_EOF
+
+          # Create the release in the public repository using the notes file
           gh release create "v${VERSION}" \
             --repo MarcoDroll/creativewriter-public \
-            --title "v${VERSION} - Automated Sync Release" \
-            --notes "$RELEASE_NOTES" \
+            --title "v${VERSION}" \
+            --notes-file /tmp/release_notes.md \
             --latest
-          
+
           echo "✅ Created release v${VERSION} in public repository"
           echo "🔗 Release URL: https://github.com/MarcoDroll/creativewriter-public/releases/tag/v${VERSION}"
 

@@ -247,6 +247,12 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
       return 0.5;
     }
 
+    // Default step size
+    return 1;
+  }
+
+  filterModels(): void {
+    const searchTerm = this.modelSearchTerm.toLowerCase();
     this.filteredModels = this.availableModels.filter(model =>
       model.name.toLowerCase().includes(searchTerm) ||
       model.description.toLowerCase().includes(searchTerm) ||

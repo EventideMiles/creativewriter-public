@@ -35,7 +35,7 @@
             <!-- Search bar for filtering models -->
             <ion-searchbar
               [(ngModel)]="modelSearchTerm"
-              (ionInput)="filterModels($event)"
+              (ionInput)="filterModels()"
               placeholder="Search models..."
               debounce="300"
               [disabled]="availableModels.length === 0">
