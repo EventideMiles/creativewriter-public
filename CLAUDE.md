@@ -2,7 +2,7 @@
 - BEFORE DOING ANYTHING: Switch to main branch!!!!!!!!
 - ALWAYS: Commit and push code changes after completing ANY task - no exceptions!
 - NEVER: leave uncommitted or unpushed changes - always maintain a consistent and backed-up repository state
-- ALWAYS: Before declaring a task as complete, test if the app builds using `npm run build`!
+- ALWAYS: Before declaring a task as complete, test if the app builds using `npm run build` AND run the tests!
 - ALWAYS: Before declaring a task as complete, test if the app has linting errors using `npm run lint`!
 - Keep the App modular!
 - ALWAYS: Consider if a web research for best practices in 2025 could be useful.
@@ -55,3 +55,10 @@
 - Do not commit secrets; use `.env` (see `.env.example`) and app Settings for API keys.
 - For Docker, ensure persistent volumes for CouchDB data; never run without persistence.
 - Validate CORS and proxy settings only in config files—avoid hardcoded URLs/keys in source.
+- remember how we curently handle bottom padding calculation
+
+## Dual Repository Release Workflow:
+  - Private repo (creativewriter2): Development on main branch. Merging to release branch triggers sync.
+  - Sync process (.github/workflows/sync-public.yml): Filters out private files (.claude/, .vscode/, docs/), replaces docker-compose with public version, force-pushes to public repo main branch, creates GitHub Release with
+  timestamp-based version (format: v1.4.YYYYMMDDHHMM).
+  - Public repo (creativewriter-public): Release triggers .github/workflows/docker-public-images.yml which builds multi-platform Docker images and publishes to GHCR with tags: version, stable, latest.

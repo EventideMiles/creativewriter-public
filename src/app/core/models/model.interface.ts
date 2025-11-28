@@ -70,6 +70,14 @@ export interface ReplicateModelsResponse {
   previous?: string;
 }
 
+export interface ReplicateCollectionResponse {
+  name: string;
+  slug: string;
+  description: string;
+  full_description?: string;
+  models: ReplicateModel[];
+}
+
 // Gemini API Response Interfaces
 export interface GeminiModel {
   name: string;

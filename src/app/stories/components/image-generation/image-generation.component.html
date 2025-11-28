@@ -26,17 +26,80 @@
           </ion-card-title>
         </ion-card-header>
         <ion-card-content>
-          <ion-item >
-            <ion-label>Modell</ion-label>
-            <ion-select [(ngModel)]="selectedModelId" (ionChange)="onModelChange()">
-              <ion-select-option *ngFor="let model of availableModels" [value]="model.id">
-                {{ model.name }}
-              </ion-select-option>
-            </ion-select>
-          </ion-item>
-          <p *ngIf="selectedModel" class="model-description">
-            {{ selectedModel.description }}
-          </p>
+          <div *ngIf="modelsLoading" class="loading-container">
+            <ion-spinner name="crescent"></ion-spinner>
+            <p>Loading models from Replicate...</p>
+          </div>
+
+          <div *ngIf="!modelsLoading">
+            <!-- Search bar for filtering models -->
+            <ion-searchbar
+              [(ngModel)]="modelSearchTerm"
+              (ionInput)="filterModels()"
+              placeholder="Search models..."
+              debounce="300"
+              [disabled]="availableModels.length === 0">
+            </ion-searchbar>
+
+            <!-- Currently selected model -->
+            <ion-item *ngIf="selectedModel">
+              <ion-label>
+                <h3>Selected Model</h3>
+                <p>{{ selectedModel.name }}</p>
+              </ion-label>
+            </ion-item>
+
+            <!-- Filtered models list -->
+            <ion-list *ngIf="modelSearchTerm && filteredModels.length > 0" class="model-search-results">
+              <ion-item
+                *ngFor="let model of filteredModels"
+                button
+                (click)="selectModel(model.id)"
+                [class.selected]="model.id === selectedModelId">
+                <ion-label>
+                  <h3>{{ model.name }}</h3>
+                  <p>{{ model.owner }} - {{ model.description | slice:0:80 }}{{ model.description.length > 80 ? '...' : '' }}</p>
+                </ion-label>
+              </ion-item>
+            </ion-list>
+
+            <!-- No results message -->
+            <p *ngIf="modelSearchTerm && filteredModels.length === 0" class="no-results-message">
+              No models found matching "{{ modelSearchTerm }}"
+            </p>
+
+            <!-- No models available message -->
+            <p *ngIf="availableModels.length === 0" class="no-models-message">
+              No models available. Please configure your Replicate API key in settings.
+            </p>
+
+            <!-- Model description -->
+            <p *ngIf="selectedModel && !modelSearchTerm" class="model-description">
+              {{ selectedModel.description }}
+            </p>
+
+            <!-- Add custom model -->
+            <div class="custom-model-input">
+              <ion-item>
+                <ion-label position="stacked">Add Custom Model</ion-label>
+                <ion-input
+                  [(ngModel)]="customModelId"
+                  placeholder="owner/model-name or owner/model-name:version"
+                  type="text"
+                  [disabled]="addingCustomModel">
+                </ion-input>
+              </ion-item>
+              <ion-button
+                expand="block"
+                fill="outline"
+                (click)="addCustomModel()"
+                [disabled]="!customModelId.trim() || addingCustomModel">
+                <ion-spinner *ngIf="addingCustomModel" name="crescent" slot="start"></ion-spinner>
+                <span *ngIf="!addingCustomModel">Add Model</span>
+                <span *ngIf="addingCustomModel">Adding...</span>
+              </ion-button>
+            </div>
+          </div>
         </ion-card-content>
       </ion-card>
 

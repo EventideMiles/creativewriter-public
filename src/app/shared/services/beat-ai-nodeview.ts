@@ -41,9 +41,14 @@ export class BeatAINodeView implements NodeView {
     // Create the DOM element
     this.dom = document.createElement('div');
     this.dom.classList.add('beat-ai-wrapper');
-    
+
     // Initialize beat data from node attributes
     this.beatData = this.createBeatDataFromNode(node);
+
+    // Add beat ID as data attribute for navigation
+    if (this.beatData.id) {
+      this.dom.setAttribute('data-beat-id', this.beatData.id);
+    }
     
     // Create Angular component
     this.componentRef = createComponent(BeatAIComponent, {
@@ -97,15 +102,17 @@ export class BeatAINodeView implements NodeView {
     if (node.type !== this.node.type) {
       return false;
     }
-    
+
     this.node = node;
     const newBeatData = this.createBeatDataFromNode(node);
-    
+
     // Only update if the component is not currently generating
     // This preserves the component's isGenerating state during streaming
     if (!this.componentRef.instance.beatData.isGenerating) {
       this.beatData = newBeatData;
       this.componentRef.instance.beatData = this.beatData;
+      // Trigger change detection for OnPush strategy
+      this.componentRef.changeDetectorRef.markForCheck();
     } else {
       // During generation, only update non-state properties
       this.beatData.prompt = newBeatData.prompt;
@@ -113,7 +120,7 @@ export class BeatAINodeView implements NodeView {
       this.beatData.updatedAt = newBeatData.updatedAt;
       // Keep the existing streaming state while allowing prompt/content updates
     }
-    
+
     return true;
   }
 
@@ -178,7 +185,9 @@ export class BeatAINodeView implements NodeView {
       beatType: attrs['beatType'] || 'story',
       model: attrs['model'] || '',
       selectedScenes: attrs['selectedScenes'] ? JSON.parse(attrs['selectedScenes']) : undefined,
-      includeStoryOutline: attrs['includeStoryOutline'] !== undefined ? attrs['includeStoryOutline'] : true
+      includeStoryOutline: attrs['includeStoryOutline'] !== undefined ? attrs['includeStoryOutline'] : true,
+      currentVersionId: attrs['currentVersionId'] || undefined,
+      hasHistory: attrs['hasHistory'] || false
     };
   }
 
@@ -196,7 +205,9 @@ export class BeatAINodeView implements NodeView {
       updatedAt: beatData.updatedAt.toISOString(),
       wordCount: beatData.wordCount || 400,
       beatType: beatData.beatType || 'story',
-      model: beatData.model || ''
+      model: beatData.model || '',
+      currentVersionId: beatData.currentVersionId || '',
+      hasHistory: beatData.hasHistory || false
     };
 
     // Add selectedScenes and includeStoryOutline if they exist

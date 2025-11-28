@@ -11,6 +11,13 @@ export interface BeatAI {
   model?: string; // AI model used for generation
   selectedScenes?: { sceneId: string; chapterId: string; }[]; // Persisted selected scene contexts
   includeStoryOutline?: boolean; // Persisted story outline setting
+  currentVersionId?: string; // ID of the currently active version in history
+  hasHistory?: boolean; // Quick flag to check if version history exists
+  lastAction?: 'generate' | 'rewrite'; // Track the last action performed on this beat
+  rewriteContext?: { // Context for rewrite operations to enable proper regeneration
+    originalText: string; // The text that was rewritten
+    instruction: string; // The user's rewrite instruction
+  };
 }
 
 export interface BeatAIGenerationEvent {
@@ -22,7 +29,7 @@ export interface BeatAIGenerationEvent {
 export interface BeatAIPromptEvent {
   beatId: string;
   prompt?: string;
-  action: 'generate' | 'deleteAfter' | 'regenerate';
+  action: 'generate' | 'deleteAfter' | 'regenerate' | 'rewrite';
   wordCount?: number;
   model?: string;
   storyId?: string;
@@ -34,6 +41,7 @@ export interface BeatAIPromptEvent {
     includeStoryOutline: boolean;
     selectedSceneContexts: { sceneId: string; chapterId: string; content: string; }[];
   };
+  existingText?: string; // Text to be rewritten (for rewrite action)
 }
 
 export interface BeatContentInsertEvent {

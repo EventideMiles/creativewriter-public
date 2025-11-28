@@ -2,23 +2,23 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { 
-  IonHeader, IonToolbar, IonButtons, IonButton, IonIcon, IonTitle, 
+import {
+  IonHeader, IonToolbar, IonButtons, IonButton, IonIcon, IonTitle,
   IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonItem, IonLabel, IonInput, IonTextarea, IonSelect, IonSelectOption,
   IonRange, IonCheckbox, IonSpinner, IonGrid, IonRow, IonCol,
-  IonImg, IonChip, IonProgressBar, IonToast
+  IonImg, IonChip, IonProgressBar, IonToast, IonSearchbar, IonList
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { 
+import {
   arrowBack, imageOutline, downloadOutline, refreshOutline,
   settingsOutline, checkmarkCircle, closeCircle, timeOutline
 } from 'ionicons/icons';
 import { ImageGenerationService } from '../../../shared/services/image-generation.service';
-import { 
-  ImageGenerationModel, 
-  ModelInput, 
-  ImageGenerationJob 
+import {
+  ImageGenerationModel,
+  ModelInput,
+  ImageGenerationJob
 } from '../../../shared/models/image-generation.interface';
 import { Subscription } from 'rxjs';
 
@@ -31,7 +31,7 @@ import { Subscription } from 'rxjs';
     IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
     IonItem, IonLabel, IonInput, IonTextarea, IonSelect, IonSelectOption,
     IonRange, IonCheckbox, IonSpinner, IonGrid, IonRow, IonCol,
-    IonImg, IonChip, IonProgressBar, IonToast
+    IonImg, IonChip, IonProgressBar, IonToast, IonSearchbar, IonList
   ],
   templateUrl: './image-generation.component.html',
   styleUrls: ['./image-generation.component.scss']
@@ -41,6 +41,11 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   private imageGenService = inject(ImageGenerationService);
 
   availableModels: ImageGenerationModel[] = [];
+  filteredModels: ImageGenerationModel[] = [];
+  modelSearchTerm = '';
+  customModelId = '';
+  modelsLoading = false;
+  addingCustomModel = false;
   selectedModelId = '';
   selectedModel: ImageGenerationModel | null = null;
   parameters: Record<string, unknown> = {};
@@ -48,37 +53,60 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   isGenerating = false;
   showToast = false;
   toastMessage = '';
-  
+
   private subscription: Subscription = new Subscription();
 
   constructor() {
-    addIcons({ 
+    addIcons({
       arrowBack, imageOutline, downloadOutline, refreshOutline,
       settingsOutline, checkmarkCircle, closeCircle, timeOutline
     });
   }
 
   ngOnInit(): void {
-    this.availableModels = this.imageGenService.getAvailableModels();
-    
-    // Try to load last prompt and parameters
-    const lastPrompt = this.imageGenService.getLastPrompt();
-    if (lastPrompt && this.availableModels.find(m => m.id === lastPrompt.modelId)) {
-      this.selectedModelId = lastPrompt.modelId;
-      this.onModelChange();
-      // Restore parameters after model change
-      setTimeout(() => {
-        this.parameters = { ...lastPrompt.parameters };
-      }, 0);
-    } else if (this.availableModels.length > 0) {
-      this.selectedModelId = this.availableModels[0].id;
-      this.onModelChange();
-    }
+    // Subscribe to available models updates
+    this.subscription.add(
+      this.imageGenService.availableModels$.subscribe(models => {
+        this.availableModels = models;
+        this.filteredModels = models; // Initialize filtered list
+
+        // Initialize selection when models first load
+        if (models.length > 0 && !this.selectedModelId) {
+          // Try to load last prompt and parameters
+          const lastPrompt = this.imageGenService.getLastPrompt();
+          if (lastPrompt && models.find(m => m.id === lastPrompt.modelId)) {
+            this.selectedModelId = lastPrompt.modelId;
+            this.onModelChange();
+            // Restore parameters after model change
+            setTimeout(() => {
+              this.parameters = { ...lastPrompt.parameters };
+            }, 0);
+          } else {
+            this.selectedModelId = models[0].id;
+            this.onModelChange();
+          }
+        }
+      })
+    );
+
+    // Subscribe to models loading state
+    this.subscription.add(
+      this.imageGenService.modelsLoading$.subscribe(loading => {
+        this.modelsLoading = loading;
+      })
+    );
 
     // Subscribe to jobs updates
     this.subscription.add(
       this.imageGenService.jobs$.subscribe(jobs => {
         this.jobs = jobs.slice().reverse(); // Show newest first
+
+        // Debug logging for multiple images
+        jobs.forEach(job => {
+          if (job.imageUrls && job.imageUrls.length > 0) {
+            console.log(`Job ${job.id}: ${job.imageUrls.length} images`, job.imageUrls);
+          }
+        });
       })
     );
   }
@@ -88,15 +116,23 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
   }
 
   onModelChange(): void {
+    // Preserve the current prompt before reinitializing parameters
+    const currentPrompt = this.parameters['prompt'];
+
     this.selectedModel = this.imageGenService.getModel(this.selectedModelId) || null;
     if (this.selectedModel) {
       this.initializeParameters();
+
+      // Restore the prompt if it existed
+      if (currentPrompt) {
+        this.parameters['prompt'] = currentPrompt;
+      }
     }
   }
 
   private initializeParameters(): void {
     if (!this.selectedModel) return;
-    
+
     this.parameters = {};
     this.selectedModel.inputs.forEach(input => {
       if (input.default !== undefined) {
@@ -117,7 +153,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
     this.imageGenService.saveLastPrompt(this.selectedModelId, this.parameters);
 
     this.isGenerating = true;
-    
+
     this.subscription.add(
       this.imageGenService.generateImage(this.selectedModelId, this.parameters)
         .subscribe({
@@ -130,7 +166,7 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
           error: (error) => {
             this.isGenerating = false;
             console.error('Generation error:', error);
-            
+
             // Show detailed error message
             const errorMessage = error.message || 'Unbekannter Fehler';
             this.showToastMessage(`Fehler: ${errorMessage}`);
@@ -205,14 +241,56 @@ export class ImageGenerationComponent implements OnInit, OnDestroy {
     if (input.name === 'width' || input.name === 'height') {
       return 8;
     }
-    
+
     // Use 0.5 for guidance_scale for finer control
     if (input.name === 'guidance_scale') {
       return 0.5;
     }
-    
-    // Default step sizes for other inputs
-    return input.type === 'integer' ? 1 : 0.1;
+
+    // Default step size
+    return 1;
+  }
+
+  filterModels(): void {
+    const searchTerm = this.modelSearchTerm.toLowerCase();
+    this.filteredModels = this.availableModels.filter(model =>
+      model.name.toLowerCase().includes(searchTerm) ||
+      model.description.toLowerCase().includes(searchTerm) ||
+      model.id.toLowerCase().includes(searchTerm) ||
+      model.owner.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  selectModel(modelId: string): void {
+    this.selectedModelId = modelId;
+    this.onModelChange();
+    this.modelSearchTerm = ''; // Clear search
+    this.filteredModels = this.availableModels; // Reset filter
+  }
+
+  addCustomModel(): void {
+    if (!this.customModelId.trim()) {
+      this.showToastMessage('Please enter a model ID');
+      return;
+    }
+
+    this.addingCustomModel = true;
+
+    this.subscription.add(
+      this.imageGenService.addCustomModel(this.customModelId.trim()).subscribe({
+        next: (model) => {
+          this.addingCustomModel = false;
+          this.customModelId = '';
+          this.showToastMessage(`Added model: ${model.name}`);
+          this.selectModel(model.id);
+        },
+        error: (error) => {
+          this.addingCustomModel = false;
+          console.error('Failed to add custom model:', error);
+          this.showToastMessage(`Failed to add model: ${error.message || 'Unknown error'}`);
+        }
+      })
+    );
   }
 
   private showToastMessage(message: string): void {

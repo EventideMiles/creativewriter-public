@@ -2,22 +2,24 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef,
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { 
-  IonButton, IonIcon, 
-  IonContent, IonChip, IonLabel, IonMenu, IonSplitPane, MenuController, LoadingController
+import {
+  IonButton, IonIcon, IonSpinner,
+  IonContent, IonChip, IonLabel, IonMenu, IonSplitPane, MenuController, LoadingController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { 
+import {
   arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
   saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
   chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
-  listOutline, list, flaskOutline, videocamOutline
+  listOutline, list, flaskOutline, videocamOutline, timeOutline
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { Story, Scene } from '../../models/story.interface';
 import { StoryStructureComponent } from '../story-structure/story-structure.component';
 import { SlashCommandDropdownComponent } from '../slash-command-dropdown/slash-command-dropdown.component';
 import { StoryStatsComponent } from '../story-stats/story-stats.component';
+import { StoryMediaGalleryComponent } from '../story-media-gallery/story-media-gallery.component';
+import { BeatNavigationPanelComponent } from '../beat-navigation-panel/beat-navigation-panel.component';
 import { SlashCommandResult, SlashCommandAction } from '../../models/slash-command.interface';
 import { Subscription, debounceTime, Subject, throttleTime } from 'rxjs';
 import { ProseMirrorEditorService } from '../../../shared/services/prosemirror-editor.service';
@@ -38,16 +40,21 @@ import { SettingsService } from '../../../core/services/settings.service';
 import { StoryStatsService } from '../../services/story-stats.service';
 import { VersionService } from '../../../core/services/version.service';
 import { PDFExportService, PDFExportProgress } from '../../../shared/services/pdf-export.service';
+import { DatabaseService } from '../../../core/services/database.service';
+import { SnapshotTimelineComponent } from '../snapshot-timeline/snapshot-timeline.component';
+import { SceneNavigationService } from '../../services/scene-navigation.service';
+import { StoryEditorStateService } from '../../services/story-editor-state.service';
 
 @Component({
   selector: 'app-story-editor',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, 
-    IonContent, IonChip, IonLabel, IonButton, IonIcon,
+    CommonModule, FormsModule,
+    IonContent, IonChip, IonLabel, IonButton, IonIcon, IonSpinner,
     IonMenu, IonSplitPane,
     StoryStructureComponent, SlashCommandDropdownComponent, ImageUploadDialogComponent,
-    VideoModalComponent, ImageViewerModalComponent, AppHeaderComponent, StoryStatsComponent, VersionTooltipComponent
+    VideoModalComponent, ImageViewerModalComponent, AppHeaderComponent, StoryStatsComponent, VersionTooltipComponent,
+    StoryMediaGalleryComponent, BeatNavigationPanelComponent
   ],
   templateUrl: './story-editor.component.html',
   styleUrls: ['./story-editor.component.scss'],
@@ -70,17 +77,24 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   private imageVideoService = inject(ImageVideoService);
   private videoService = inject(VideoService);
   private loadingController = inject(LoadingController);
+  private databaseService = inject(DatabaseService);
+  private modalController = inject(ModalController);
+  private sceneNav = inject(SceneNavigationService);
+  private editorState = inject(StoryEditorStateService);
+  private lastSyncTime: Date | undefined;
 
   @ViewChild('headerTitle', { static: true }) headerTitle!: TemplateRef<unknown>;
   @ViewChild('burgerMenuFooter', { static: true }) burgerMenuFooter!: TemplateRef<unknown>;
   @ViewChild('editorContainer') editorContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('editorWrapper') editorWrapper!: ElementRef<HTMLDivElement>;
   @ViewChild(IonContent, { read: IonContent, static: false }) ionContent!: IonContent;
+  @ViewChild(BeatNavigationPanelComponent) beatNavPanel!: BeatNavigationPanelComponent;
   private editorView: EditorView | null = null;
   private mutationObserver: MutationObserver | null = null;
+
+  // Template-compatible properties (synced from services)
   wordCount = 0;
   currentTextColor = '#e0e0e0';
-  
   story: Story = {
     id: '',
     title: '',
@@ -88,19 +102,20 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     createdAt: new Date(),
     updatedAt: new Date()
   };
-  
   activeChapterId: string | null = null;
   activeSceneId: string | null = null;
   activeScene: Scene | null = null;
+  hasUnsavedChanges = false;
+
   leftActions: HeaderAction[] = [];
   rightActions: HeaderAction[] = [];
   burgerMenuItems: BurgerMenuItem[] = [];
-  
+
   // Slash command functionality
   showSlashDropdown = false;
   slashDropdownPosition = { top: 0, left: 0 };
   slashCursorPosition = 0;
-  
+
   // Image dialog functionality
   showImageDialog = false;
   imageCursorPosition = 0;
@@ -127,20 +142,26 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   // Video modal functionality
   showVideoModal = false;
   currentImageId: string | null = null;
-  
+
   // Story stats functionality
   showStoryStats = false;
-  
-  hasUnsavedChanges = false;
+
+  // Media gallery functionality
+  showMediaGallery = false;
+
+  // Beat navigation panel functionality
+  showBeatNavPanel = false;
+
+  // Story loading state (Phase 5: Sync indicator)
+  isLoadingStory = false;
+  loadingMessage = 'Loading story...';
+  debugLogs: string[] = [];
+
   debugModeEnabled = false;
   private saveSubject = new Subject<void>();
   private contentChangeSubject = new Subject<string>();
   private subscription: Subscription = new Subscription();
-  private isStreamingActive = false;
-  private isSaving = false;
-  private pendingSave = false;
-  private currentSavePromise: Promise<void> | null = null;
-  
+
   // Touch/swipe gesture properties
   private touchStartX = 0;
   private touchStartY = 0;
@@ -157,18 +178,18 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   private hideVideoButtonTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    addIcons({ 
+    addIcons({
       arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
       saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
       chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
-      listOutline, list, flaskOutline, videocamOutline
+      listOutline, list, flaskOutline, videocamOutline, timeOutline
     });
   }
 
   async ngOnInit(): Promise<void> {
     // Setup header actions first
     this.setupHeaderActions();
-    
+
     // Subscribe to settings changes for text color
     this.subscription.add(
       this.settingsService.settings$.subscribe(settings => {
@@ -177,11 +198,37 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       })
     );
-    
+
     // Subscribe to image click events
     this.subscription.add(
       this.imageVideoService.imageClicked$.subscribe((event: ImageClickEvent) => {
         this.onImageClicked(event);
+      })
+    );
+
+    // Subscribe to editor state changes
+    this.subscription.add(
+      this.editorState.state$.subscribe(state => {
+        // Sync local properties from service state
+        if (state.story) {
+          this.story = state.story;
+        }
+        this.activeChapterId = state.activeChapterId;
+        this.activeSceneId = state.activeSceneId;
+        this.activeScene = state.activeScene;
+        this.hasUnsavedChanges = state.hasUnsavedChanges;
+        this.wordCount = state.wordCount;
+
+        // Update scene navigation service when story/scene changes
+        if (state.story) {
+          this.sceneNav.setStory(state.story);
+          if (state.activeChapterId && state.activeSceneId) {
+            this.sceneNav.setActiveScene(state.activeChapterId, state.activeSceneId);
+          }
+        }
+
+        this.updateHeaderActions();
+        this.cdr.markForCheck();
       })
     );
 
@@ -193,73 +240,87 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         const preferredChapterId = qp.get('chapterId');
         const preferredSceneId = qp.get('sceneId');
         const highlightPhrase = qp.get('phrase');
+
         if (storyId) {
-          const existingStory = await this.storyService.getStory(storyId);
-          if (existingStory) {
-            this.story = { ...existingStory };
-        
-        // Initialize prompt manager with current story
-        await this.promptManager.setCurrentStory(this.story.id);
-        
-        // Select requested scene if provided; otherwise last scene
-        if (preferredChapterId && preferredSceneId) {
-          const ch = this.story.chapters.find(c => c.id === preferredChapterId);
-          const sc = ch?.scenes.find(s => s.id === preferredSceneId);
-          if (ch && sc) {
-            this.activeChapterId = ch.id;
-            this.activeSceneId = sc.id;
-            this.activeScene = sc;
-          }
-        }
-        if (!this.activeScene && this.story.chapters && this.story.chapters.length > 0) {
-          const lastChapter = this.story.chapters[this.story.chapters.length - 1];
-          if (lastChapter.scenes && lastChapter.scenes.length > 0) {
-            const lastScene = lastChapter.scenes[lastChapter.scenes.length - 1];
-            this.activeChapterId = lastChapter.id;
-            this.activeSceneId = lastScene.id;
-            this.activeScene = lastScene;
-          }
-        }
-        
-        // Calculate initial word count for the entire story
-        this.updateWordCount();
-        
-        // Trigger change detection to ensure template is updated
-        this.cdr.markForCheck();
-        
-        // Initialize editor after story is loaded and view is available
-        setTimeout(() => {
-          if (this.editorContainer) {
-            this.initializeProseMirrorEditor();
-            // Apply text color after editor is initialized
-            this.applyTextColorToProseMirror();
-            // Ensure scrolling happens after editor is fully initialized and content is rendered
-            // Use requestAnimationFrame to ensure DOM is updated
-            requestAnimationFrame(() => {
-              setTimeout(async () => {
-                await this.scrollToEndOfContent();
-                if (highlightPhrase) {
-                  // Give the editor a moment to settle then highlight
-                  setTimeout(() => {
-                    const ok = this.proseMirrorService.selectFirstMatchOf(highlightPhrase);
-                    if (ok) {
-                      this.proseMirrorService.flashSelection();
+          try {
+            // Phase 5: Show loading indicator and wait for story to sync
+            this.isLoadingStory = true;
+            this.loadingMessage = 'Loading story...';
+            this.debugLogs = [];
+            this.cdr.markForCheck();
+
+            // CRITICAL: Set activeStoryId BEFORE loading so selective sync knows to sync this story
+            // Without this, the sync filter won't sync the story document (only metadata index)
+            this.addDebugLog(`Setting activeStoryId: ${storyId}`);
+            console.info(`[StoryEditor] Setting activeStoryId to ${storyId} for selective sync`);
+            this.databaseService.setActiveStoryId(storyId);
+
+            const currentActiveId = this.databaseService.getActiveStoryId();
+            this.addDebugLog(`Active story ID confirmed: ${currentActiveId}`);
+
+            // FORCE immediate replication of the story document from remote
+            // This ensures the story is pulled even if live sync hasn't picked it up yet
+            this.addDebugLog(`Force replicating story from remote...`);
+            try {
+              await this.databaseService.forceReplicateDocument(storyId);
+              this.addDebugLog(`✓ Story replicated successfully`);
+            } catch (error) {
+              this.addDebugLog(`⚠️ Replication failed: ${error}`);
+              console.warn('[StoryEditor] Force replication failed, will wait for live sync:', error);
+            }
+
+            // Wait for story to be available in local database (with 10s timeout)
+            await this.waitForStorySynced(storyId);
+
+            // Update loading message
+            this.loadingMessage = 'Opening story...';
+            this.cdr.markForCheck();
+
+            // Load story using editor state service
+            // Note: loadStory will also call setActiveStoryId, but we need it set earlier for sync
+            await this.editorState.loadStory(storyId, preferredChapterId || undefined, preferredSceneId || undefined);
+
+            // Hide loading indicator
+            this.isLoadingStory = false;
+            this.cdr.markForCheck();
+
+            // Initialize editor after story is loaded and view is available
+            setTimeout(() => {
+              if (this.editorContainer) {
+                this.initializeProseMirrorEditor();
+                // Apply text color after editor is initialized
+                this.applyTextColorToProseMirror();
+                // Ensure scrolling happens after editor is fully initialized and content is rendered
+                // Use requestAnimationFrame to ensure DOM is updated
+                requestAnimationFrame(() => {
+                  setTimeout(async () => {
+                    await this.scrollToEndOfContent();
+                    if (highlightPhrase) {
+                      // Give the editor a moment to settle then highlight
+                      setTimeout(() => {
+                        const ok = this.proseMirrorService.selectFirstMatchOf(highlightPhrase);
+                        if (ok) {
+                          this.proseMirrorService.flashSelection();
+                        }
+                      }, 150);
                     }
-                  }, 150);
-                }
-              }, 500);
-            });
+                  }, 500);
+                });
+              }
+            }, 0);
+          } catch (error) {
+            console.error('Failed to load story:', error);
+            // Hide loading indicator on error
+            this.isLoadingStory = false;
+            this.cdr.markForCheck();
+            // Story not found, navigate back
+            this.router.navigate(['/']);
           }
-        }, 0);
-      } else {
-        // Wenn Story nicht gefunden wird, zur Übersicht zurück
-        this.router.navigate(['/']);
-      }
         }
       })
     );
 
-    // Auto-save mit optimiertem Debounce
+    // Auto-save with optimized debounce
     this.subscription.add(
       this.saveSubject.pipe(
         debounceTime(3000) // Increased to 3 seconds for less frequent saving
@@ -267,7 +328,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         this.saveStory();
       })
     );
-    
+
     // Handle content changes with throttling to prevent excessive updates
     this.subscription.add(
       this.contentChangeSubject.pipe(
@@ -279,34 +340,47 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
             console.warn('Content too large, truncating...');
             content = content.substring(0, 5000000);
           }
-          this.activeScene.content = content;
-          this.updateWordCount();
-          this.onContentChange();
+          this.editorState.updateSceneContent(content);
+          this.editorState.recordUserActivity();
         }
       })
     );
-    
+
     // Subscribe to streaming state to pause auto-save during generation
     this.subscription.add(
       this.beatAIService.isStreaming$.subscribe(isStreaming => {
-        this.isStreamingActive = isStreaming;
+        this.editorState.setStreamingActive(isStreaming);
         this.cdr.markForCheck();
       })
     );
 
-    
+    // Subscribe to sync status changes to reload story when sync completes
+    this.subscription.add(
+      this.databaseService.syncStatus$.subscribe(status => {
+        // Check if sync just completed (has lastSync and it's different from our last known sync)
+        if (status.lastSync && (!this.lastSyncTime || status.lastSync > this.lastSyncTime)) {
+          this.lastSyncTime = status.lastSync;
+          // Only reload if allowed by editor state service
+          if (this.editorState.shouldAllowReload(5000)) {
+            void this.editorState.reloadStory();
+          }
+        }
+      })
+    );
+
+
     // Add touch gesture listeners for mobile
     this.setupTouchGestures();
-    
+
     // Setup mobile keyboard handling
     this.setupMobileKeyboardHandling();
   }
 
 
   ngOnDestroy(): void {
-    // Beim Verlassen der Komponente noch einmal speichern
+    // Save on exit if there are unsaved changes
     if (this.hasUnsavedChanges) {
-      this.saveStory();
+      void this.saveStory();
     }
     if (this.editorView) {
       this.proseMirrorService.destroy();
@@ -315,7 +389,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       this.mutationObserver.disconnect();
       this.mutationObserver = null;
     }
-    
+
     // Cleanup image click handlers
     if (this.editorContainer?.nativeElement) {
       const containerEl = this.editorContainer.nativeElement;
@@ -335,25 +409,23 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     this.videoButton.imageId = null;
 
     this.subscription.unsubscribe();
-    
+
     // Remove touch gesture listeners
     this.removeTouchGestures();
-    
+
     // Remove keyboard adjustments
     this.removeKeyboardAdjustments();
   }
 
   async onSceneSelected(event: {chapterId: string, sceneId: string}): Promise<void> {
-    this.activeChapterId = event.chapterId;
-    this.activeSceneId = event.sceneId;
-    this.activeScene = await this.storyService.getScene(this.story.id, event.chapterId, event.sceneId);
+    await this.editorState.setActiveScene(event.chapterId, event.sceneId);
     this.updateEditorContent();
-    
+
     // Update story context for all Beat AI components
     this.proseMirrorService.updateStoryContext({
       storyId: this.story.id,
-      chapterId: this.activeChapterId,
-      sceneId: this.activeSceneId
+      chapterId: this.activeChapterId || undefined,
+      sceneId: this.activeSceneId || undefined
     });
 
     // Close menu on mobile after scene selection
@@ -363,108 +435,59 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   }
 
   onStoryTitleChange(): void {
-    this.hasUnsavedChanges = true;
+    this.editorState.updateStoryTitle(this.story.title);
     this.saveSubject.next();
   }
 
   onSceneTitleChange(): void {
     if (this.activeScene && this.activeChapterId) {
-      this.hasUnsavedChanges = true;
+      this.editorState.updateSceneTitle(this.activeScene.title);
       this.saveSubject.next();
     }
   }
 
   onContentChange(): void {
-    if (this.activeScene && this.activeChapterId && !this.isStreamingActive) {
-      this.hasUnsavedChanges = true;
-      this.updateHeaderActions(); // Update header to show unsaved status
+    const state = this.editorState.getCurrentState();
+
+    if (this.activeScene && this.activeChapterId && !state.isStreamingActive) {
+      this.editorState.recordUserActivity();
       this.saveSubject.next();
-      
+
       // Don't refresh prompt manager on every keystroke - it's too expensive
       // It will be refreshed when actually needed (when opening Beat AI)
-    } else if (this.isStreamingActive) {
-      // During streaming, only mark as unsaved but don't trigger auto-save
-      this.hasUnsavedChanges = true;
-      this.updateHeaderActions(); // Update header to show unsaved status
     }
   }
 
   async saveStory(): Promise<void> {
-    // Prevent concurrent saves
-    if (this.isSaving) {
-      this.pendingSave = true;
-      if (this.currentSavePromise) {
-        await this.currentSavePromise;
-      }
-      return;
-    }
-    
-    this.isSaving = true;
-    
-    const saveOperation = (async () => {
-      try {
-        // Only save if we have actual changes
-        if (!this.hasUnsavedChanges) {
-          return;
-        }
-        
-        // Save active scene changes only (not the entire story)
-        if (this.activeScene && this.activeChapterId) {
-          await this.storyService.updateScene(
-            this.story.id, 
-            this.activeChapterId, 
-            this.activeScene.id, 
-            {
-              title: this.activeScene.title,
-              content: this.activeScene.content
-            }
-          );
-        }
-        
-        // Save story title if changed
-        if (this.story.title !== undefined) {
-          const currentStory = await this.storyService.getStory(this.story.id);
-          if (currentStory && currentStory.title !== this.story.title) {
-            await this.storyService.updateStory({
-              ...currentStory,
-              title: this.story.title,
-              updatedAt: new Date()
-            });
-          }
-        }
-        
-        this.hasUnsavedChanges = false;
-        this.updateHeaderActions(); // Update header to show saved status
-        
-        // Refresh prompt manager to get the latest scene content for Beat AI
-        // Force a complete reload by resetting and re-setting the story
-        await this.promptManager.setCurrentStory(null); // Clear current story
-        await new Promise(resolve => setTimeout(resolve, 50)); // Small delay
-        await this.promptManager.setCurrentStory(this.story.id); // Re-set story to force complete reload
-        
-      } catch (error) {
-        console.error('Error saving story:', error);
-        // Re-mark as unsaved so it can be retried
-        this.hasUnsavedChanges = true;
-      } finally {
-        this.isSaving = false;
-        
-        // If there was a pending save request during save, execute it
-        if (this.pendingSave) {
-          this.pendingSave = false;
-          setTimeout(() => this.saveStory(), 100);
-        }
-      }
-    })();
+    await this.editorState.saveStory();
+  }
 
-    this.currentSavePromise = saveOperation;
+  async reloadCurrentStory(): Promise<void> {
+    if (!this.story.id) return;
 
     try {
-      await saveOperation;
-    } finally {
-      if (this.currentSavePromise === saveOperation) {
-        this.currentSavePromise = null;
+      // Save current scroll position
+      const scrollPos = await this.ionContent?.getScrollElement().then(el => el.scrollTop);
+
+      // Reload story using editor state service
+      await this.editorState.reloadStory();
+
+      // Update the editor content if editor exists
+      if (this.activeScene) {
+        this.proseMirrorService.setContent(this.activeScene.content || '');
       }
+
+      // Restore scroll position
+      if (scrollPos !== undefined) {
+        setTimeout(() => {
+          this.ionContent?.scrollToPoint(0, scrollPos, 0);
+        }, 100);
+      }
+
+      // Trigger change detection
+      this.cdr.markForCheck();
+    } catch (error) {
+      console.error('Error reloading story:', error);
     }
   }
 
@@ -514,7 +537,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   onBurgerMenuToggle(): void {
     // Handle burger menu state changes if needed
   }
-  
+
   private setupHeaderActions(): void {
     // Left actions
     this.leftActions = [
@@ -533,7 +556,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         tooltip: 'Story structure'
       }
     ];
-    
+
     // Right actions (status chips for desktop)
     this.rightActions = [
       {
@@ -553,7 +576,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         tooltip: 'Show story stats'
       }
     ];
-    
+
     // Burger menu items with custom actions for this component
     this.burgerMenuItems = [
       {
@@ -561,6 +584,12 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         label: 'PDF Export',
         action: () => this.exportToPDF(),
         color: 'primary'
+      },
+      {
+        icon: 'time-outline',
+        label: 'Version History',
+        action: () => this.openSnapshotTimeline(),
+        color: 'secondary'
       },
       {
         icon: 'bug-outline',
@@ -602,8 +631,13 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         icon: 'images',
         label: 'Image Generation',
         action: () => this.headerNavService.goToImageGeneration()
-      }
-      ,
+      },
+      {
+        icon: 'images',
+        label: 'Media Gallery',
+        action: () => this.openMediaGallery(),
+        color: 'secondary'
+      },
       {
         icon: 'list-outline',
         label: 'Outline Overview',
@@ -634,6 +668,112 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       this.rightActions[1].chipContent = `${this.wordCount}w`;
       this.rightActions[1].action = () => this.showStoryStatsModal();
     }
+  }
+
+  /**
+   * Wait for the active story to sync from remote
+   * Phase 5: Provides better UX by waiting for story data to be available
+   *
+   * @param storyId - The ID of the story to wait for
+   * @param timeoutMs - Maximum time to wait (default: 10 seconds)
+   * @returns Promise that resolves when story is synced or timeout occurs
+   */
+  private async waitForStorySynced(storyId: string, timeoutMs = 10000): Promise<void> {
+    const startTime = Date.now();
+    this.addDebugLog(`Waiting for story to sync...`);
+    console.info(`[StoryEditor] Waiting for story ${storyId} to sync...`);
+
+    return new Promise((resolve) => {
+      let syncSubscription: Subscription | null = null;
+      let checkInterval: ReturnType<typeof setInterval> | null = null;
+      let checkCount = 0;
+
+      const cleanup = () => {
+        if (syncSubscription) {
+          syncSubscription.unsubscribe();
+          syncSubscription = null;
+        }
+        if (checkInterval) {
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+      };
+
+      const checkTimeout = () => {
+        if (Date.now() - startTime >= timeoutMs) {
+          cleanup();
+          const message = `Timeout after ${timeoutMs}ms (checked ${checkCount} times)`;
+          this.addDebugLog(`⚠️ ${message}`);
+          console.warn(`[StoryEditor] ${message}`);
+          resolve(); // Timeout - proceed anyway and let loadStory handle the error
+        }
+      };
+
+      // Periodically check if the story document exists
+      const checkStoryExists = async () => {
+        checkCount++;
+        try {
+          const db = await this.databaseService.getDatabase();
+          await db.get(storyId);
+          // Story exists!
+          cleanup();
+          const elapsed = Date.now() - startTime;
+          const message = `✓ Story found after ${elapsed}ms`;
+          this.addDebugLog(message);
+          console.info(`[StoryEditor] ${message}`);
+          resolve();
+        } catch {
+          // Story doesn't exist yet, keep waiting
+          if (checkCount % 4 === 0) { // Log every 2 seconds (4 checks)
+            const elapsed = Date.now() - startTime;
+            this.addDebugLog(`Still waiting... (${elapsed}ms, check ${checkCount})`);
+          }
+          checkTimeout();
+        }
+      };
+
+      // Check immediately
+      void checkStoryExists();
+
+      // Then check every 500ms
+      checkInterval = setInterval(() => {
+        void checkStoryExists();
+      }, 500);
+
+      // Subscribe to sync status to check when sync completes
+      syncSubscription = this.databaseService.syncStatus$.subscribe(status => {
+        if (checkCount === 1) { // Only log sync status once
+          this.addDebugLog(`Sync status: ${status.isSync ? 'syncing' : 'idle'}, online: ${status.isOnline}`);
+        }
+        checkTimeout();
+
+        // When sync completes or becomes idle, check if story exists
+        if (status.lastSync && status.lastSync > new Date(startTime)) {
+          void checkStoryExists();
+        }
+        if (!status.isSync && !status.isConnecting) {
+          void checkStoryExists();
+        }
+      });
+
+      // Hard timeout
+      setTimeout(() => {
+        cleanup();
+        this.addDebugLog(`❌ Hard timeout reached`);
+        console.warn(`[StoryEditor] Hard timeout reached for story ${storyId}`);
+        resolve();
+      }, timeoutMs);
+    });
+  }
+
+  private addDebugLog(message: string): void {
+    const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+    this.debugLogs.push(`[${timestamp}] ${message}`);
+    // Keep only last 20 logs
+    if (this.debugLogs.length > 20) {
+      this.debugLogs = this.debugLogs.slice(-20);
+    }
+    this.cdr.markForCheck();
   }
 
   // Consider a story an "empty draft" only if it's in the default structure
@@ -701,28 +841,40 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     }
   }
 
+  async openSnapshotTimeline(): Promise<void> {
+    // Save any unsaved changes first
+    if (this.hasUnsavedChanges) {
+      await this.saveStory();
+    }
+
+    const modal = await this.modalController.create({
+      component: SnapshotTimelineComponent,
+      componentProps: {
+        storyId: this.story.id,
+        storyTitle: this.story.title
+      }
+    });
+
+    await modal.present();
+
+    // Wait for modal to be dismissed and check if we need to reload
+    const { data } = await modal.onWillDismiss();
+    if (data?.shouldReload) {
+      // Reload the story after restoration
+      await this.reloadCurrentStory();
+    }
+  }
+
   getCurrentChapterTitle(): string {
-    if (!this.activeChapterId || !this.story.chapters) return '';
-    const chapter = this.story.chapters.find(c => c.id === this.activeChapterId);
-    return chapter ? `C${chapter.chapterNumber || chapter.order}:${chapter.title}` : '';
+    return this.sceneNav.getChapterTitle(this.activeChapterId || undefined);
   }
 
   getCurrentSceneTitle(): string {
-    if (!this.activeScene || !this.activeChapterId || !this.story.chapters) return '';
-    const chapter = this.story.chapters.find(c => c.id === this.activeChapterId);
-    if (!chapter) return '';
-    const chapterNum = chapter.chapterNumber || chapter.order;
-    const sceneNum = this.activeScene.sceneNumber || this.activeScene.order;
-    return `C${chapterNum}S${sceneNum}:${this.activeScene.title}`;
+    return this.sceneNav.getSceneTitle(this.activeChapterId || undefined, this.activeSceneId || undefined);
   }
 
   getSceneIdDisplay(): string {
-    if (!this.activeScene || !this.activeChapterId || !this.story.chapters) return '';
-    const chapter = this.story.chapters.find(c => c.id === this.activeChapterId);
-    if (!chapter) return '';
-    const chapterNum = chapter.chapterNumber || chapter.order;
-    const sceneNum = this.activeScene.sceneNumber || this.activeScene.order;
-    return `C${chapterNum}S${sceneNum}`;
+    return this.sceneNav.getSceneIdDisplay(this.activeChapterId || undefined, this.activeSceneId || undefined);
   }
 
   async toggleSidebar(): Promise<void> {
@@ -738,138 +890,137 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   async onCloseSidebar(): Promise<void> {
     await this.menuController.close('story-menu');
   }
-  
+
   private setupTouchGestures(): void {
-    // Touch gestures disabled to prevent accidental sidebar closing
-    return;
+    // Enable touch gestures for beat navigation panel
+    document.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
+    document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
   }
-  
+
   private removeTouchGestures(): void {
     document.removeEventListener('touchstart', this.handleTouchStart.bind(this));
     document.removeEventListener('touchend', this.handleTouchEnd.bind(this));
   }
-  
+
   private handleTouchStart(event: TouchEvent): void {
     // Only enable gestures on mobile devices, not tablets
     if (window.innerWidth > 768) return;
-    
-    // Ignore touches that start on interactive elements
-    const target = event.target as HTMLElement;
-    if (this.isInteractiveElement(target)) {
-      return;
-    }
-    
+
     const touch = event.touches[0];
     this.touchStartX = touch.clientX;
     this.touchStartY = touch.clientY;
   }
-  
+
   private handleTouchEnd(event: TouchEvent): void {
     // Only enable gestures on mobile devices, not tablets
     if (window.innerWidth > 768) return;
-    
-    // Ignore touches that end on interactive elements
-    const target = event.target as HTMLElement;
-    if (this.isInteractiveElement(target)) {
-      return;
-    }
-    
+
     const touch = event.changedTouches[0];
     this.touchEndX = touch.clientX;
     this.touchEndY = touch.clientY;
-    
+
     this.handleSwipeGesture();
   }
-  
+
   private isInteractiveElement(element: HTMLElement): boolean {
     if (!element) return false;
-    
+
     // Check if element or any parent is an interactive element
     let current = element;
     while (current && current !== document.body) {
       const tagName = current.tagName.toLowerCase();
-      
+
       // Check for form elements
       if (['input', 'textarea', 'select', 'button'].includes(tagName)) {
         return true;
       }
-      
+
       // Check for Ion elements that are interactive
       if (tagName.startsWith('ion-') && (
-        tagName.includes('input') || 
-        tagName.includes('textarea') || 
-        tagName.includes('button') || 
-        tagName.includes('select') || 
-        tagName.includes('toggle') || 
-        tagName.includes('checkbox') || 
+        tagName.includes('input') ||
+        tagName.includes('textarea') ||
+        tagName.includes('button') ||
+        tagName.includes('select') ||
+        tagName.includes('toggle') ||
+        tagName.includes('checkbox') ||
         tagName.includes('radio')
       )) {
         return true;
       }
-      
+
       // Check for elements with contenteditable
       if (current.contentEditable === 'true') {
         return true;
       }
-      
+
       // Check for elements with role="button" or similar
       const role = current.getAttribute('role');
       if (role && ['button', 'textbox', 'combobox', 'listbox'].includes(role)) {
         return true;
       }
-      
+
       current = current.parentElement as HTMLElement;
     }
-    
+
     return false;
   }
-  
+
   private handleSwipeGesture(): void {
     const deltaX = this.touchEndX - this.touchStartX;
     const deltaY = Math.abs(this.touchEndY - this.touchStartY);
-    
+
     // Check if it's a horizontal swipe (not vertical scroll)
     if (deltaY > this.maxVerticalDistance) return;
-    
+
     // Check if swipe distance is sufficient
     if (Math.abs(deltaX) < this.minSwipeDistance) return;
-    
+
     // Additional safety check: don't process gestures if touchStart coordinates are invalid
     if (this.touchStartX === undefined || this.touchStartY === undefined) return;
-    
+
     // Adjust swipe sensitivity based on screen size
-    // const edgeThreshold = window.innerWidth <= 480 ? 30 : 50; // Unused variable
+    const edgeThreshold = window.innerWidth <= 480 ? 30 : 50;
     const minSwipeDistance = window.innerWidth <= 480 ? 40 : this.minSwipeDistance;
-    
+
     // Check if swipe distance is sufficient for this screen size
     if (Math.abs(deltaX) < minSwipeDistance) return;
-    
-    // Ion-menu handles swipe gestures automatically
+
+    // Swipe from right edge to left (open beat nav panel)
+    if (deltaX < 0 && this.touchStartX > window.innerWidth - edgeThreshold) {
+      this.openBeatNavPanel();
+      return;
+    }
+
+    // Swipe from left to right while panel is open (close beat nav panel)
+    if (deltaX > 0 && this.showBeatNavPanel) {
+      this.closeBeatNavPanel();
+      return;
+    }
   }
-  
+
   private setupMobileKeyboardHandling(): void {
     // Only setup keyboard handling on mobile devices
     if (!this.isMobileDevice()) return;
-    
+
     // Store original viewport height
     this.originalViewportHeight = window.innerHeight;
-    
+
     // Listen for viewport resize events (indicates keyboard show/hide)
     window.addEventListener('resize', () => {
       this.handleViewportResize();
     });
-    
+
     // iOS specific keyboard handling
     if (this.isIOS()) {
       window.addEventListener('focusin', () => {
         this.handleKeyboardShow();
       });
-      
+
       window.addEventListener('focusout', () => {
         this.handleKeyboardHide();
       });
     }
-    
+
     // Modern browsers: Visual Viewport API
     if ('visualViewport' in window) {
       window.visualViewport?.addEventListener('resize', () => {
@@ -877,22 +1028,22 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       });
     }
   }
-  
+
   private isMobileDevice(): boolean {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
            window.innerWidth <= 768;
   }
-  
+
   private isIOS(): boolean {
     return /iPad|iPhone|iPod/.test(navigator.userAgent);
   }
-  
+
   private handleViewportResize(): void {
     if (!this.isMobileDevice()) return;
-    
+
     const currentHeight = window.innerHeight;
     const heightDifference = this.originalViewportHeight - currentHeight;
-    
+
     // Keyboard is likely visible if height decreased significantly
     if (heightDifference > 150) {
       this.keyboardHeight = heightDifference;
@@ -904,13 +1055,13 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       this.removeKeyboardAdjustments();
     }
   }
-  
+
   private handleVisualViewportResize(): void {
     if (!this.isMobileDevice() || !window.visualViewport) return;
-    
+
     const viewport = window.visualViewport;
     const heightDifference = this.originalViewportHeight - viewport.height;
-    
+
     if (heightDifference > 100) {
       this.keyboardHeight = heightDifference;
       this.keyboardVisible = true;
@@ -921,69 +1072,69 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       this.removeKeyboardAdjustments();
     }
   }
-  
+
   private handleKeyboardShow(): void {
     if (!this.isMobileDevice()) return;
-    
+
     setTimeout(() => {
       this.keyboardVisible = true;
       this.adjustForKeyboard();
       this.scrollToActiveFocus();
     }, 300);
   }
-  
+
   private handleKeyboardHide(): void {
     if (!this.isMobileDevice()) return;
-    
+
     setTimeout(() => {
       this.keyboardVisible = false;
       this.removeKeyboardAdjustments();
     }, 300);
   }
-  
+
   private adjustForKeyboard(): void {
     if (!this.keyboardVisible) return;
-    
+
     const editorElement = this.editorContainer?.nativeElement;
     if (!editorElement) return;
-    
+
     // Add keyboard-visible class to body for CSS adjustments
     document.body.classList.add('keyboard-visible');
-    
+
     // Set CSS custom property for keyboard height
     document.documentElement.style.setProperty('--keyboard-height', `${this.keyboardHeight}px`);
-    
+
     // Scroll to keep cursor visible
     setTimeout(() => {
       this.scrollToActiveFocus();
     }, 100);
   }
-  
+
   private removeKeyboardAdjustments(): void {
     document.body.classList.remove('keyboard-visible');
     document.documentElement.style.removeProperty('--keyboard-height');
   }
-  
+
   private scrollToActiveFocus(): void {
     if (!this.editorView || !this.keyboardVisible) return;
-    
+
     try {
       const { state } = this.editorView;
       const { from } = state.selection;
-      
+
       // Get cursor position
       const coords = this.editorView.coordsAtPos(from);
-      
+
       // Calculate available space above keyboard
       const availableHeight = window.innerHeight - this.keyboardHeight;
       const targetPosition = availableHeight * 0.4; // Position cursor at 40% of available space
-      
+
       // Scroll to keep cursor visible
       if (coords.top > targetPosition) {
         const scrollAmount = coords.top - targetPosition;
         window.scrollBy(0, scrollAmount);
       }
-      
+
       // Also scroll the editor container if needed
       const editorElement = this.editorView.dom as HTMLElement;
       if (editorElement) {
@@ -1003,7 +1154,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   private initializeProseMirrorEditor(): void {
     if (!this.editorContainer) return;
-    
+
     this.editorView = this.proseMirrorService.createEditor(
       this.editorContainer.nativeElement,
       {
@@ -1036,10 +1187,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         debugMode: this.debugModeEnabled
       }
     );
-    
+
     // Set initial content if we have an active scene (skip scroll, will be done in ngOnInit)
     this.updateEditorContent(true);
-    
+
     const containerEl = this.editorContainer.nativeElement;
 
     // Initialize image click handlers for image viewer functionality
@@ -1053,20 +1204,20 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
     window.addEventListener('resize', this.handleWindowViewportChange);
     window.addEventListener('scroll', this.handleWindowViewportChange, true);
-    
+
     // Add click listener to hide dropdown when clicking in editor
     this.editorContainer.nativeElement.addEventListener('click', () => {
       if (this.showSlashDropdown) {
         setTimeout(() => this.hideSlashDropdown(), 100);
       }
     });
-    
+
     // Add mobile keyboard handling to editor
     if (this.isMobileDevice()) {
       this.editorContainer.nativeElement.addEventListener('focus', () => {
         setTimeout(() => this.scrollToActiveFocus(), 300);
       }, true);
-      
+
       this.editorContainer.nativeElement.addEventListener('input', () => {
         if (this.keyboardVisible) {
           setTimeout(() => this.scrollToActiveFocus(), 100);
@@ -1078,14 +1229,14 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   private updateEditorContent(skipScroll = false): void {
     if (this.editorView && this.activeScene) {
       this.proseMirrorService.setContent(this.activeScene.content || '');
-      this.updateWordCount();
+      this.editorState.recalculateWordCount();
       this.performHideVideoButton();
-      
+
       // Update image video indicators after content is loaded
       setTimeout(async () => {
         await this.updateImageVideoIndicators();
       }, 100);
-      
+
       // Scroll to end of content after setting content (unless skipped)
       if (!skipScroll) {
         setTimeout(async () => {
@@ -1093,8 +1244,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         }, 200);
       }
     } else if (!this.activeScene) {
-      // No active scene, reset word count
-      this.wordCount = 0;
+      // No active scene
       this.updateHeaderActions();
     }
   }
@@ -1103,43 +1253,43 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     if (!this.editorView) {
       return;
     }
-    
-    
+
+
     try {
       const { state } = this.editorView;
       const { doc } = state;
-      
+
       // Find a valid text position at the end of the document
       let endPos = doc.content.size;
-      
+
       // If the document ends with a non-text node, find the last valid text position
       const lastChild = doc.lastChild;
       if (lastChild && !lastChild.isText && lastChild.isBlock) {
         // Position at the end of the last block's content
         endPos = doc.content.size - 1;
       }
-      
+
       // Create selection at the end position without scrollIntoView
       const tr = state.tr.setSelection(TextSelection.near(doc.resolve(endPos)));
       this.editorView.dispatch(tr);
-      
+
       // Scroll the editor view to show the cursor
       // Only focus on desktop to prevent mobile keyboard from opening
       if (!this.isMobileDevice()) {
         this.editorView.focus();
       }
-      
+
       // Use IonContent's scrollToBottom method with best practices
       setTimeout(async () => {
         if (this.ionContent && this.ionContent.scrollToBottom) {
           try {
             // Auto-scroll to bottom when new content is added
             await this.ionContent.getScrollElement();
-            
-            
+
+
             // Use IonContent's built-in scrollToBottom method
             await this.ionContent.scrollToBottom(400);
-            
+
             // Ensure cursor is visible after Ionic scroll completes
             // Use requestAnimationFrame for better timing
             requestAnimationFrame(() => {
@@ -1147,15 +1297,15 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
                 // Only scroll ProseMirror if it has focus
                 const domAtPos = this.editorView.domAtPos(this.editorView.state.selection.anchor);
                 if (domAtPos.node && domAtPos.node instanceof Element) {
-                  domAtPos.node.scrollIntoView({ 
-                    behavior: 'smooth', 
+                  domAtPos.node.scrollIntoView({
+                    behavior: 'smooth',
                     block: 'nearest',
                     inline: 'nearest'
                   });
                 } else if (domAtPos.node && domAtPos.node.parentElement) {
                   // Fallback for text nodes
-                  domAtPos.node.parentElement.scrollIntoView({ 
-                    behavior: 'smooth', 
+                  domAtPos.node.parentElement.scrollIntoView({
+                    behavior: 'smooth',
                     block: 'nearest',
                     inline: 'nearest'
                   });
@@ -1164,7 +1314,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
             });
           } catch (error) {
             console.warn('Failed to scroll using IonContent:', error);
-            
+
             // Fallback to manual scrolling with better implementation
             if (this.editorView) {
               const domAtPos = this.editorView.domAtPos(this.editorView.state.selection.anchor);
@@ -1180,39 +1330,29 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     }
   }
 
-  private updateWordCount(): void {
-    // Calculate total word count for the entire story using only saved content from localStorage
-    this.wordCount = this.storyStatsService.calculateTotalStoryWordCount(this.story);
-    
-    // Update header actions to reflect the new word count
-    this.updateHeaderActions();
-    
-    this.cdr.markForCheck();
-  }
-
   private showSlashDropdownAtCursor(): void {
     if (!this.editorContainer || !this.editorView) return;
-    
+
     // Get the cursor position in the editor
     const { state } = this.editorView;
     const { from } = state.selection;
-    
+
     // Get the DOM position of the cursor
     const coords = this.editorView.coordsAtPos(from);
-    
+
     // Calculate dropdown dimensions (approximate)
     const dropdownHeight = 200; // Estimated height based on content
     const gap = 5;
-    
+
     // Get viewport height
     const viewportHeight = window.innerHeight;
-    
+
     // Check if there's enough space below the cursor
     const spaceBelow = viewportHeight - coords.bottom;
     const spaceAbove = coords.top;
-    
+
     let top: number;
-    
+
     if (spaceBelow >= dropdownHeight + gap) {
       // Enough space below - position below cursor
       top = coords.bottom + gap;
@@ -1229,13 +1369,13 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         top = 10;
       }
     }
-    
+
     // Calculate dropdown position relative to viewport
     this.slashDropdownPosition = {
       top: top,
       left: coords.left
     };
-    
+
     this.showSlashDropdown = true;
   }
 
@@ -1245,10 +1385,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   onSlashCommandSelected(result: SlashCommandResult): void {
     if (!this.activeScene || !this.editorView) return;
-    
+
     // Hide dropdown immediately
     this.hideSlashDropdown();
-    
+
     switch (result.action) {
       case SlashCommandAction.INSERT_BEAT:
         this.proseMirrorService.insertBeatAI(this.slashCursorPosition, true, 'story');
@@ -1261,7 +1401,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         this.imageCursorPosition = this.slashCursorPosition;
         break;
     }
-    
+
     // Focus the editor after a brief delay to ensure the component is ready (except for image dialog)
     // Only focus on desktop to prevent mobile keyboard from opening
     if (result.action !== SlashCommandAction.INSERT_IMAGE && !this.isMobileDevice()) {
@@ -1287,7 +1427,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         return;
       }
     }
-    
+
     // Add story context to the beat AI prompt
     const enhancedEvent: BeatAIPromptEvent = {
       ...event,
@@ -1347,7 +1487,20 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
     const updatedContexts = selectedSceneContexts.map(context => {
       if (this.activeScene && context.sceneId === this.activeScene.id) {
-        const sanitizedContent = this.promptManager.extractPlainTextFromHtml(this.activeScene.content || '');
+        // Get latest content from editor and truncate at beat position if this is the current scene
+        let sanitizedContent: string;
+
+        // Check if this scene should be truncated (i.e., it contains the current beat)
+        const shouldTruncate = event.beatId && this.activeScene.id === this.activeSceneId;
+
+        if (shouldTruncate) {
+          // Extract content up to the beat position
+          sanitizedContent = this.extractTextBeforeBeat(this.activeScene.content || '', event.beatId);
+        } else {
+          // Extract full content
+          sanitizedContent = this.promptManager.extractPlainTextFromHtml(this.activeScene.content || '');
+        }
+
         return {
           ...context,
           content: sanitizedContent
@@ -1366,42 +1519,74 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     };
   }
 
+  /**
+   * Extract text content from HTML scene content, stopping at the specified beat ID
+   */
+  private extractTextBeforeBeat(htmlContent: string, beatId: string): string {
+    if (!htmlContent) return '';
+
+    // Parse the HTML content
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+    // Find the target beat node
+    const targetBeat = doc.querySelector(`.beat-ai-node[data-beat-id="${beatId}"]`);
+    if (targetBeat) {
+      // Save parent reference BEFORE removing the beat node
+      const parentParagraph = targetBeat.parentElement;
+
+      // Remove the beat itself and all following siblings
+      let currentNode: Node | null = targetBeat;
+      while (currentNode) {
+        const nextNode: Node | null = currentNode.nextSibling;
+        currentNode.parentNode?.removeChild(currentNode);
+        currentNode = nextNode;
+      }
+
+      // Also check if beat was within a paragraph and remove content after it
+      if (parentParagraph?.tagName === 'P') {
+        let sibling: Node | null = parentParagraph.nextSibling;
+        while (sibling) {
+          const nextSibling: Node | null = sibling.nextSibling;
+          sibling.parentNode?.removeChild(sibling);
+          sibling = nextSibling;
+        }
+      }
+    }
+
+    // Now extract plain text from the truncated content
+    return this.promptManager.extractPlainTextFromHtml(doc.body.innerHTML);
+  }
+
   private async persistSceneBeforeBeatAction(): Promise<boolean> {
     if (!this.editorView || !this.activeScene || !this.activeChapterId) {
       return true;
     }
 
+    // Get latest content from editor
     const latestContent = this.proseMirrorService.getHTMLContent();
 
+    // Update scene content if changed
     if (this.activeScene.content !== latestContent) {
-      this.activeScene.content = latestContent;
-      this.updateWordCount();
-      this.hasUnsavedChanges = true;
+      this.editorState.updateSceneContent(latestContent);
     }
 
-    if (this.currentSavePromise) {
-      await this.currentSavePromise;
+    // Check if save is needed (either pending or unsaved changes)
+    const state = this.editorState.getCurrentState();
+    if (this.editorState.hasPendingSave() || state.hasUnsavedChanges) {
+      // Save once and wait for completion
+      await this.editorState.saveStory();
     }
 
-    if (!this.hasUnsavedChanges) {
-      return true;
-    }
-
-    await this.saveStory();
-
-    if (this.currentSavePromise) {
-      await this.currentSavePromise;
-    }
-
-    return !this.hasUnsavedChanges;
+    // Return true if save succeeded (no unsaved changes remain)
+    return !this.editorState.getCurrentState().hasUnsavedChanges;
   }
 
   private handleBeatContentUpdate(): void {
-    // Mark as changed but don't trigger immediate save for beat updates
-    // These are already saved within the content
-    this.hasUnsavedChanges = true;
-    this.updateWordCount();
-    // Don't trigger save subject - let the regular debounce handle it
+    // Update scene content after beat generation
+    this.editorState.updateSceneContent(this.proseMirrorService.getHTMLContent());
+    // Trigger debounced save to persist beat-generated content
+    this.saveSubject.next();
   }
 
   hideImageDialog(): void {
@@ -1417,20 +1602,20 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   onImageInserted(imageData: ImageInsertResult): void {
     if (!this.activeScene || !this.editorView) return;
-    
+
     // Hide dialog
     this.hideImageDialog();
-    
+
     // Insert image through ProseMirror service
     this.proseMirrorService.insertImage(imageData, this.imageCursorPosition, true);
-    
+
     // If the image has an ID (from our image service), add it to the image element for video association
     if (imageData.imageId) {
       // Wait a bit for the image to be inserted into the DOM
       setTimeout(() => {
         const editorElement = this.editorContainer.nativeElement;
         const images = editorElement.querySelectorAll('img[src="' + imageData.url + '"]');
-        
+
         // Find the most recently added image (should be the last one)
         if (images.length > 0) {
           const lastImage = images[images.length - 1] as HTMLImageElement;
@@ -1438,7 +1623,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
         }
       }, 100);
     }
-    
+
     // Focus the editor
     // Only focus on desktop to prevent mobile keyboard from opening
     if (!this.isMobileDevice()) {
@@ -1447,115 +1632,66 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       }, 100);
     }
   }
-  
+
   // Scene Navigation Methods
-  
+
   navigateToPreviousScene(): void {
-    const prevScene = this.getPreviousScene();
+    const prevScene = this.sceneNav.getPreviousScene();
     if (prevScene) {
       this.selectScene(prevScene.chapterId, prevScene.sceneId);
     }
   }
-  
+
   navigateToNextScene(): void {
-    const nextScene = this.getNextScene();
+    const nextScene = this.sceneNav.getNextScene();
     if (nextScene) {
       this.selectScene(nextScene.chapterId, nextScene.sceneId);
     }
   }
-  
+
   hasPreviousScene(): boolean {
-    return this.getPreviousScene() !== null;
+    return this.sceneNav.hasPreviousScene();
   }
-  
+
   hasNextScene(): boolean {
-    return this.getNextScene() !== null;
+    return this.sceneNav.hasNextScene();
   }
-  
+
   getCurrentSceneIndex(): number {
-    if (!this.activeChapterId || !this.activeSceneId) return 0;
-    
-    let index = 0;
-    for (const chapter of this.story.chapters) {
-      for (const scene of chapter.scenes) {
-        index++;
-        if (chapter.id === this.activeChapterId && scene.id === this.activeSceneId) {
-          return index;
-        }
-      }
-    }
-    return 0;
+    return this.sceneNav.getCurrentSceneIndex();
   }
-  
+
   getTotalScenes(): number {
-    return this.story.chapters.reduce((total, chapter) => total + chapter.scenes.length, 0);
+    return this.sceneNav.getTotalScenes();
   }
-  
-  private getPreviousScene(): {chapterId: string, sceneId: string} | null {
-    if (!this.activeChapterId || !this.activeSceneId) return null;
-    
-    let previousScene: {chapterId: string, sceneId: string} | null = null;
-    
-    for (const chapter of this.story.chapters) {
-      for (const scene of chapter.scenes) {
-        if (chapter.id === this.activeChapterId && scene.id === this.activeSceneId) {
-          return previousScene;
-        }
-        previousScene = { chapterId: chapter.id, sceneId: scene.id };
-      }
-    }
-    
-    return null;
-  }
-  
-  private getNextScene(): {chapterId: string, sceneId: string} | null {
-    if (!this.activeChapterId || !this.activeSceneId) return null;
-    
-    let foundCurrent = false;
-    
-    for (const chapter of this.story.chapters) {
-      for (const scene of chapter.scenes) {
-        if (foundCurrent) {
-          return { chapterId: chapter.id, sceneId: scene.id };
-        }
-        if (chapter.id === this.activeChapterId && scene.id === this.activeSceneId) {
-          foundCurrent = true;
-        }
-      }
-    }
-    
-    return null;
-  }
-  
+
   private async selectScene(chapterId: string, sceneId: string): Promise<void> {
     // Save current scene before switching
     if (this.hasUnsavedChanges) {
       await this.saveStory();
     }
-    
-    this.activeChapterId = chapterId;
-    this.activeSceneId = sceneId;
-    this.activeScene = await this.storyService.getScene(this.story.id, chapterId, sceneId);
+
+    await this.editorState.setActiveScene(chapterId, sceneId);
     this.updateEditorContent();
-    
+
     // Update story context for all Beat AI components
     this.proseMirrorService.updateStoryContext({
       storyId: this.story.id,
-      chapterId: this.activeChapterId,
-      sceneId: this.activeSceneId
+      chapterId: this.activeChapterId || undefined,
+      sceneId: this.activeSceneId || undefined
     });
-    
+
     // Force change detection
     this.cdr.markForCheck();
   }
 
   toggleDebugMode(): void {
     this.debugModeEnabled = !this.debugModeEnabled;
-    
+
     if (this.editorView) {
       this.proseMirrorService.toggleDebugMode(this.debugModeEnabled);
     }
-    
+
   }
 
   showStoryStatsModal(): void {
@@ -1564,6 +1700,16 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   hideStoryStats(): void {
     this.showStoryStats = false;
+  }
+
+  openMediaGallery(): void {
+    this.showMediaGallery = true;
+    this.cdr.markForCheck();
+  }
+
+  closeMediaGallery(): void {
+    this.showMediaGallery = false;
+    this.cdr.markForCheck();
   }
 
   private handleImagePointerEnter = (event: Event): void => {
@@ -1666,7 +1812,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       imageId = this.generateImageId();
       this.imageVideoService.addImageIdToElement(imageElement, imageId);
       this.proseMirrorService.updateImageId(imageElement.src, imageId);
-      this.hasUnsavedChanges = true;
+      this.editorState.recordUserActivity();
       this.saveSubject.next();
     }
     return imageId;
@@ -1841,16 +1987,16 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Only check images that already have IDs for video associations
     const images = this.editorContainer.nativeElement.querySelectorAll('img[data-image-id]');
     console.log('Checking for video associations, found images with IDs:', images.length);
-    
+
     for (const imgElement of Array.from(images)) {
       const imageId = imgElement.getAttribute('data-image-id');
       console.log('Checking image with ID:', imageId);
-      
+
       if (imageId && imgElement instanceof HTMLImageElement) {
         try {
           const video = await this.videoService.getVideoForImage(imageId);
           console.log('Video found for image', imageId, ':', !!video);
-          
+
           if (video) {
             this.imageVideoService.addVideoIndicator(imgElement);
             console.log('Added video indicator for image:', imageId);
@@ -1864,10 +2010,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   async exportToPDF(): Promise<void> {
     let loading: HTMLIonLoadingElement | null = null;
-    
+
     try {
       console.log('PDF export button clicked');
-      
+
       // Save any unsaved changes first
       if (this.hasUnsavedChanges) {
         console.log('Saving unsaved changes before PDF export');
@@ -1880,14 +2026,14 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       }
 
       console.log('Story validation - title:', this.story.title, 'chapters:', this.story.chapters?.length);
-      
+
       if (!this.story.chapters || this.story.chapters.length === 0) {
         throw new Error('Story has no chapters to export');
       }
 
       // Check if story has any content
-      const hasContent = this.story.chapters.some(chapter => 
-        chapter.scenes && chapter.scenes.length > 0 && 
+      const hasContent = this.story.chapters.some(chapter =>
+        chapter.scenes && chapter.scenes.length > 0 &&
         chapter.scenes.some(scene => scene.content && scene.content.trim().length > 0)
       );
 
@@ -1940,7 +2086,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
     } catch (error) {
       console.error('PDF export failed:', error);
-      
+
       // Show user-friendly error message
       alert(`PDF export failed: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
     } finally {
@@ -1956,7 +2102,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       // Apply text color to all existing elements
       this.applyTextColorToAllElements();
-      
+
       // Setup MutationObserver to watch for dynamically added Beat AI components
       this.setupMutationObserver();
     }, 100);
@@ -1968,17 +2114,17 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     if (contentEditor) {
       (contentEditor as HTMLElement).style.setProperty('--editor-text-color', this.currentTextColor);
     }
-    
+
     // Target the actual ProseMirror element created by the service
     const prosemirrorElement = document.querySelector('.ProseMirror.prosemirror-editor');
     if (prosemirrorElement) {
       (prosemirrorElement as HTMLElement).style.setProperty('--editor-text-color', this.currentTextColor);
       (prosemirrorElement as HTMLElement).style.color = this.currentTextColor;
     }
-    
+
     // Apply to all Beat AI components
     this.applyTextColorToBeatAIElements();
-    
+
   }
 
   private applyTextColorToBeatAIElements(): void {
@@ -1987,7 +2133,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     beatAIContainers.forEach((container) => {
       // Set CSS custom property
       (container as HTMLElement).style.setProperty('--beat-ai-text-color', this.currentTextColor);
-      
+
       // Debug: Check if the variable is actually set
       const computedStyle = window.getComputedStyle(container as HTMLElement);
       computedStyle.getPropertyValue('--beat-ai-text-color');
@@ -2003,19 +2149,19 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Create new observer to watch for Beat AI components being added
     this.mutationObserver = new MutationObserver((mutations) => {
       let shouldApplyStyles = false;
-      
+
       mutations.forEach((mutation) => {
         if (mutation.type === 'childList') {
           mutation.addedNodes.forEach((node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
               const element = node as Element;
-              
+
               // Check if the added node is a Beat AI container or contains one
-              if (element.classList?.contains('beat-ai-container') || 
+              if (element.classList?.contains('beat-ai-container') ||
                   element.querySelector?.('.beat-ai-container')) {
                 shouldApplyStyles = true;
               }
-              
+
               // Also check for ProseMirror elements that might be Beat AI related
               if (element.classList?.contains('ProseMirror') ||
                   element.querySelector?.('.ProseMirror')) {
@@ -2025,7 +2171,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
           });
         }
       });
-      
+
       if (shouldApplyStyles) {
         // Apply styles to newly added Beat AI elements
         // Use longer delay to ensure Angular components are fully initialized
@@ -2041,7 +2187,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       childList: true,
       subtree: true
     });
-    
+
   }
 
   getCoverImageUrl(): string | null {
@@ -2051,7 +2197,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   async openCoverPopover(event: Event): Promise<void> {
     event.stopPropagation();
-    
+
     if (!this.story?.coverImage) return;
 
     const popoverElement = document.createElement('ion-popover');
@@ -2059,21 +2205,57 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     popoverElement.dismissOnSelect = true;
     popoverElement.cssClass = 'cover-image-popover';
     popoverElement.event = event;
-    
+
     // Create the content
     const contentDiv = document.createElement('div');
     contentDiv.className = 'cover-popover-content';
-    
+
     const img = document.createElement('img');
     img.src = this.getCoverImageUrl() || '';
     img.alt = this.story.title || 'Story cover';
     img.className = 'cover-popover-image';
-    
+
     contentDiv.appendChild(img);
     popoverElement.appendChild(contentDiv);
-    
+
     document.body.appendChild(popoverElement);
     await popoverElement.present();
+  }
+
+  // Beat Navigation Panel Methods
+  openBeatNavPanel(): void {
+    this.showBeatNavPanel = true;
+    this.updateBeatList();
+    this.cdr.markForCheck();
+  }
+
+  closeBeatNavPanel(): void {
+    this.showBeatNavPanel = false;
+    this.cdr.markForCheck();
+  }
+
+  async onBeatSelected(beatId: string): Promise<void> {
+    // Close the panel first
+    this.closeBeatNavPanel();
+
+    // Small delay to let panel close animation complete
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Scroll to the selected beat using ProseMirror service
+    // Pass IonContent to ensure header stays fixed on mobile
+    await this.proseMirrorService.scrollToBeat(beatId, this.ionContent);
+  }
+
+  private updateBeatList(): void {
+    // Extract beats from the current editor content
+    if (!this.editorView) return;
+
+    const beats = this.proseMirrorService.extractBeatsFromEditor();
+
+    // Update the beat navigation panel component through ViewChild
+    if (this.beatNavPanel) {
+      this.beatNavPanel.updateBeats(beats);
+    }
   }
 
 }

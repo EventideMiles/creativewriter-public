@@ -63,6 +63,17 @@
         </ng-template>
         
         <ion-content [scrollEvents]="true">
+          <!-- Phase 5: Loading overlay for story sync -->
+          <div *ngIf="isLoadingStory" class="story-loading-overlay">
+            <div class="loading-content">
+              <ion-spinner name="crescent"></ion-spinner>
+              <p class="loading-message">{{ loadingMessage }}</p>
+              <div class="debug-logs" *ngIf="debugLogs.length > 0">
+                <div class="debug-log" *ngFor="let log of debugLogs">{{ log }}</div>
+              </div>
+            </div>
+          </div>
+
           <div class="editor-container">
             <div class="editor-main">
             <div class="editor-content" [style.--editor-text-color]="currentTextColor">
@@ -214,5 +225,20 @@
         [story]="story"
         (closed)="hideStoryStats()">
       </app-story-stats>
+
+      <app-story-media-gallery
+        [isOpen]="showMediaGallery"
+        [story]="story"
+        (closed)="closeMediaGallery()">
+      </app-story-media-gallery>
+
+      <app-beat-navigation-panel
+        [isOpen]="showBeatNavPanel"
+        [story]="story"
+        [activeSceneId]="activeSceneId"
+        (closed)="closeBeatNavPanel()"
+        (opened)="openBeatNavPanel()"
+        (beatSelected)="onBeatSelected($event)">
+      </app-beat-navigation-panel>
       </div>
     </ion-split-pane>

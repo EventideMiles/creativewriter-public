@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { AuthService, User } from './auth.service';
 import { SyncLoggerService } from './sync-logger.service';
 import { PouchDB } from '../../app';
+import { countStories } from '../../shared/utils/document-filters';
 
 // Minimal static type for the PouchDB constructor when loaded via ESM
 interface PouchDBStatic {
@@ -20,11 +21,19 @@ interface PouchSync {
 export interface SyncStatus {
   isOnline: boolean;
   isSync: boolean;
+  isConnecting?: boolean;
   lastSync?: Date;
   error?: string;
   syncProgress?: {
     docsProcessed: number;
+    totalDocs?: number;
     operation: 'push' | 'pull';
+    currentDoc?: {
+      id: string;
+      type?: string;
+      title?: string;
+    };
+    pendingDocs?: number;
   };
 }
 
@@ -47,6 +56,9 @@ export class DatabaseService {
   // Runtime reference to the PouchDB constructor loaded via ESM
   // Types for PouchDB usage remain via the ambient PouchDB namespace
   private pouchdbCtor: PouchDBStatic | null = null;
+
+  // Track the active story for selective sync
+  private activeStoryId: string | null = null;
 
   public syncStatus$: Observable<SyncStatus> = this.syncStatusSubject.asObservable();
 
@@ -87,48 +99,77 @@ export class DatabaseService {
 
     this.db = new this.pouchdbCtor(dbName);
 
-    // Create comprehensive indexes for better query performance (in parallel)
+    // Clean up old mrview databases in background (don't block initialization)
+    // This frees up IndexedDB storage without affecting user data
+    this.cleanupOldDatabases().catch(err => {
+      console.warn('[DatabaseService] Background cleanup failed:', err);
+    });
+
+    // Increase EventEmitter limit to prevent memory leak warnings
+    // PouchDB sync operations create many internal event listeners
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (this.db && (this.db as any).setMaxListeners) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.db as any).setMaxListeners(20);
+    }
+
+    // Create minimal indexes for non-story documents only
+    // Stories use allDocs() which is faster for small datasets
     const indexes = [
+      // Indexes for non-story documents (codex, video, etc.)
       { fields: ['type'] },
-      { fields: ['type', 'createdAt'] },
-      { fields: ['type', 'updatedAt'] },
-      { fields: ['chapters'] },
-      { fields: ['storyId'] },
-      { fields: ['createdAt'] },
-      { fields: ['updatedAt'] },
-      { fields: ['id'] }
+      { fields: ['storyId'] }
     ];
 
-    // Create all indexes in parallel for faster initialization
-    await Promise.all(
-      indexes.map(indexDef =>
-        this.db!.createIndex({ index: indexDef })
-          .catch(err => console.warn(`Could not create index for ${JSON.stringify(indexDef.fields)}:`, err))
-      )
-    );
+    // Store reference to current db to prevent race conditions
+    const currentDb = this.db;
 
-    // Setup sync for the new database
-    await this.setupSync();
+    // Create indexes in background - don't block database availability
+    // This prevents slow index creation from delaying app startup
+    Promise.all(
+      indexes.map(async (indexDef) => {
+        try {
+          // Only create index if this database instance is still active
+          if (currentDb === this.db) {
+            await currentDb.createIndex({ index: indexDef });
+          }
+        } catch (err) {
+          // Ignore errors if database was closed during initialization
+          if (err && typeof err === 'object' && 'message' in err &&
+              !(err.message as string).includes('database is closed')) {
+            console.warn(`Could not create index for ${JSON.stringify(indexDef.fields)}:`, err);
+          }
+        }
+      })
+    ).then(() => {
+      // Index creation completed
+    }).catch(err => {
+      console.warn('[DatabaseService] Index creation failed:', err);
+    });
+
+    // PERFORMANCE FIX: Don't await sync setup - let it happen in background
+    // This prevents network delays from blocking database availability
+    this.setupSync().catch(err => {
+      console.warn('[DatabaseService] Background sync setup failed:', err);
+    });
   }
 
-  private handleUserChange(user: User | null): void {
-    // Use setTimeout to avoid immediate database switching during constructor
-    setTimeout(async () => {
-      if (user) {
-        const userDbName = this.authService.getUserDatabaseName();
-        if (userDbName && userDbName !== (this.db?.name)) {
-          this.initializationPromise = this.initializeDatabase(userDbName);
-          await this.initializationPromise;
-        }
-      } else {
-        // User logged out - switch to anonymous database
-        const anonymousDb = 'creative-writer-stories-anonymous';
-        if (this.db?.name !== anonymousDb) {
-          this.initializationPromise = this.initializeDatabase(anonymousDb);
-          await this.initializationPromise;
-        }
+  private async handleUserChange(user: User | null): Promise<void> {
+    // Immediately switch database when user changes (no setTimeout to avoid race conditions)
+    if (user) {
+      const userDbName = this.authService.getUserDatabaseName();
+      if (userDbName && userDbName !== (this.db?.name)) {
+        this.initializationPromise = this.initializeDatabase(userDbName);
+        await this.initializationPromise;
       }
-    }, 100);
+    } else {
+      // User logged out - switch to anonymous database
+      const anonymousDb = 'creative-writer-stories-anonymous';
+      if (this.db?.name !== anonymousDb) {
+        this.initializationPromise = this.initializeDatabase(anonymousDb);
+        await this.initializationPromise;
+      }
+    }
   }
 
   async getDatabase(): Promise<PouchDB.Database> {
@@ -147,16 +188,83 @@ export class DatabaseService {
     return this.db;
   }
 
+  /**
+   * Set the active story ID for selective sync.
+   * Only the active story and its related documents will be synced.
+   * Set to null to sync all documents.
+   */
+  setActiveStoryId(storyId: string | null): void {
+    const changed = this.activeStoryId !== storyId;
+    const previousId = this.activeStoryId;
+    this.activeStoryId = storyId;
+
+    console.info(`[DatabaseService] setActiveStoryId: ${previousId} → ${storyId} (changed: ${changed})`);
+
+    // If the active story changed and sync is running, restart sync to apply new filter
+    if (changed && this.syncHandler) {
+      console.info('[DatabaseService] Restarting sync to apply new activeStoryId filter...');
+      this.stopSync().then(() => {
+        console.info('[DatabaseService] Sync stopped, starting with new filter...');
+        this.startSync();
+        console.info('[DatabaseService] Sync restarted with activeStoryId:', this.activeStoryId);
+      }).catch(err => {
+        console.error('Error restarting sync after story change:', err);
+      });
+    } else if (changed && !this.syncHandler) {
+      console.warn('[DatabaseService] activeStoryId changed but sync is not running');
+    }
+  }
+
+  /**
+   * Get the currently active story ID for selective sync
+   */
+  getActiveStoryId(): string | null {
+    return this.activeStoryId;
+  }
+
+  /**
+   * Force replication of a specific document from remote
+   * This is useful when opening a story to ensure it's immediately pulled from remote
+   *
+   * @param docId The document ID to replicate
+   * @returns Promise that resolves when replication completes
+   */
+  async forceReplicateDocument(docId: string): Promise<void> {
+    if (!this.remoteDb || !this.db) {
+      console.warn('[DatabaseService] Cannot force replicate: database not initialized');
+      return;
+    }
+
+    console.info(`[DatabaseService] Force replicating document: ${docId}`);
+
+    try {
+      // Do a one-time pull replication for this specific document
+      await this.db.replicate.from(this.remoteDb, {
+        doc_ids: [docId],
+        timeout: 10000
+      });
+      console.info(`[DatabaseService] ✓ Successfully replicated document: ${docId}`);
+    } catch (error) {
+      console.error(`[DatabaseService] Failed to replicate document ${docId}:`, error);
+      throw error;
+    }
+  }
+
   async setupSync(remoteUrl?: string): Promise<void> {
     try {
       // Use provided URL or try to detect from environment/location
       const couchUrl = remoteUrl || this.getCouchDBUrl();
-      
+
       if (!couchUrl) {
         return;
       }
 
-      
+      // Indicate that we're connecting
+      this.updateSyncStatus({
+        isConnecting: true,
+        error: undefined
+      });
+
       const Pouch = this.pouchdbCtor;
       if (!Pouch) {
         throw new Error('PouchDB not initialized');
@@ -178,15 +286,21 @@ export class DatabaseService {
         throw new Error(`CouchDB connection failed: ${testError instanceof Error ? testError.message : String(testError)}`);
       }
 
+      // Connection successful, clear connecting state
+      this.updateSyncStatus({ isConnecting: false });
+
       // Start bidirectional sync
       this.startSync();
-      
+
     } catch (error) {
       console.warn('Could not setup sync:', error);
       this.remoteDb = null;
-      
+
       const errorMessage = this.getFriendlySyncError(error, 'Sync setup failed');
-      this.updateSyncStatus({ error: errorMessage });
+      this.updateSyncStatus({
+        error: errorMessage,
+        isConnecting: false
+      });
     }
   }
 
@@ -225,31 +339,154 @@ export class DatabaseService {
     const handler = this.db.sync(this.remoteDb, {
       live: true,
       retry: true,
-      timeout: 30000
+      timeout: 30000,
+      // SELECTIVE SYNC: Filter to only sync active story and related documents
+      // This significantly reduces memory usage and sync operations on mobile
+      filter: (doc: PouchDB.Core.Document<Record<string, unknown>>) => {
+        const docType = (doc as { type?: string }).type;
+        const docId = doc._id;
+
+        // Always exclude snapshots
+        if (docType === 'story-snapshot') {
+          return false;
+        }
+
+        // ALWAYS sync the story metadata index (lightweight document for story list)
+        if (docId === 'story-metadata-index' || docType === 'story-metadata-index') {
+          return true;
+        }
+
+        // Sync user-wide documents (not story-specific)
+        // These include: custom backgrounds, videos, etc.
+        const userWideTypes = ['custom-background', 'video', 'image-video-association'];
+        if (docType && userWideTypes.includes(docType)) {
+          return true;
+        }
+
+        // If no active story is set (viewing story list), ONLY sync index + user-wide docs
+        // DO NOT sync individual story documents - they're not needed for the list view
+        if (!this.activeStoryId) {
+          // Story documents have no type field - exclude them
+          if (!docType) {
+            console.debug(`[SyncFilter] Excluding story document ${docId} (no activeStoryId)`);
+            return false;
+          }
+          // Codex documents are story-specific - exclude them
+          if (docType === 'codex') {
+            return false;
+          }
+          // Allow other document types (already handled user-wide types above)
+          return true;
+        }
+
+        // SELECTIVE SYNC ENABLED: Only sync active story and related documents
+
+        // 1. Sync the active story document (stories have no type field)
+        if (!docType && docId === this.activeStoryId) {
+          console.info(`[SyncFilter] ✓ Syncing active story: ${docId}`);
+          return true;
+        }
+
+        // 2. Sync codex for the active story
+        const storyId = (doc as { storyId?: string }).storyId;
+        if (docType === 'codex' && storyId === this.activeStoryId) {
+          console.info(`[SyncFilter] ✓ Syncing codex for active story: ${docId}`);
+          return true;
+        }
+
+        // 3. Exclude all other documents (other stories, their codex entries, etc.)
+        if (!docType) {
+          console.debug(`[SyncFilter] Excluding story document ${docId} (not active story ${this.activeStoryId})`);
+        }
+        return false;
+      }
     }) as unknown as PouchSync;
 
     this.syncHandler = (handler as unknown as PouchDB.Replication.Sync<Record<string, unknown>>)
-    .on('change', () => {
-      this.updateSyncStatus({ 
-        isSync: false, 
+    .on('change', (info: unknown) => {
+      // Extract document details from change event
+      let docsProcessed = 0;
+      let currentDoc = undefined;
+      let operation: 'push' | 'pull' = 'pull';
+
+      if (info && typeof info === 'object') {
+        // Check if this is a push or pull operation
+        if ('direction' in info && info.direction === 'push') {
+          operation = 'push';
+        }
+
+        // Extract documents information
+        if ('change' in info && info.change && typeof info.change === 'object') {
+          const change = info.change as { docs?: unknown[] };
+          if (change.docs && Array.isArray(change.docs)) {
+            docsProcessed = change.docs.length;
+
+            // Get the last document details
+            if (change.docs.length > 0) {
+              const lastDoc = change.docs[change.docs.length - 1];
+              if (lastDoc && typeof lastDoc === 'object' && '_id' in lastDoc) {
+                currentDoc = {
+                  id: (lastDoc as { _id: string })._id,
+                  type: 'type' in lastDoc ? String((lastDoc as { type: unknown }).type) : undefined,
+                  title: 'title' in lastDoc ? String((lastDoc as { title: unknown }).title) : undefined
+                };
+              }
+            }
+          }
+        }
+      }
+
+      this.updateSyncStatus({
+        isSync: false,
         lastSync: new Date(),
-        error: undefined 
+        error: undefined,
+        syncProgress: docsProcessed > 0 ? {
+          docsProcessed,
+          operation,
+          currentDoc
+        } : undefined
+      });
+
+      // Clear progress after a short delay
+      setTimeout(() => {
+        const current = this.syncStatusSubject.value;
+        if (!current.isSync) {
+          this.updateSyncStatus({ syncProgress: undefined });
+        }
+      }, 2000);
+    })
+    .on('active', (info: unknown) => {
+      // Extract pending count if available
+      let pendingDocs = undefined;
+
+      if (info && typeof info === 'object' && 'pending' in info) {
+        pendingDocs = typeof info.pending === 'number' ? info.pending : undefined;
+      }
+
+      this.updateSyncStatus({
+        isSync: true,
+        error: undefined,
+        syncProgress: pendingDocs !== undefined ? {
+          docsProcessed: 0,
+          operation: 'pull',
+          pendingDocs
+        } : undefined
       });
     })
-    .on('active', () => {
-      this.updateSyncStatus({ isSync: true, error: undefined });
-    })
-    .on('paused', (info: unknown) => {
-      this.updateSyncStatus({ 
-        isSync: false, 
-        error: info ? `Sync paused: ${info}` : undefined 
+    .on('paused', () => {
+      // Paused event means sync caught up and is waiting for new changes
+      // This is normal for live sync - not an error
+      this.updateSyncStatus({
+        isSync: false,
+        syncProgress: undefined
       });
     })
     .on('error', (info: unknown) => {
       console.error('Sync error:', info);
-      this.updateSyncStatus({ 
-        isSync: false, 
-        error: `Sync error: ${info}` 
+      this.updateSyncStatus({
+        isSync: false,
+        error: `Sync error: ${info}`,
+        syncProgress: undefined
       });
     });
   }
@@ -266,6 +503,13 @@ export class DatabaseService {
   async stopSync(): Promise<void> {
     if (this.syncHandler) {
       try {
+        // Remove all event listeners to prevent memory leaks
+        this.syncHandler.off('change');
+        this.syncHandler.off('active');
+        this.syncHandler.off('paused');
+        this.syncHandler.off('error');
+
+        // Cancel the sync
         this.syncHandler.cancel();
       } catch (error) {
         console.warn('Error canceling sync:', error);
@@ -340,15 +584,42 @@ export class DatabaseService {
           ? this.db!.replicate.to(this.remoteDb!)
           : this.db!.replicate.from(this.remoteDb!);
 
-        // Track progress during replication
+        // Track progress during replication with document details
+        let totalProcessed = 0;
         (replication as PouchDB.Replication.Replication<Record<string, unknown>>)
           .on('change', (info) => {
             if (info && typeof info === 'object' && 'docs' in info) {
               const docs = info.docs as unknown[];
+              const docsCount = docs?.length || 0;
+              totalProcessed += docsCount;
+
+              // Get current document details
+              let currentDoc = undefined;
+              if (docs && docs.length > 0) {
+                const lastDoc = docs[docs.length - 1];
+                if (lastDoc && typeof lastDoc === 'object' && '_id' in lastDoc) {
+                  currentDoc = {
+                    id: (lastDoc as { _id: string })._id,
+                    type: 'type' in lastDoc ? String((lastDoc as { type: unknown }).type) : undefined,
+                    title: 'title' in lastDoc ? String((lastDoc as { title: unknown }).title) : undefined
+                  };
+                }
+              }
+
+              // Get total docs if available
+              let totalDocs: number | undefined = undefined;
+              if ('docs_read' in info) {
+                totalDocs = (info as { docs_read: number }).docs_read;
+              } else if ('docs_written' in info) {
+                totalDocs = (info as { docs_written: number }).docs_written;
+              }
+
               this.updateSyncStatus({
                 syncProgress: {
-                  docsProcessed: docs?.length || 0,
-                  operation: direction
+                  docsProcessed: totalProcessed,
+                  totalDocs,
+                  operation: direction,
+                  currentDoc
                 }
               });
             }
@@ -477,6 +748,66 @@ export class DatabaseService {
   }
 
   /**
+   * Clean up old PouchDB mrview databases from IndexedDB
+   * SAFE: Only removes materialized view databases (indexes), NEVER user data
+   * mrview databases can be recreated automatically by PouchDB when needed
+   */
+  async cleanupOldDatabases(): Promise<{ cleaned: number; kept: number; errors: string[] }> {
+    const currentDbName = this.db?.name;
+    const errors: string[] = [];
+    let cleaned = 0;
+    let kept = 0;
+
+    try {
+      // Get all databases from IndexedDB
+      if (!indexedDB.databases) {
+        console.warn('[DatabaseService] IndexedDB.databases() not supported, skipping cleanup');
+        return { cleaned: 0, kept: 0, errors: ['IndexedDB.databases() not supported'] };
+      }
+
+      const databases = await indexedDB.databases();
+
+      for (const dbInfo of databases) {
+        const dbName = dbInfo.name;
+        if (!dbName || !dbName.startsWith('_pouch_')) {
+          kept++;
+          continue; // Not a PouchDB database
+        }
+
+        // ONLY delete mrview databases (materialized views / indexes)
+        // NEVER delete user story databases - they contain actual data!
+        const isMrviewDatabase = dbName.includes('-mrview-');
+        const isCurrentMrview = currentDbName && dbName.includes(`${currentDbName}-mrview-`);
+        const isBeatHistoriesMrview = dbName.includes('beat-histories-mrview-');
+
+        if (isMrviewDatabase && !isCurrentMrview && !isBeatHistoriesMrview) {
+          // Safe to delete: old mrview database for inactive user database
+          try {
+            if (!this.pouchdbCtor) {
+              throw new Error('PouchDB not initialized');
+            }
+            const tempDb = new this.pouchdbCtor(dbName);
+            await tempDb.destroy();
+            cleaned++;
+          } catch (error) {
+            const errorMsg = `Failed to delete ${dbName}: ${error}`;
+            console.warn(`[DatabaseService] ${errorMsg}`);
+            errors.push(errorMsg);
+          }
+        } else {
+          kept++;
+        }
+      }
+    } catch (error) {
+      const errorMsg = `Database cleanup failed: ${error}`;
+      console.error(`[DatabaseService] ${errorMsg}`);
+      errors.push(errorMsg);
+    }
+
+    return { cleaned, kept, errors };
+  }
+
+  /**
    * Format bytes to human readable format
    */
   private formatBytes(bytes: number): string {
@@ -485,5 +816,50 @@ export class DatabaseService {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  /**
+   * Check if there are stories in the remote database that are missing locally
+   * This is a quick check that compares story counts between local and remote databases
+   * @returns Object with hasMissing flag and counts, or null if remote DB is unavailable
+   */
+  async checkForMissingStories(): Promise<{
+    hasMissing: boolean;
+    localCount: number;
+    remoteCount: number;
+  } | null> {
+    try {
+      // Check if we have a remote database connection
+      if (!this.remoteDb) {
+        return null;
+      }
+
+      // Get local database
+      const localDb = await this.getDatabase();
+
+      // Quick count using allDocs (same efficient method used by StoryService)
+      const countStoriesInDb = async (db: PouchDB.Database): Promise<number> => {
+        const result = await db.allDocs({
+          include_docs: true  // REQUIRED: filterStoryRows needs full documents to check type/chapters fields
+        });
+        // Use shared utility function for consistent story document filtering
+        return countStories(result.rows);
+      };
+
+      // Count stories in both databases
+      const [localCount, remoteCount] = await Promise.all([
+        countStoriesInDb(localDb),
+        countStoriesInDb(this.remoteDb)
+      ]);
+
+      return {
+        hasMissing: remoteCount > localCount,
+        localCount,
+        remoteCount
+      };
+    } catch (error) {
+      console.error('[DatabaseService] Error checking for missing stories:', error);
+      return null;
+    }
   }
 }

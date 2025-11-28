@@ -43,3 +43,4 @@ Thumbs.db
 
 # Private marketing materials
 /reddit-marketing
+proxy/node_modules/

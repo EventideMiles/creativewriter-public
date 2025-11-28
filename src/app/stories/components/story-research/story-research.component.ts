@@ -45,6 +45,7 @@ import { OpenRouterApiService } from '../../../core/services/openrouter-api.serv
 import { GoogleGeminiApiService } from '../../../core/services/google-gemini-api.service';
 import { OllamaApiService } from '../../../core/services/ollama-api.service';
 import { ClaudeApiService } from '../../../core/services/claude-api.service';
+import { AIProviderValidationService } from '../../../core/services/ai-provider-validation.service';
 import { firstValueFrom } from 'rxjs';
 import { AlertController } from '@ionic/angular';
 import { TokenCounterService } from '../../../shared/services/token-counter.service';
@@ -113,6 +114,7 @@ export class StoryResearchComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly alertController = inject(AlertController);
   private readonly tokenCounter = inject(TokenCounterService);
+  private readonly aiProviderValidation = inject(AIProviderValidationService);
   private readonly MIN_CONCURRENCY = 1;
   private readonly MAX_CONCURRENCY = 6;
 
@@ -606,6 +608,12 @@ export class StoryResearchComponent implements OnInit {
     const maxTokens = Math.max(300, options.maxTokens);
     const temperature = options.temperature ?? 0.7;
     const wordCount = Math.round(maxTokens / 1.3);
+
+    // Validate that the provider is configured and available
+    const settings = this.settingsService.getSettings();
+    if (!this.aiProviderValidation.isProviderAvailable(provider, settings)) {
+      throw new Error(`AI provider '${provider}' is not configured or not available. Please configure it in settings.`);
+    }
 
     switch (provider) {
       case 'openrouter': {

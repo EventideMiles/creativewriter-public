@@ -1,0 +1,285 @@
+// Override ion-app's justify-content: space-between which centers content vertically
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+}
+
+.sync-history-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.controls-section {
+  margin-bottom: 1rem;
+
+  ion-segment {
+    margin-bottom: 0.5rem;
+  }
+}
+
+.filters-section {
+  margin-bottom: 1rem;
+
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+
+    ion-select {
+      flex: 1;
+    }
+
+    ion-button {
+      flex-shrink: 0;
+    }
+  }
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+
+  ion-spinner {
+    margin-bottom: 1rem;
+  }
+
+  p {
+    color: var(--ion-color-medium);
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+
+  ion-icon {
+    font-size: 4rem;
+    color: var(--ion-color-medium);
+    margin-bottom: 1rem;
+  }
+
+  p {
+    color: var(--ion-color-medium);
+    font-size: 1rem;
+  }
+}
+
+// Logs View Styles
+.logs-view {
+  ion-list {
+    background: transparent;
+
+    ion-item {
+      --background: var(--ion-card-background, var(--ion-background-color));
+      margin-bottom: 0.5rem;
+      border-radius: 8px;
+
+      ion-label {
+        h2 {
+          font-weight: 600;
+          margin-bottom: 0.25rem;
+        }
+
+        p {
+          font-size: 0.875rem;
+          color: var(--ion-color-medium);
+          margin-bottom: 0.5rem;
+        }
+
+        .log-meta {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+          margin-top: 0.5rem;
+
+          ion-chip {
+            margin: 0;
+            height: 24px;
+            font-size: 0.75rem;
+
+            ion-icon {
+              font-size: 1rem;
+            }
+
+            ion-badge {
+              margin-left: 0.25rem;
+              font-size: 0.625rem;
+            }
+          }
+
+          ion-note {
+            font-size: 0.75rem;
+            margin-left: auto;
+          }
+        }
+      }
+
+      ion-badge {
+        text-transform: uppercase;
+        font-size: 0.625rem;
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+// Stories View Styles
+.stories-view {
+  .story-card {
+    margin-bottom: 1rem;
+
+    ion-card-header {
+      padding-bottom: 0.5rem;
+
+      ion-card-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+    }
+
+    ion-card-content {
+      .modification-info,
+      .sync-logs {
+        margin-bottom: 1.5rem;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        h3 {
+          font-size: 0.875rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          color: var(--ion-color-medium);
+          margin-bottom: 0.75rem;
+          letter-spacing: 0.5px;
+        }
+
+        .device-info {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+
+          ion-chip {
+            margin: 0;
+
+            ion-badge {
+              margin-left: 0.25rem;
+              font-size: 0.625rem;
+            }
+          }
+
+          ion-note {
+            font-size: 0.875rem;
+          }
+        }
+
+        ion-list {
+          background: var(--ion-color-light, #f4f5f8);
+          border-radius: 8px;
+          padding: 0.5rem;
+
+          .mini-log {
+            --background: transparent;
+            --padding-start: 0.5rem;
+            --padding-end: 0.5rem;
+            --inner-padding-end: 0;
+            min-height: 44px;
+
+            ion-icon {
+              margin-right: 0.75rem;
+            }
+
+            ion-label {
+              p {
+                font-size: 0.875rem;
+                margin-bottom: 0.25rem;
+              }
+
+              ion-note {
+                font-size: 0.75rem;
+              }
+            }
+          }
+        }
+      }
+
+      .no-info {
+        padding: 1rem;
+        text-align: center;
+        background: var(--ion-color-light, #f4f5f8);
+        border-radius: 8px;
+
+        ion-note {
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .sync-history-container {
+    padding: 0.5rem;
+  }
+
+  .filters-section {
+    .filter-row {
+      flex-wrap: wrap;
+
+      ion-select {
+        flex-basis: 100%;
+        margin-bottom: 0.5rem;
+      }
+    }
+  }
+
+  .stories-view {
+    .story-card {
+      ion-card-content {
+        .modification-info,
+        .sync-logs {
+          .device-info {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Dark Mode Support
+@media (prefers-color-scheme: dark) {
+  .stories-view {
+    .story-card {
+      ion-card-content {
+        .modification-info,
+        .sync-logs {
+          ion-list {
+            background: var(--ion-color-step-50, #1e1e1e);
+          }
+        }
+
+        .no-info {
+          background: var(--ion-color-step-50, #1e1e1e);
+        }
+      }
+    }
+  }
+}

@@ -1,69 +1,118 @@
 import { Injectable, inject } from '@angular/core';
 import { Story, Chapter, Scene, DEFAULT_STORY_SETTINGS } from '../models/story.interface';
 import { DatabaseService } from '../../core/services/database.service';
+import { DeviceService } from '../../core/services/device.service';
 import { getSystemMessage, getBeatGenerationTemplate } from '../../shared/resources/system-messages';
 import { StoryLanguage } from '../../ui/components/language-selection-dialog/language-selection-dialog.component';
+import { BeatHistoryService } from '../../shared/services/beat-history.service';
+import { StoryMetadataIndexService } from './story-metadata-index.service';
+import { countStories } from '../../shared/utils/document-filters';
+
+// Current schema version for migration tracking
+// Increment this when making breaking changes to Story structure
+const CURRENT_SCHEMA_VERSION = 1;
 
 @Injectable({
   providedIn: 'root'
 })
 export class StoryService {
   private readonly databaseService = inject(DatabaseService);
+  private readonly beatHistoryService = inject(BeatHistoryService);
+  private readonly deviceService = inject(DeviceService);
+  private readonly metadataIndexService = inject(StoryMetadataIndexService);
   private db: PouchDB.Database | null = null;
 
-  async getAllStories(): Promise<Story[]> {
+  // Performance optimization: Cache for story previews and word counts
+  private previewCache = new Map<string, string>();
+  private wordCountCache = new Map<string, number>();
+
+  constructor() {
+    // Ensure metadata index exists and is up-to-date
+    // Run in background - don't block service initialization
+    this.ensureMetadataIndexExists().catch(err => {
+      console.error('[StoryService] Failed to ensure metadata index exists:', err);
+    });
+  }
+
+  /**
+   * Ensure metadata index exists and rebuild if necessary
+   * This runs on service initialization to maintain index integrity
+   */
+  private async ensureMetadataIndexExists(): Promise<void> {
     try {
-      this.db = await this.databaseService.getDatabase();
-      const result = await this.db.allDocs({ 
-        include_docs: true
+      // Try to get the index - this will create it if missing
+      await this.metadataIndexService.getMetadataIndex();
+    } catch (error) {
+      // If there's an error, log it but don't try to rebuild
+      // The new safety check in rebuildIndex prevents creating empty indexes
+      // that would overwrite remote data during sync
+      console.warn('[StoryService] Metadata index not available:', error);
+      console.info('[StoryService] Index will be created automatically when stories are added');
+      console.info('[StoryService] If sync is in progress, index will arrive shortly');
+      // Don't throw - service should still work without index
+    }
+  }
+
+  /**
+   * Get all stories with optional pagination
+   * @param limit Maximum number of stories to return (default: 50, max: 1000)
+   * @param skip Number of stories to skip for pagination (default: 0)
+   * @returns Array of stories
+   */
+  async getAllStories(limit?: number, skip?: number): Promise<Story[]> {
+    try {
+      // ALWAYS get fresh database reference - don't cache it
+      // The database can change when user logs in/out
+      const db = await this.databaseService.getDatabase();
+
+      // Use allDocs with include_docs - faster than find() for small datasets
+      const result = await db.allDocs({
+        include_docs: true,
+        // Explicitly include deleted docs to see if they're the issue
+        // (we'll filter them out later if needed)
       });
-      
+
       const stories = result.rows
-        .map((row: { doc?: unknown }) => {
-          return row.doc;
-        })
-        .filter((doc: unknown) => {
-          if (!doc) return false;
-          
-          const docWithType = doc as Partial<Story> & { 
-            type?: string; 
+        .filter((row) => {
+          const doc = row.doc as unknown;
+          if (!doc) {
+            return false;
+          }
+
+          const docWithType = doc as Partial<Story> & {
+            type?: string;
             content?: string;
           };
-          
+
           // Filter out design docs
           if (docWithType._id && docWithType._id.startsWith('_design')) {
             return false;
           }
-          
+
           // If document has a type field, it's not a story (stories don't have type field)
           if (docWithType.type) {
             return false; // This filters out codex, video, image-video-association, etc.
           }
-          
-          // A story MUST have either chapters array (new format) or content (legacy format)
-          const hasChapters = Array.isArray(docWithType.chapters);
-          const hasLegacyContent = typeof docWithType.content === 'string';
-          
-          // Must have one of these story-specific structures
-          if (!hasChapters && !hasLegacyContent) {
+
+          // Must have chapters (identifies story documents)
+          if (!docWithType.chapters) {
             return false;
           }
-          
+
           // Must have an ID
           if (!docWithType.id && !docWithType._id) {
             return false;
           }
-          
+
           // Additional validation: Check if it's an empty/abandoned story
           if (this.isEmptyStory(docWithType)) {
-            console.log('Filtering out empty story:', docWithType.title || 'Untitled', docWithType._id);
             return false;
           }
-          
+
           return true;
         })
-        .map((story: unknown) => this.migrateStory(story as Story));
-      
+        .map((row) => this.migrateStory(row.doc as Story));
+
       // Sort stories by order field (if exists) or by updatedAt (descending)
       stories.sort((a, b) => {
         // If both have order, sort by order (ascending)
@@ -76,11 +125,38 @@ export class StoryService {
         // Otherwise sort by updatedAt (descending - newest first)
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
-        
-      return stories;
+
+      // Apply pagination in memory (simpler and faster than indexed queries for small datasets)
+      const skipCount = skip || 0;
+      const limitCount = Math.min(limit || 50, 1000);
+      const paginatedStories = stories.slice(skipCount, skipCount + limitCount);
+
+      return paginatedStories;
     } catch (error) {
       console.error('Error fetching stories:', error);
       return [];
+    }
+  }
+
+  /**
+   * Get total count of stories (for pagination)
+   * Uses lightweight allDocs query
+   */
+  async getTotalStoriesCount(): Promise<number> {
+    try {
+      // ALWAYS get fresh database reference - don't cache it
+      const db = await this.databaseService.getDatabase();
+
+      // Use allDocs without include_docs for fastest count
+      const result = await db.allDocs();
+
+      // Use shared utility function for consistent story document filtering
+      const storyCount = countStories(result.rows);
+
+      return storyCount;
+    } catch (error) {
+      console.error('Error counting stories:', error);
+      return 0;
     }
   }
 
@@ -143,6 +219,8 @@ export class StoryService {
       getBeatGenerationTemplate(language)
     ]);
     
+    const deviceInfo = this.deviceService.getDeviceInfo();
+
     const newStory: Story = {
       _id: storyId,
       id: storyId,
@@ -154,14 +232,27 @@ export class StoryService {
         beatGenerationTemplate: beatTemplate,
         language: language
       },
+      schemaVersion: CURRENT_SCHEMA_VERSION, // Mark as current version
       // Don't set order here - let it be undefined so it appears at top with latest updatedAt
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      lastModifiedBy: {
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        timestamp: new Date()
+      }
     };
 
     try {
       const response = await this.db.put(newStory);
       newStory._rev = response.rev;
+
+      // Update metadata index with new story
+      // Run in background - don't block story creation
+      this.metadataIndexService.updateStoryMetadata(newStory).catch(err => {
+        console.error('[StoryService] Failed to update metadata index after creation:', err);
+      });
+
       return newStory;
     } catch (error) {
       console.error('Error creating story:', error);
@@ -176,8 +267,27 @@ export class StoryService {
       const currentDoc = await this.db.get(updatedStory._id || updatedStory.id);
       updatedStory._rev = (currentDoc as { _rev: string })._rev;
       updatedStory._id = updatedStory._id || updatedStory.id;
-      
+
+      // Ensure schema version is set when saving (for legacy stories)
+      if (!updatedStory.schemaVersion) {
+        updatedStory.schemaVersion = CURRENT_SCHEMA_VERSION;
+      }
+
+      // Track device modification
+      const deviceInfo = this.deviceService.getDeviceInfo();
+      updatedStory.lastModifiedBy = {
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        timestamp: new Date()
+      };
+
       await this.db.put(updatedStory);
+
+      // Update metadata index with updated story
+      // Run in background - don't block story updates
+      this.metadataIndexService.updateStoryMetadata(updatedStory).catch(err => {
+        console.error('[StoryService] Failed to update metadata index after update:', err);
+      });
     } catch (error) {
       console.error('Error updating story:', error);
       throw error;
@@ -205,7 +315,25 @@ export class StoryService {
           throw error;
         }
       }
+
+      // Get the story ID for cleanup operations
+      const storyId = (doc as Story).id || id;
+
+      // Delete all associated beat version histories
+      try {
+        await this.beatHistoryService.deleteAllHistoriesForStory(storyId);
+      } catch (historyError) {
+        // Log but don't fail the story deletion if history cleanup fails
+        console.error('[StoryService] Failed to delete beat histories:', historyError);
+      }
+
       await this.db.remove(doc);
+
+      // Remove story from metadata index
+      // Run in background - don't block story deletion
+      this.metadataIndexService.removeStoryMetadata(storyId).catch(err => {
+        console.error('[StoryService] Failed to remove story from metadata index:', err);
+      });
     } catch (error) {
       console.error('Error deleting story:', error);
       throw error;
@@ -214,6 +342,19 @@ export class StoryService {
 
   // Migration helper for old stories
   private migrateStory(story: Partial<Story>): Story {
+    // Performance optimization: Skip migration if already at current schema version
+    if (story.schemaVersion === CURRENT_SCHEMA_VERSION) {
+      // Story is already migrated, just ensure Date objects are proper
+      return {
+        ...story,
+        id: story.id || 'story-' + Date.now(),
+        title: story.title || 'Untitled Story',
+        chapters: story.chapters || [],
+        createdAt: story.createdAt ? new Date(story.createdAt) : new Date(),
+        updatedAt: story.updatedAt ? new Date(story.updatedAt) : new Date()
+      } as Story;
+    }
+
     const migrated: Story = {
       id: story.id || 'story-' + Date.now(),
       title: story.title || 'Untitled Story',
@@ -307,10 +448,15 @@ export class StoryService {
           sceneNumber: scene.sceneNumber || sceneIndex + 1,
           createdAt: new Date(scene.createdAt),
           updatedAt: new Date(scene.updatedAt),
-          summaryGeneratedAt: scene.summaryGeneratedAt ? new Date(scene.summaryGeneratedAt) : undefined
+          summaryGeneratedAt: scene.summaryGeneratedAt ? new Date(scene.summaryGeneratedAt) : undefined,
+          // Migrate beat IDs from legacy data-id to data-beat-id
+          content: this.migrateBeatIds(scene.content)
         }))
       }));
     }
+
+    // Set schema version to mark this story as migrated
+    migrated.schemaVersion = CURRENT_SCHEMA_VERSION;
 
     return migrated;
   }
@@ -505,21 +651,70 @@ export class StoryService {
   }
 
   /**
+   * Migrate beat IDs from legacy data-id to data-beat-id attribute
+   * and ensure all beats have an ID
+   */
+  private migrateBeatIds(html: string): string {
+    if (!html) return html;
+
+    // Use DOMParser to safely parse and manipulate HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    // Find all beat elements
+    const beatElements = doc.querySelectorAll('.beat-ai-node');
+
+    beatElements.forEach(element => {
+      const dataId = element.getAttribute('data-id');
+      const dataBeatId = element.getAttribute('data-beat-id');
+
+      // Case 1: Has data-id but not data-beat-id - migrate from legacy
+      if (dataId && !dataBeatId) {
+        element.setAttribute('data-beat-id', dataId);
+        element.removeAttribute('data-id');
+      }
+      // Case 2: Has both - remove legacy data-id
+      else if (dataId && dataBeatId) {
+        element.removeAttribute('data-id');
+      }
+      // Case 3: Has neither - generate new ID
+      else if (!dataId && !dataBeatId) {
+        const newId = this.generateId();
+        element.setAttribute('data-beat-id', newId);
+      }
+      // Case 4: Has data-beat-id only - already correct, do nothing
+    });
+
+    // Also migrate non-beat elements with data-id (for completeness)
+    const elementsWithDataId = doc.querySelectorAll('[data-id]:not(.beat-ai-node)');
+    elementsWithDataId.forEach(element => {
+      const dataId = element.getAttribute('data-id');
+      if (dataId) {
+        element.setAttribute('data-beat-id', dataId);
+        element.removeAttribute('data-id');
+      }
+    });
+
+    // Return the migrated HTML
+    return doc.body.innerHTML;
+  }
+
+  /**
    * Strip HTML tags from content for content checking
    */
   private stripHtmlTags(html: string): string {
     if (!html) return '';
-    
+
     // Remove Beat AI nodes completely (they are editor-only components)
     const cleanHtml = html.replace(/<div[^>]*class="beat-ai-node"[^>]*>.*?<\/div>/gs, '');
-    
+
     // Use DOMParser for safe HTML parsing instead of innerHTML
     const parser = new DOMParser();
     const doc = parser.parseFromString(cleanHtml, 'text/html');
-    
+
     // Get text content safely
     const textContent = doc.body.textContent || '';
-    
+
     // Remove any remaining Beat AI artifacts
     return textContent
       .replace(/🎭\s*Beat\s*AI/gi, '')
@@ -529,11 +724,106 @@ export class StoryService {
       .replace(/\s+/g, ' '); // Normalize whitespace
   }
 
+  /**
+   * Get story preview with caching for performance
+   */
+  getStoryPreview(story: Story): string {
+    const cacheKey = this.getStoryCacheKey(story);
+
+    // Check cache first
+    if (this.previewCache.has(cacheKey)) {
+      return this.previewCache.get(cacheKey)!;
+    }
+
+    // Compute preview
+    let preview = 'No content yet...';
+
+    // For legacy stories with content
+    if (story.content) {
+      const cleanContent = this.stripHtmlTags(story.content);
+      preview = cleanContent.length > 150 ? cleanContent.substring(0, 150) + '...' : cleanContent;
+    } else if (story.chapters && story.chapters.length > 0 && story.chapters[0].scenes && story.chapters[0].scenes.length > 0) {
+      // For new chapter/scene structure
+      const firstScene = story.chapters[0].scenes[0];
+      const content = firstScene.content || '';
+      const cleanContent = this.stripHtmlTags(content);
+      preview = cleanContent.length > 150 ? cleanContent.substring(0, 150) + '...' : cleanContent;
+    }
+
+    // Cache the result
+    this.previewCache.set(cacheKey, preview);
+    return preview;
+  }
+
+  /**
+   * Get word count with caching for performance
+   */
+  getWordCount(story: Story): number {
+    const cacheKey = this.getStoryCacheKey(story);
+
+    // Check cache first
+    if (this.wordCountCache.has(cacheKey)) {
+      return this.wordCountCache.get(cacheKey)!;
+    }
+
+    // Compute word count
+    let totalWords = 0;
+
+    // For legacy stories with content
+    if (story.content) {
+      const cleanContent = this.stripHtmlTags(story.content);
+      totalWords = cleanContent.trim().split(/\s+/).filter(word => word.length > 0).length;
+    } else if (story.chapters) {
+      // For new chapter/scene structure - count all scenes
+      story.chapters.forEach(chapter => {
+        if (chapter.scenes) {
+          chapter.scenes.forEach(scene => {
+            const content = scene.content || '';
+            const cleanContent = this.stripHtmlTags(content);
+            totalWords += cleanContent.trim().split(/\s+/).filter(word => word.length > 0).length;
+          });
+        }
+      });
+    }
+
+    // Cache the result
+    this.wordCountCache.set(cacheKey, totalWords);
+    return totalWords;
+  }
+
+  /**
+   * Invalidate cache for a specific story (call when story is updated)
+   */
+  invalidateStoryCache(story: Story): void {
+    const cacheKey = this.getStoryCacheKey(story);
+    this.previewCache.delete(cacheKey);
+    this.wordCountCache.delete(cacheKey);
+  }
+
+  /**
+   * Clear all caches (useful when reloading all stories)
+   */
+  clearAllCaches(): void {
+    this.previewCache.clear();
+    this.wordCountCache.clear();
+  }
+
+  /**
+   * Generate cache key for a story based on ID and updatedAt timestamp
+   */
+  private getStoryCacheKey(story: Story): string {
+    const id = story._id || story.id;
+    const timestamp = story.updatedAt instanceof Date
+      ? story.updatedAt.getTime()
+      : new Date(story.updatedAt).getTime();
+    return `${id}-${timestamp}`;
+  }
+
   // Reorder stories method
   async reorderStories(stories: Story[]): Promise<void> {
     try {
       this.db = await this.databaseService.getDatabase();
-      
+
       // Update each story with new order field
       const bulkDocs = stories.map((story, index) => ({
         ...story,
@@ -542,6 +832,19 @@ export class StoryService {
       }));
 
       await this.db.bulkDocs(bulkDocs);
+
+      // Update metadata index for all reordered stories
+      // Run in background - don't block reordering
+      Promise.all(
+        bulkDocs.map(story =>
+          this.metadataIndexService.updateStoryMetadata(story as Story)
+            .catch(err => {
+              console.error(`[StoryService] Failed to update metadata index for story ${story.id}:`, err);
+            })
+        )
+      ).catch(err => {
+        console.error('[StoryService] Failed to update metadata index after reordering:', err);
+      });
     } catch (error) {
       console.error('Error reordering stories:', error);
       throw error;

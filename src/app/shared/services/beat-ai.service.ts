@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy, inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
-import { Observable, ReplaySubject, Subject, Subscription, catchError, from, map, of, scan, switchMap, tap } from 'rxjs';
+import { Observable, ReplaySubject, Subject, Subscription, catchError, finalize, from, map, of, scan, switchMap, tap } from 'rxjs';
 import { BeatAI, BeatAIGenerationEvent } from '../../stories/models/beat-ai.interface';
 import { Story } from '../../stories/models/story.interface';
 import { OpenRouterApiService } from '../../core/services/openrouter-api.service';
@@ -8,11 +8,13 @@ import { GoogleGeminiApiService } from '../../core/services/google-gemini-api.se
 import { OllamaApiService } from '../../core/services/ollama-api.service';
 import { ClaudeApiService } from '../../core/services/claude-api.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { AIProviderValidationService } from '../../core/services/ai-provider-validation.service';
 import { StoryService } from '../../stories/services/story.service';
 import { CodexService } from '../../stories/services/codex.service';
 import { PromptManagerService } from './prompt-manager.service';
 import { CodexRelevanceService, CodexEntry as CodexRelevanceEntry } from '../../core/services/codex-relevance.service';
 import { CodexEntry, CustomField } from '../../stories/models/codex.interface';
+import { BeatHistoryService } from './beat-history.service';
 
 type ProviderType = 'ollama' | 'claude' | 'gemini' | 'openrouter';
 
@@ -48,7 +50,9 @@ export class BeatAIService implements OnDestroy {
   private readonly codexService = inject(CodexService);
   private readonly promptManager = inject(PromptManagerService);
   private readonly codexRelevanceService = inject(CodexRelevanceService);
+  private readonly beatHistoryService = inject(BeatHistoryService);
   private readonly document = inject(DOCUMENT);
+  private readonly aiProviderValidation = inject(AIProviderValidationService);
   
   private generationSubject = new Subject<BeatAIGenerationEvent>();
   public generation$ = this.generationSubject.asObservable();
@@ -393,6 +397,8 @@ export class BeatAIService implements OnDestroy {
       includeStoryOutline: boolean;
       selectedSceneContexts: { sceneId: string; chapterId: string; content: string; }[];
     };
+    action?: 'generate' | 'rewrite';
+    existingText?: string;
   } = {}): Observable<string> {
     const settings = this.settingsService.getSettings();
 
@@ -405,12 +411,7 @@ export class BeatAIService implements OnDestroy {
       actualModelId = modelIdParts.join(':');
     }
 
-    const useGoogleGemini = provider === 'gemini' && settings.googleGemini.enabled && settings.googleGemini.apiKey;
-    const useOpenRouter = provider === 'openrouter' && settings.openRouter.enabled && settings.openRouter.apiKey;
-    const useOllama = provider === 'ollama' && settings.ollama.enabled && settings.ollama.baseUrl;
-    const useClaude = provider === 'claude' && settings.claude.enabled && settings.claude.apiKey;
-
-    if (!useGoogleGemini && !useOpenRouter && !useOllama && !useClaude) {
+    if (!provider || !this.aiProviderValidation.isProviderAvailable(provider, settings)) {
       console.warn('No AI API configured, using fallback content');
       return this.generateFallbackContent(prompt, beatId);
     }
@@ -428,13 +429,8 @@ export class BeatAIService implements OnDestroy {
       switchMap(enhancedPrompt => {
         const calculatedTokens = Math.ceil(wordCount * 2.5);
         const maxTokens = Math.max(calculatedTokens, 3000);
-        const resolvedProvider: ProviderType = useOllama
-          ? 'ollama'
-          : useClaude
-            ? 'claude'
-            : useGoogleGemini
-              ? 'gemini'
-              : 'openrouter';
+        // Use provider directly as it's already validated
+        const resolvedProvider: ProviderType = provider;
         const requestId = this.createProviderRequestId(resolvedProvider);
 
         this.activeGenerations.set(beatId, requestId);
@@ -516,7 +512,18 @@ export class BeatAIService implements OnDestroy {
               this.stopGeneration(beatId);
             }
           };
-        });
+        }).pipe(
+          finalize(() => {
+            // Save to version history after generation completes
+            const finalContent = context.latestContent;
+            if (finalContent && finalContent.trim().length > 0) {
+              // Call saveToHistory asynchronously (don't block)
+              this.saveToHistory(beatId, prompt, finalContent, options).catch(error => {
+                console.error('[BeatAIService] Error saving to history:', error);
+              });
+            }
+          })
+        );
       })
     );
   }
@@ -940,6 +947,8 @@ export class BeatAIService implements OnDestroy {
       includeStoryOutline: boolean;
       selectedSceneContexts: { sceneId: string; chapterId: string; content: string; }[];
     };
+    action?: 'generate' | 'rewrite';
+    existingText?: string;
   }): Observable<string> {
     if (!options.storyId) {
       return of(userPrompt);
@@ -1030,10 +1039,12 @@ export class BeatAIService implements OnDestroy {
             }
         
             // Find protagonist for point of view
+            // Default to "third person limited" as it's the most common narrative mode
+            // TODO: Add narrativePerspective field to StorySettings for user configuration
             const protagonist = this.findProtagonist(filteredCodexEntries);
-            const pointOfView = protagonist 
-              ? `<pointOfView type="first person" character="${this.escapeXml(protagonist)}"/>`
-              : '';
+            const pointOfView = protagonist
+              ? `<pointOfView type="third person limited" character="${this.escapeXml(protagonist)}"/>`
+              : '<pointOfView type="third person"/>';
         
         
         const codexText = filteredCodexEntries.length > 0 
@@ -1116,6 +1127,18 @@ export class BeatAIService implements OnDestroy {
           }
         }
 
+        // Build the prompt - for rewrites, include the existing text
+        let finalPrompt = userPrompt;
+        if (options.action === 'rewrite' && options.existingText) {
+          finalPrompt = `EXISTING TEXT TO REWRITE:
+${options.existingText}
+
+REWRITE INSTRUCTIONS:
+${userPrompt}
+
+Please rewrite the above text according to the instructions. Only output the rewritten text, nothing else.`;
+        }
+
         // Build template placeholders
         const placeholdersRaw = {
           systemMessage: story.settings!.systemMessage,
@@ -1124,10 +1147,10 @@ export class BeatAIService implements OnDestroy {
           storyTitle: story.title || 'Story',
           sceneFullText: sceneContext, // Use the sceneContext we built above
           wordCount: (options.wordCount || 200).toString(),
-          prompt: userPrompt,
+          prompt: finalPrompt,
           pointOfView: pointOfView,
-          writingStyle: story.settings!.beatInstruction === 'continue' 
-            ? 'Continue the story' 
+          writingStyle: story.settings!.beatInstruction === 'continue'
+            ? 'Continue the story'
             : 'Stay in the moment'
         } as const;
 
@@ -1232,6 +1255,72 @@ export class BeatAIService implements OnDestroy {
 
   private generateId(): string {
     return 'beat-' + Math.random().toString(36).substring(2, 11);
+  }
+
+  /**
+   * Save generated content to version history
+   * Called automatically after successful generation
+   */
+  private async saveToHistory(
+    beatId: string,
+    prompt: string,
+    content: string,
+    options: {
+      model?: string;
+      beatType?: 'story' | 'scene';
+      wordCount?: number;
+      storyId?: string;
+      customContext?: {
+        selectedScenes: string[];
+        includeStoryOutline: boolean;
+        selectedSceneContexts: { sceneId: string; chapterId: string; content: string; }[];
+      };
+      action?: 'generate' | 'rewrite';
+      existingText?: string;
+    }
+  ): Promise<void> {
+    // Don't save if content is empty or fallback
+    if (!content || content.trim().length === 0) {
+      return;
+    }
+
+    // Don't save if storyId is not provided
+    if (!options.storyId) {
+      console.warn(`[BeatAIService] Cannot save version history without storyId for beat ${beatId}`);
+      return;
+    }
+
+    try {
+      // Extract selected scenes from custom context
+      const selectedScenes = options.customContext?.selectedSceneContexts?.map(ctx => ({
+        sceneId: ctx.sceneId,
+        chapterId: ctx.chapterId
+      }));
+
+      const versionId = await this.beatHistoryService.saveVersion(
+        beatId,
+        options.storyId,
+        {
+          content,
+          prompt,
+          model: options.model || 'unknown',
+          beatType: options.beatType || 'story',
+          wordCount: options.wordCount || 400,
+          generatedAt: new Date(),
+          characterCount: content.length,
+          isCurrent: true,
+          selectedScenes,
+          includeStoryOutline: options.customContext?.includeStoryOutline,
+          action: options.action || 'generate',
+          existingText: options.existingText
+        }
+      );
+
+      console.log(`[BeatAIService] Saved version ${versionId} to history for beat ${beatId}`);
+    } catch (error) {
+      console.error(`[BeatAIService] Failed to save version history for beat ${beatId}:`, error);
+      // Don't throw - history saving failure shouldn't break generation
+    }
   }
 
   // Public method to preview the structured prompt

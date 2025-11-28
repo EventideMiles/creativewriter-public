@@ -4,7 +4,7 @@
       background: rgba(42, 42, 42, 0.2);
       backdrop-filter: blur(8px);
       margin: 1rem 0;
-      overflow: hidden;
+      overflow: visible; /* Changed from hidden to visible to allow dropdowns */
       transition: all 0.3s ease;
       max-width: 100%;
       -webkit-user-select: none;
@@ -16,21 +16,26 @@
     /* Allow interactive controls to receive touch/click focus on mobile */
     .beat-ai-container .generation-options,
     .beat-ai-container .generation-options * {
-      -webkit-user-select: text;
-      -moz-user-select: text;
-      -ms-user-select: text;
-      user-select: text;
+      -webkit-user-select: auto;
+      -moz-user-select: auto;
+      -ms-user-select: auto;
+      user-select: auto;
       -webkit-touch-callout: default;
+      /* Enable pointer events for mobile touch */
+      pointer-events: auto;
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
     }
 
     :global(.model-select),
     :global(.model-select .ng-select-container),
     :global(.model-select input) {
-      -webkit-user-select: text !important;
-      -moz-user-select: text !important;
-      -ms-user-select: text !important;
-      user-select: text !important;
+      -webkit-user-select: auto !important;
+      -moz-user-select: auto !important;
+      -ms-user-select: auto !important;
+      user-select: auto !important;
       -webkit-touch-callout: default !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
     }
     
     .beat-ai-container.expanded {
@@ -56,6 +61,8 @@
     .beat-prompt-section {
       padding: 0.5rem;
       transition: all 0.3s ease;
+      /* Ensure dropdowns can overflow */
+      overflow: visible;
     }
     
     .beat-prompt-section.collapsed {
@@ -103,7 +110,23 @@
       color: #f8f9fa;
       flex: 1;
     }
-    
+
+    .rewrite-indicator {
+      font-size: 0.75rem;
+      height: 24px;
+      margin: 0;
+
+      ion-icon {
+        font-size: 14px;
+        margin-right: 2px;
+      }
+
+      ion-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+    }
+
     .beat-actions {
       display: flex;
       gap: 0.5rem;
@@ -262,7 +285,46 @@
       color: #51cf66;
       box-shadow: 0 2px 8px rgba(64, 192, 87, 0.3);
     }
-    
+
+    /* Button Group Styles */
+    .button-group {
+      display: flex;
+      gap: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(255, 255, 255, 0.03) 100%
+      );
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .button-group .action-btn {
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    .button-group .action-btn.group-left {
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0;
+    }
+
+    .button-group .action-btn.group-right {
+      border-radius: 0;
+    }
+
+    .button-group:hover {
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+    }
+
     @media (max-width: 768px) {
       .beat-actions {
         gap: 0.35rem;
@@ -280,6 +342,10 @@
 
       .action-btn ion-icon {
         font-size: 0.95rem;
+      }
+
+      .button-group {
+        border-radius: 10px;
       }
     }
 
@@ -308,9 +374,24 @@
     .context-chips ion-chip ion-icon:hover {
       opacity: 1;
     }
+
+    .context-chips ion-chip.truncated-scene {
+      background: linear-gradient(
+        135deg,
+        rgba(220, 53, 69, 0.15) 0%,
+        rgba(255, 107, 107, 0.12) 100%
+      );
+      border: 1px solid rgba(220, 53, 69, 0.3);
+    }
+
+    .context-chips ion-chip.truncated-scene ion-label {
+      color: rgba(255, 150, 150, 0.95);
+    }
     
     .prompt-input-container {
       margin-top: 0.1rem;
+      /* Ensure dropdowns don't get clipped */
+      overflow: visible;
     }
     
     .prompt-input.prosemirror-container {
@@ -471,6 +552,10 @@
     .generation-options {
       margin-top: 0.5rem;
       margin-bottom: 0.5rem;
+      /* Ensure dropdowns can overflow properly */
+      overflow: visible;
+      position: relative;
+      z-index: 10;
     }
     
     .options-row {
@@ -490,6 +575,9 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      /* Allow dropdowns to overflow parent */
+      overflow: visible;
+      position: relative;
     }
     
     .model-selection-group {
@@ -531,7 +619,9 @@
       padding: 0;
       flex: 0 1 auto;
       border-radius: 8px;
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
       border: 1px solid rgba(255, 255, 255, 0.12);
       background: rgba(30, 30, 38, 0.4);
       box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -540,6 +630,11 @@
 
     .favorite-buttons::-webkit-scrollbar {
       display: none;
+    }
+
+    .favorite-buttons {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
 
     .favorite-btn {
@@ -557,7 +652,8 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-      min-width: 0;
+      min-width: max-content;
+      flex: 0 0 auto;
       white-space: nowrap;
       position: relative;
       overflow: hidden;
@@ -1090,14 +1186,25 @@
       border: 1px solid #404040 !important;
       border-radius: 4px !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
-      z-index: 9999 !important;
+      /* Increased z-index to appear above ProseMirror editor and other elements */
+      z-index: 99999 !important;
+      /* Mobile touch improvements */
+      -webkit-overflow-scrolling: touch;
+      /* Ensure panel is clickable on mobile */
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
     }
     
     :global(.model-select .ng-dropdown-panel .ng-dropdown-panel-items .ng-option) {
       color: #e0e0e0 !important;
       background: #2d2d2d !important;
-      padding: 0.5rem !important;
+      padding: 0.75rem !important; /* Increased for better touch targets on mobile */
       font-size: 0.9rem !important;
+      min-height: 44px !important; /* iOS minimum touch target size */
+      cursor: pointer !important;
+      /* Mobile touch improvements */
+      -webkit-tap-highlight-color: rgba(13, 110, 253, 0.2);
+      touch-action: manipulation;
     }
     
     :global(.model-select .ng-dropdown-panel .ng-dropdown-panel-items .ng-option.ng-option-highlighted) {
@@ -1110,6 +1217,22 @@
 
     /* Mobile optimizations for Beat AI */
     @media (max-width: 768px) {
+      :global(.model-select .ng-select-container) {
+        touch-action: manipulation !important;
+        -webkit-tap-highlight-color: rgba(13, 110, 253, 0.2) !important;
+      }
+
+      :global(.model-select .ng-dropdown-panel) {
+        z-index: 999999 !important;
+        -webkit-overflow-scrolling: touch !important;
+        pointer-events: auto !important;
+      }
+
+      :global(.model-select .ng-dropdown-panel .ng-dropdown-panel-items) {
+        -webkit-overflow-scrolling: touch;
+        max-height: 60vh !important;
+      }
+
       .favorite-models {
         padding: 0.3rem 0.4rem;
         gap: 0.3rem;
@@ -1145,8 +1268,7 @@
       .favorite-btn .provider-icon-inline {
         font-size: 0.85rem;
       }
-    }
-      
+
       .model-selection-group {
         gap: 0.5rem;
       }
@@ -1154,50 +1276,50 @@
         margin: 0.2rem 0;
         border-radius: 6px;
       }
-      
+
       .beat-prompt-section {
         padding: 0.4rem;
       }
-      
+
       .beat-header {
         margin-bottom: 0.4rem;
       }
-      
+
       .beat-title {
         font-size: 0.9rem;
       }
-      
+
       .prompt-input.prosemirror-container :global(.ProseMirror) {
         font-size: 0.9rem;
         padding: 0.3rem !important;
         min-height: auto;
       }
-      
+
       .generation-options {
         margin-top: 0.4rem;
         margin-bottom: 0.4rem;
       }
-                  
+
       .prompt-actions {
         margin-top: 0.4rem;
         gap: 0.25rem;
       }
-      
+
       .generate-btn, .cancel-btn {
         padding: 0.6rem 1.25rem;
         font-size: 0.85rem;
         min-width: 100px;
         border-radius: 20px;
       }
-      
-      
+
+
       .generation-status {
         padding: 0.4rem 0.75rem;
         flex-direction: column;
         gap: 0.4rem;
         align-items: stretch;
       }
-      
+
       .stop-btn {
         padding: 0.5rem 1rem;
         font-size: 0.8rem;
@@ -1205,20 +1327,21 @@
         min-width: 100px;
         border-radius: 18px;
       }
+    }
 
     @media (max-width: 480px) {
       .beat-ai-container {
         margin: 0.25rem 0;
       }
-      
+
       .beat-prompt-section {
         padding: 0.3rem;
       }
-      
+
       .beat-header {
         margin-bottom: 0.3rem;
       }
-      
+
       .beat-actions {
         gap: 0.3rem;
         /* More padding on very small screens */
@@ -1240,15 +1363,19 @@
       .action-btn ion-icon {
         font-size: 0.95rem;
       }
-      
+
+      .button-group {
+        border-radius: 12px;
+      }
+
       .prompt-actions {
         justify-content: center;
       }
-      
+
       .generate-btn, .cancel-btn {
         flex: 1;
         min-width: auto;
         max-width: 120px;
       }
-      
+
     }

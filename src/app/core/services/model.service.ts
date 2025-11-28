@@ -2,9 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject, of, forkJoin } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
-import { 
-  OpenRouterModelsResponse, 
-  ReplicateModelsResponse, 
+import {
+  OpenRouterModelsResponse,
+  ReplicateCollectionResponse,
   ModelOption,
   OpenRouterModel,
   ReplicateModel
@@ -23,7 +23,7 @@ export class ModelService {
   private claudeApiService = inject(ClaudeApiService);
 
   private readonly OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
-  private readonly REPLICATE_API_URL = 'https://api.replicate.com/v1';
+  private readonly REPLICATE_API_URL = '/api/replicate';
   private readonly USD_TO_EUR_RATE = 0.92; // Approximate rate, you might want to fetch this dynamically
 
   private openRouterModelsSubject = new BehaviorSubject<ModelOption[]>([]);
@@ -71,7 +71,7 @@ export class ModelService {
 
   loadReplicateModels(): Observable<ModelOption[]> {
     const settings = this.settingsService.getSettings();
-    
+
     if (!settings.replicate.enabled || !settings.replicate.apiKey) {
       return of([]);
     }
@@ -79,15 +79,14 @@ export class ModelService {
     this.loadingSubject.next(true);
 
     const headers = new HttpHeaders({
-      'Authorization': `Token ${settings.replicate.apiKey}`,
+      'X-API-Token': settings.replicate.apiKey,
       'Content-Type': 'application/json'
     });
 
-    // Load popular language models from Replicate
-    // We'll focus on text generation models
-    return this.http.get<ReplicateModelsResponse>(`${this.REPLICATE_API_URL}/models?cursor=&search=llama`, { headers })
+    // Load language models from Replicate's language-models collection
+    return this.http.get<ReplicateCollectionResponse>(`${this.REPLICATE_API_URL}/collections/language-models`, { headers })
       .pipe(
-        map(response => this.transformReplicateModels(response.results)),
+        map(response => this.transformReplicateModels(response.models)),
         tap(models => {
           this.replicateModelsSubject.next(models);
           this.loadingSubject.next(false);

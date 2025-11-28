@@ -42,8 +42,14 @@ export interface Story {
   codexId?: string;
   coverImage?: string; // Base64 encoded image data or URL
   order?: number; // For custom sorting
+  schemaVersion?: number; // Schema version for migration tracking
   createdAt: Date;
   updatedAt: Date;
+  lastModifiedBy?: {
+    deviceId: string;
+    deviceName: string;
+    timestamp: Date;
+  };
   // Legacy support for old stories
   content?: string;
 }
@@ -68,15 +74,41 @@ export const DEFAULT_STORY_SETTINGS: StorySettings = {
 {sceneFullText}
 </current_scene>
 
-<instructions>
-{pointOfView}
-Write approximately {wordCount} words that continue this story.
-{writingStyle}
+<beat_generation_task>
+  <objective>
+    Generate the next story beat that advances the narrative from the current scene's ending point.
+  </objective>
 
-Task: {prompt}
-</instructions>
+  <narrative_parameters>
+    {pointOfView}
+    <word_count>{wordCount} words (±50 words acceptable)</word_count>
+    <tense>Match the established tense (typically past tense)</tense>
+  </narrative_parameters>
 
-Continue the story now with {wordCount} words:</message>
+  <beat_requirements>
+    {prompt}
+  </beat_requirements>
+
+  <style_guidance>
+    - Match the exact tone and narrative voice of the current scene
+    - Maintain the established balance of dialogue, action, and introspection
+    - {writingStyle}
+    - End on a moment of significance, decision point, or natural transition
+  </style_guidance>
+
+  <constraints>
+    - Do NOT resolve major plot threads or conflicts
+    - Do NOT have characters act inconsistently with their established personalities
+    - Do NOT introduce unrelated subplots or major new story elements
+    - Do NOT write beyond what is specifically requested in the beat requirements
+  </constraints>
+
+  <output_format>
+    Pure narrative prose. No meta-commentary, scene markers, chapter headings, or author notes.
+  </output_format>
+</beat_generation_task>
+
+Generate the beat now:</message>
 </messages>`,
   useFullStoryContext: false,
   beatInstruction: 'continue',

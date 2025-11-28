@@ -9,6 +9,7 @@ import { ImageGenerationComponent } from './components/image-generation/image-ge
 import { SceneChatComponent } from './components/scene-chat/scene-chat.component';
 import { StoryResearchComponent } from './components/story-research/story-research.component';
 import { StoryOutlineOverviewComponent } from './components/story-outline-overview/story-outline-overview.component';
+import { SyncHistoryComponent } from './components/sync-history/sync-history.component';
 
 const routes: Routes = [
   {
@@ -43,6 +44,10 @@ const routes: Routes = [
   {
     path: 'outline/:id',
     component: StoryOutlineOverviewComponent
+  },
+  {
+    path: 'sync-history',
+    component: SyncHistoryComponent
   },
 ];
 

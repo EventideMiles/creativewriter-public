@@ -6,47 +6,67 @@
             <ion-icon name="color-wand-outline"></ion-icon>
           </div>
           <div class="beat-title">Beat AI</div>
+          <ion-chip *ngIf="beatData.lastAction === 'rewrite'" color="warning" class="rewrite-indicator">
+            <ion-icon name="create-outline"></ion-icon>
+            <ion-label>Rewrite</ion-label>
+          </ion-chip>
           <div class="beat-actions">
-            <button 
+            <button
               class="action-btn collapse-btn"
               (click)="toggleCollapsed($event)"
               [attr.title]="beatData.isCollapsed ? 'Expand prompt' : 'Collapse prompt'">
               <ion-icon [name]="beatData.isCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
             </button>
-            <button 
-              *ngIf="!beatData.isCollapsed" 
-              class="action-btn context-btn"
-              (click)="showSceneSelector = true; $event.stopPropagation()"
-              title="Select context">
-              <ion-icon name="add-outline"></ion-icon>
-            </button>
-            <button 
-              *ngIf="!beatData.isCollapsed" 
-              class="action-btn outline-btn"
-              [class.active]="includeStoryOutline"
-              (click)="toggleStoryOutline(); $event.stopPropagation()"
-              title="Include/exclude story overview">
-              <ion-icon name="reader-outline"></ion-icon>
-            </button>
-            <button 
-              *ngIf="beatData.generatedContent && !beatData.isGenerating" 
-              class="action-btn regenerate-btn"
-              (click)="regenerateContent(); $event.stopPropagation()"
-              title="Regenerate">
-              <ion-icon name="refresh-outline"></ion-icon>
-            </button>
+            <div class="button-group" *ngIf="!beatData.isCollapsed">
+              <button
+                class="action-btn context-btn group-left"
+                (click)="showSceneSelector = true; $event.stopPropagation()"
+                title="Select context">
+                <ion-icon name="add-outline"></ion-icon>
+              </button>
+              <button
+                class="action-btn outline-btn group-right"
+                [class.active]="includeStoryOutline"
+                (click)="toggleStoryOutline(); $event.stopPropagation()"
+                title="Include/exclude story overview">
+                <ion-icon name="reader-outline"></ion-icon>
+              </button>
+            </div>
+            <div class="button-group" *ngIf="beatData.generatedContent && !beatData.isGenerating">
+              <button
+                class="action-btn regenerate-btn group-left"
+                (click)="regenerateContent(); $event.stopPropagation()"
+                title="Regenerate">
+                <ion-icon name="refresh-outline"></ion-icon>
+              </button>
+              <button
+                class="action-btn rewrite-btn group-right"
+                (click)="rewriteContent(); $event.stopPropagation()"
+                title="Rewrite with custom prompt">
+                <ion-icon name="create-outline"></ion-icon>
+              </button>
+            </div>
             <button
-              class="action-btn delete-btn"
-              (click)="deleteContentAfterBeat(); $event.stopPropagation()"
-              title="Delete text until next beat or scene end">
-              <ion-icon name="trash-outline"></ion-icon>
+              *ngIf="beatData.hasHistory"
+              class="action-btn history-btn"
+              (click)="openVersionHistory(); $event.stopPropagation()"
+              title="Version History">
+              <ion-icon name="time-outline"></ion-icon>
             </button>
-            <button
-              class="action-btn remove-btn"
-              (click)="removeBeat($event)"
-              title="Remove this beat input">
-              <ion-icon name="close-circle-outline"></ion-icon>
-            </button>
+            <div class="button-group">
+              <button
+                class="action-btn delete-btn group-left"
+                (click)="deleteContentAfterBeat(); $event.stopPropagation()"
+                title="Delete text until next beat or scene end">
+                <ion-icon name="trash-outline"></ion-icon>
+              </button>
+              <button
+                class="action-btn remove-btn group-right"
+                (click)="removeBeat($event)"
+                title="Remove this beat input">
+                <ion-icon name="close-circle-outline"></ion-icon>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -54,15 +74,19 @@
         <div class="context-chips" *ngIf="!beatData.isCollapsed && (selectedScenes.length > 0 || includeStoryOutline)">
           <ion-chip *ngIf="includeStoryOutline" color="success">
             <ion-label>Story Overview</ion-label>
-            <ion-icon 
-              name="close-outline" 
+            <ion-icon
+              name="close-outline"
               (click)="removeStoryOutline(); $event.stopPropagation()">
             </ion-icon>
           </ion-chip>
-          <ion-chip *ngFor="let scene of selectedScenes" [color]="scene.sceneId === sceneId ? 'primary' : 'medium'">
+          <ion-chip
+            *ngFor="let scene of selectedScenes"
+            [color]="scene.sceneId === sceneId ? 'primary' : 'medium'"
+            [class.truncated-scene]="scene.isTruncated"
+            [title]="scene.isTruncated ? 'This scene context is truncated at the current beat position - only text before this beat is included' : ''">
             <ion-label>{{ scene.chapterTitle }} - {{ scene.sceneTitle }}</ion-label>
-            <ion-icon 
-              name="close-outline" 
+            <ion-icon
+              name="close-outline"
               (click)="removeSceneContext(scene); $event.stopPropagation()">
             </ion-icon>
           </ion-chip>
@@ -87,11 +111,13 @@
                           role="listitem"
                           [class.active]="selectedModel === model.id"
                           (click)="selectFavoriteModel(model)"
-                          [title]="model.label">
+                          [title]="'Select ' + model.label"
+                          [attr.aria-label]="'Select ' + model.label"
+                          [attr.aria-pressed]="selectedModel === model.id">
                     <span class="favorite-btn-content">
                       <app-openrouter-icon *ngIf="model.provider === 'openrouter'" size="14" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
                       <ion-icon *ngIf="model.provider !== 'openrouter'" [name]="getProviderIcon(model.provider)" class="provider-icon-inline" [class.gemini]="model.provider === 'gemini'"></ion-icon>
-                      <span class="model-short-name">{{ getShortModelName(model.label) }}</span>
+                      <span class="model-short-name">{{ model.label }}</span>
                     </span>
                   </button>
                 </div>
@@ -104,8 +130,7 @@
                            [clearable]="false"
                            [searchable]="false"
                            placeholder="Choose beat type..."
-                           class="model-select"
-                           appendTo="body"
+                           class="model-select beat-type-select"
                            (change)="onBeatTypeChange()">
                   <ng-template ng-option-tmp let-item="item">
                     <div class="beat-type-option">
@@ -123,8 +148,7 @@
                            [clearable]="false"
                            [searchable]="false"
                            placeholder="Choose word count..."
-                           class="model-select"
-                           appendTo="body"
+                           class="model-select word-count-select"
                            (change)="onWordCountChange()">
                 </ng-select>
                 <input 
@@ -145,8 +169,7 @@
                            [clearable]="false"
                            [searchable]="true"
                            placeholder="Select model..."
-                           class="model-select"
-                           appendTo="body"
+                           class="model-select ai-model-select"
                            (change)="onModelChange()">
                   <ng-template ng-label-tmp let-item="item">
                     <div class="model-option-inline">

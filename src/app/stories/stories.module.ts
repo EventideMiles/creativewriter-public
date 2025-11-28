@@ -10,6 +10,7 @@ import { ImageGenerationComponent } from './components/image-generation/image-ge
 import { SceneChatComponent } from './components/scene-chat/scene-chat.component';
 import { StoryOutlineOverviewComponent } from './components/story-outline-overview/story-outline-overview.component';
 import { StoryResearchComponent } from './components/story-research/story-research.component';
+import { SyncHistoryComponent } from './components/sync-history/sync-history.component';
 
 @NgModule({
   imports: [
@@ -24,6 +25,7 @@ import { StoryResearchComponent } from './components/story-research/story-resear
     SceneChatComponent,
     StoryOutlineOverviewComponent,
     StoryResearchComponent,
+    SyncHistoryComponent,
   ]
 })
 export class StoriesModule { }
