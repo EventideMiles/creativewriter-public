@@ -64,6 +64,13 @@ jobs:
           rm -rf docs/ || true  # Exclude private docs from public sync
           rm -f docker-compose.public.yml || true  # Remove the public compose file itself
           rm -rf backend/ || true  # Remove Cloudflare Worker backend (premium features)
+
+          # Replace premium components with public stubs
+          CHAR_CHAT_DIR="src/app/stories/components/character-chat"
+          if [ -f "${CHAR_CHAT_DIR}/character-chat.component.public.ts" ]; then
+            mv "${CHAR_CHAT_DIR}/character-chat.component.public.ts" "${CHAR_CHAT_DIR}/character-chat.component.ts"
+            echo "✅ Replaced Character Chat with public stub"
+          fi
           
           # Move the public workflow back to .github
           if [ -d ".github-public" ]; then
