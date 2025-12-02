@@ -63,6 +63,7 @@ jobs:
           rm -rf .claudescreenshots/ || true  # Remove Claude screenshots
           rm -rf docs/ || true  # Exclude private docs from public sync
           rm -f docker-compose.public.yml || true  # Remove the public compose file itself
+          rm -rf backend/ || true  # Remove Cloudflare Worker backend (premium features)
           
           # Move the public workflow back to .github
           if [ -d ".github-public" ]; then
