@@ -189,9 +189,18 @@ async function handleCheckout(
   env: Env,
   headers: HeadersInit
 ): Promise<Response> {
-  const body = await request.json() as { email?: string; plan?: PlanType };
+  const body = await request.json() as {
+    email?: string;
+    plan?: PlanType;
+    successUrl?: string;
+    cancelUrl?: string;
+  };
   const email = body.email?.trim().toLowerCase();
   const plan: PlanType = body.plan === 'yearly' ? 'yearly' : 'monthly';
+
+  // Use provided URLs or fall back to env defaults
+  const successUrl = body.successUrl || env.SUCCESS_URL;
+  const cancelUrl = body.cancelUrl || env.CANCEL_URL;
 
   if (!email || !email.includes('@')) {
     return jsonResponse<ErrorResponse>(
@@ -230,8 +239,8 @@ async function handleCheckout(
         quantity: 1,
       },
     ],
-    success_url: env.SUCCESS_URL,
-    cancel_url: env.CANCEL_URL,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
     subscription_data: {
       metadata: { email, plan },
     },

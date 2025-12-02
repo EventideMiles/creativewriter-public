@@ -17,7 +17,20 @@ export interface Settings {
   favoriteModels: string[]; // Legacy list of favorite model IDs for quick access (mirrors favoriteModelLists.beatInput)
   favoriteModelLists: FavoriteModelLists; // Structured favorite model lists by feature
   appearance: AppearanceSettings;
+  premium: PremiumSettings; // Premium subscription settings
   updatedAt: Date;
+}
+
+export interface PremiumSettings {
+  email: string;                    // Email used for subscription verification
+  apiUrl: string;                   // Subscription API URL (Cloudflare Worker)
+  // Cached status (updated when verified)
+  cachedStatus: {
+    active: boolean;
+    plan?: 'monthly' | 'yearly';
+    expiresAt?: number;             // Unix timestamp in milliseconds
+    lastVerified?: number;          // When we last checked
+  };
 }
 
 export interface AppearanceSettings {
@@ -181,6 +194,13 @@ export const DEFAULT_SETTINGS: Settings = {
   appearance: {
     textColor: '#e0e0e0', // Default light gray color for dark theme
     backgroundImage: 'none' // No background image by default
+  },
+  premium: {
+    email: '',
+    apiUrl: 'https://creativewriter-api.nostramo.workers.dev/api',
+    cachedStatus: {
+      active: false
+    }
   },
   selectedModel: '',
   favoriteModels: [],
