@@ -41,8 +41,10 @@ Update `wrangler.toml` with the returned namespace IDs.
 1. Create a product in Stripe Dashboard:
    - Go to **Products** → **Add Product**
    - Name: "CreativeWriter Premium"
-   - Price: $0.99/month (recurring)
-   - Note the **Price ID** (starts with `price_`)
+   - Add TWO prices:
+     - **Monthly:** $0.99/month (recurring)
+     - **Yearly:** $9.99/year (recurring) - saves ~17%
+   - Note both **Price IDs** (start with `price_`)
 
 2. Set up webhook:
    - Go to **Developers** → **Webhooks** → **Add endpoint**
@@ -61,8 +63,12 @@ wrangler secret put STRIPE_API_KEY
 wrangler secret put STRIPE_WEBHOOK_SECRET
 # Enter: whsec_xxxxx
 
-# Set your price ID
-wrangler secret put STRIPE_PRICE_ID
+# Set your monthly price ID ($0.99/month)
+wrangler secret put STRIPE_PRICE_ID_MONTHLY
+# Enter: price_xxxxx
+
+# Set your yearly price ID ($9.99/year)
+wrangler secret put STRIPE_PRICE_ID_YEARLY
 # Enter: price_xxxxx
 ```
 
@@ -73,7 +79,8 @@ Create a `.dev.vars` file (gitignored):
 ```env
 STRIPE_API_KEY=sk_test_xxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-STRIPE_PRICE_ID=price_xxxxx
+STRIPE_PRICE_ID_MONTHLY=price_xxxxx
+STRIPE_PRICE_ID_YEARLY=price_xxxxx
 ```
 
 Run the dev server:
@@ -96,6 +103,7 @@ npm run deploy
 | `POST` | `/api/webhook` | Handle Stripe webhooks |
 | `GET` | `/api/verify?email=...` | Check subscription status |
 | `GET` | `/api/portal?email=...` | Get customer portal URL |
+| `GET` | `/api/prices` | Get available subscription prices |
 | `GET` | `/api/health` | Health check |
 
 ### Request/Response Examples
@@ -103,14 +111,34 @@ npm run deploy
 #### Create Checkout
 
 ```bash
+# Monthly subscription ($0.99/month)
 curl -X POST https://your-worker.workers.dev/api/checkout \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com"}'
+  -d '{"email": "user@example.com", "plan": "monthly"}'
+
+# Yearly subscription ($9.99/year - saves 17%)
+curl -X POST https://your-worker.workers.dev/api/checkout \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "plan": "yearly"}'
 ```
 
 Response:
 ```json
 {"url": "https://checkout.stripe.com/..."}
+```
+
+#### Get Prices
+
+```bash
+curl https://your-worker.workers.dev/api/prices
+```
+
+Response:
+```json
+{
+  "monthly": {"priceId": "price_xxx", "amount": 99, "currency": "usd"},
+  "yearly": {"priceId": "price_xxx", "amount": 999, "currency": "usd"}
+}
 ```
 
 #### Verify Subscription
@@ -125,7 +153,8 @@ Response:
   "active": true,
   "status": "active",
   "expiresAt": 1735689600000,
-  "cancelAtPeriodEnd": false
+  "cancelAtPeriodEnd": false,
+  "plan": "yearly"
 }
 ```
 
@@ -149,7 +178,8 @@ stripe listen --forward-to http://localhost:8787/api/webhook
 |----------|-------------|----------|
 | `STRIPE_API_KEY` | Stripe secret key | Yes (secret) |
 | `STRIPE_WEBHOOK_SECRET` | Webhook signing secret | Yes (secret) |
-| `STRIPE_PRICE_ID` | Price ID for subscription | Yes (secret) |
+| `STRIPE_PRICE_ID_MONTHLY` | Price ID for monthly subscription ($0.99) | Yes (secret) |
+| `STRIPE_PRICE_ID_YEARLY` | Price ID for yearly subscription ($9.99) | Yes (secret) |
 | `ALLOWED_ORIGINS` | CORS allowed origins | Yes |
 | `SUCCESS_URL` | Redirect after successful checkout | Yes |
 | `CANCEL_URL` | Redirect after cancelled checkout | Yes |

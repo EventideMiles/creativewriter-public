@@ -7,5 +7,9 @@ STRIPE_API_KEY=sk_test_xxxxx
 # Stripe Webhook Secret (from Stripe CLI or Dashboard)
 STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
-# Stripe Price ID (from your product configuration)
-STRIPE_PRICE_ID=price_xxxxx
+# Stripe Price IDs (from your product configuration)
+# Monthly: $0.99/month
+STRIPE_PRICE_ID_MONTHLY=price_xxxxx
+
+# Yearly: $9.99/year (save ~17%)
+STRIPE_PRICE_ID_YEARLY=price_xxxxx

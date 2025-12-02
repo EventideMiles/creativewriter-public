@@ -1,11 +1,15 @@
 import Stripe from 'stripe';
 
+// Subscription plan types
+type PlanType = 'monthly' | 'yearly';
+
 // Environment bindings
 interface Env {
   // Secrets (set via wrangler secret put)
   STRIPE_API_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
-  STRIPE_PRICE_ID: string;
+  STRIPE_PRICE_ID_MONTHLY: string;
+  STRIPE_PRICE_ID_YEARLY: string;
 
   // KV Namespace
   SUBSCRIPTIONS: KVNamespace;
@@ -23,6 +27,7 @@ interface SubscriptionData {
   cancelAtPeriodEnd: boolean;
   priceId?: string;
   subscriptionId?: string;
+  plan?: PlanType;
 }
 
 // API response types
@@ -31,6 +36,12 @@ interface VerifyResponse {
   status: string;
   expiresAt?: number;
   cancelAtPeriodEnd?: boolean;
+  plan?: PlanType;
+}
+
+interface PricesResponse {
+  monthly: { priceId: string; amount: number; currency: string };
+  yearly: { priceId: string; amount: number; currency: string };
 }
 
 interface CheckoutResponse {
@@ -77,6 +88,19 @@ function jsonResponse<T>(data: T, status: number, headers: HeadersInit): Respons
   });
 }
 
+// Determine plan type from price ID
+function getPlanFromPriceId(priceId: string | undefined, env: Env): PlanType | undefined {
+  if (!priceId) return undefined;
+  if (priceId === env.STRIPE_PRICE_ID_MONTHLY) return 'monthly';
+  if (priceId === env.STRIPE_PRICE_ID_YEARLY) return 'yearly';
+  return undefined;
+}
+
+// Get price ID from plan type
+function getPriceIdFromPlan(plan: PlanType, env: Env): string {
+  return plan === 'yearly' ? env.STRIPE_PRICE_ID_YEARLY : env.STRIPE_PRICE_ID_MONTHLY;
+}
+
 /**
  * Sync Stripe subscription data to KV
  * This single function prevents "split-brain" issues by always fetching fresh data
@@ -84,7 +108,8 @@ function jsonResponse<T>(data: T, status: number, headers: HeadersInit): Respons
 async function syncStripeDataToKV(
   stripe: Stripe,
   kv: KVNamespace,
-  customerId: string
+  customerId: string,
+  env: Env
 ): Promise<SubscriptionData> {
   const subscriptions = await stripe.subscriptions.list({
     customer: customerId,
@@ -102,12 +127,14 @@ async function syncStripeDataToKV(
     };
   } else {
     const sub = subscriptions.data[0];
+    const priceId = sub.items.data[0]?.price.id;
     subData = {
       status: sub.status,
       currentPeriodEnd: sub.current_period_end,
       cancelAtPeriodEnd: sub.cancel_at_period_end,
-      priceId: sub.items.data[0]?.price.id,
+      priceId,
       subscriptionId: sub.id,
+      plan: getPlanFromPriceId(priceId, env),
     };
   }
 
@@ -162,8 +189,9 @@ async function handleCheckout(
   env: Env,
   headers: HeadersInit
 ): Promise<Response> {
-  const body = await request.json() as { email?: string };
+  const body = await request.json() as { email?: string; plan?: PlanType };
   const email = body.email?.trim().toLowerCase();
+  const plan: PlanType = body.plan === 'yearly' ? 'yearly' : 'monthly';
 
   if (!email || !email.includes('@')) {
     return jsonResponse<ErrorResponse>(
@@ -191,19 +219,21 @@ async function handleCheckout(
     );
   }
 
+  const priceId = getPriceIdFromPlan(plan, env);
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',
     line_items: [
       {
-        price: env.STRIPE_PRICE_ID,
+        price: priceId,
         quantity: 1,
       },
     ],
     success_url: env.SUCCESS_URL,
     cancel_url: env.CANCEL_URL,
     subscription_data: {
-      metadata: { email },
+      metadata: { email, plan },
     },
     // Allow promotion codes
     allow_promotion_codes: true,
@@ -218,6 +248,31 @@ async function handleCheckout(
   }
 
   return jsonResponse<CheckoutResponse>({ url: session.url }, 200, headers);
+}
+
+/**
+ * Handle GET /api/prices - Get available subscription prices
+ */
+async function handlePrices(
+  env: Env,
+  headers: HeadersInit
+): Promise<Response> {
+  return jsonResponse<PricesResponse>(
+    {
+      monthly: {
+        priceId: env.STRIPE_PRICE_ID_MONTHLY,
+        amount: 99, // $0.99 in cents
+        currency: 'usd',
+      },
+      yearly: {
+        priceId: env.STRIPE_PRICE_ID_YEARLY,
+        amount: 999, // $9.99 in cents
+        currency: 'usd',
+      },
+    },
+    200,
+    headers
+  );
 }
 
 /**
@@ -269,7 +324,7 @@ async function handleWebhook(
 
     if (customerId) {
       console.log(`Processing ${event.type} for customer ${customerId}`);
-      await syncStripeDataToKV(stripe, env.SUBSCRIPTIONS, customerId);
+      await syncStripeDataToKV(stripe, env.SUBSCRIPTIONS, customerId, env);
     }
   }
 
@@ -315,10 +370,14 @@ async function handleVerify(
 
   if (cached) {
     subData = JSON.parse(cached);
+    // Ensure plan is set (for backwards compatibility with cached data)
+    if (!subData.plan && subData.priceId) {
+      subData.plan = getPlanFromPriceId(subData.priceId, env);
+    }
   } else {
     // Fetch from Stripe and cache
     const stripe = getStripe(env);
-    subData = await syncStripeDataToKV(stripe, env.SUBSCRIPTIONS, customerId);
+    subData = await syncStripeDataToKV(stripe, env.SUBSCRIPTIONS, customerId, env);
   }
 
   const isActive = subData.status === 'active' || subData.status === 'trialing';
@@ -329,6 +388,7 @@ async function handleVerify(
       status: subData.status,
       expiresAt: subData.currentPeriodEnd * 1000, // Convert to JS timestamp
       cancelAtPeriodEnd: subData.cancelAtPeriodEnd,
+      plan: subData.plan,
     },
     200,
     headers
@@ -439,6 +499,16 @@ export default {
             );
           }
           return handlePortal(request, env, headers);
+
+        case '/api/prices':
+          if (request.method !== 'GET') {
+            return jsonResponse<ErrorResponse>(
+              { error: 'Method not allowed' },
+              405,
+              headers
+            );
+          }
+          return handlePrices(env, headers);
 
         case '/api/health':
         case '/health':
