@@ -454,6 +454,208 @@ function handleHealth(headers: HeadersInit): Response {
   );
 }
 
+/**
+ * Check if email has active subscription (helper for premium modules)
+ */
+async function isSubscriptionActive(
+  email: string,
+  env: Env
+): Promise<boolean> {
+  const customerId = await env.SUBSCRIPTIONS.get(`email:${email}`);
+  if (!customerId) return false;
+
+  const cached = await env.SUBSCRIPTIONS.get(`stripe:${customerId}`);
+  if (!cached) return false;
+
+  const subData: SubscriptionData = JSON.parse(cached);
+  return subData.status === 'active' || subData.status === 'trialing';
+}
+
+/**
+ * Handle GET /api/premium/character-chat - Serve premium Character Chat module
+ * Only serves to verified subscribers
+ */
+async function handlePremiumCharacterChat(
+  request: Request,
+  env: Env,
+  headers: HeadersInit
+): Promise<Response> {
+  const url = new URL(request.url);
+  const email = url.searchParams.get('email')?.trim().toLowerCase();
+
+  if (!email) {
+    return jsonResponse<ErrorResponse>(
+      { error: 'Email required' },
+      400,
+      headers
+    );
+  }
+
+  // Verify subscription
+  const isActive = await isSubscriptionActive(email, env);
+  if (!isActive) {
+    return jsonResponse<ErrorResponse>(
+      { error: 'Premium subscription required' },
+      403,
+      headers
+    );
+  }
+
+  // Return the Character Chat module
+  // This is the actual premium feature code that only subscribers can access
+  const moduleCode = getCharacterChatModule();
+
+  return new Response(moduleCode, {
+    status: 200,
+    headers: {
+      ...headers,
+      'Content-Type': 'application/javascript',
+      'Cache-Control': 'no-store', // Don't cache - always verify subscription
+    },
+  });
+}
+
+/**
+ * Character Chat Module Code
+ * This is served only to verified premium subscribers
+ */
+function getCharacterChatModule(): string {
+  return `
+// Character Chat Premium Module
+// This code is only served to verified premium subscribers
+
+export class CharacterChatService {
+  constructor(aiService) {
+    this.aiService = aiService;
+  }
+
+  /**
+   * Build system prompt for character chat
+   */
+  buildSystemPrompt(character, storyContext, knowledgeCutoff) {
+    const characterInfo = this.formatCharacterInfo(character);
+    const contextInfo = knowledgeCutoff
+      ? this.buildContextWithCutoff(storyContext, knowledgeCutoff)
+      : storyContext;
+
+    return \`You are roleplaying as \${character.name} from a story. Stay completely in character.
+
+CHARACTER PROFILE:
+\${characterInfo}
+
+STORY CONTEXT (what your character knows):
+\${contextInfo}
+
+IMPORTANT RULES:
+- Respond as \${character.name} would, based on their personality, background, and knowledge
+- Only reference events and information your character would know about
+- Stay consistent with the character's voice, mannerisms, and speech patterns
+- If asked about something your character wouldn't know, respond as the character would to unknown information
+- Never break character or acknowledge you are an AI
+- Keep responses conversational and natural\`;
+  }
+
+  /**
+   * Format character information for the prompt
+   */
+  formatCharacterInfo(character) {
+    let info = \`Name: \${character.name}\\n\`;
+
+    if (character.description) {
+      info += \`Description: \${character.description}\\n\`;
+    }
+    if (character.personality) {
+      info += \`Personality: \${character.personality}\\n\`;
+    }
+    if (character.background) {
+      info += \`Background: \${character.background}\\n\`;
+    }
+    if (character.goals) {
+      info += \`Goals: \${character.goals}\\n\`;
+    }
+    if (character.relationships) {
+      info += \`Relationships: \${character.relationships}\\n\`;
+    }
+    if (character.notes) {
+      info += \`Additional Notes: \${character.notes}\\n\`;
+    }
+
+    return info;
+  }
+
+  /**
+   * Build story context with knowledge cutoff
+   * Character only knows events up to a certain chapter/scene
+   */
+  buildContextWithCutoff(storyContext, cutoff) {
+    if (!cutoff || !storyContext.chapters) {
+      return storyContext.summary || '';
+    }
+
+    // Filter chapters up to cutoff
+    const relevantChapters = storyContext.chapters
+      .filter(ch => ch.order <= cutoff.chapterOrder)
+      .map(ch => {
+        if (cutoff.sceneOrder && ch.order === cutoff.chapterOrder) {
+          // Filter scenes within the cutoff chapter
+          const relevantScenes = ch.scenes
+            ?.filter(s => s.order <= cutoff.sceneOrder)
+            .map(s => s.summary || s.title)
+            .join('\\n');
+          return \`\${ch.title}:\\n\${relevantScenes}\`;
+        }
+        return \`\${ch.title}: \${ch.summary || ''}\`;
+      })
+      .join('\\n\\n');
+
+    return relevantChapters;
+  }
+
+  /**
+   * Send a message to the character and get a response
+   */
+  async chat(character, message, conversationHistory, storyContext, knowledgeCutoff, modelId) {
+    const systemPrompt = this.buildSystemPrompt(character, storyContext, knowledgeCutoff);
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory,
+      { role: 'user', content: message }
+    ];
+
+    const response = await this.aiService.generateChatResponse(messages, modelId);
+    return response;
+  }
+
+  /**
+   * Get suggested conversation starters based on character
+   */
+  getSuggestedStarters(character) {
+    const starters = [
+      \`Tell me about yourself, \${character.name}.\`,
+      \`What's on your mind lately?\`,
+      \`How do you feel about the current situation?\`,
+    ];
+
+    if (character.goals) {
+      starters.push(\`What are you hoping to achieve?\`);
+    }
+    if (character.relationships) {
+      starters.push(\`Tell me about the people in your life.\`);
+    }
+    if (character.background) {
+      starters.push(\`What was your life like before all this?\`);
+    }
+
+    return starters;
+  }
+}
+
+// Export the service class
+export default CharacterChatService;
+`;
+}
+
 // Main Worker entry point
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -522,6 +724,16 @@ export default {
         case '/api/health':
         case '/health':
           return handleHealth(headers);
+
+        case '/api/premium/character-chat':
+          if (request.method !== 'GET') {
+            return jsonResponse<ErrorResponse>(
+              { error: 'Method not allowed' },
+              405,
+              headers
+            );
+          }
+          return handlePremiumCharacterChat(request, env, headers);
 
         default:
           return jsonResponse<ErrorResponse>(
