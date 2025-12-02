@@ -1,0 +1,11 @@
+# Local development secrets
+# Copy this file to .dev.vars and fill in your values
+
+# Stripe API Key (use test mode key for development)
+STRIPE_API_KEY=sk_test_xxxxx
+
+# Stripe Webhook Secret (from Stripe CLI or Dashboard)
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+
+# Stripe Price ID (from your product configuration)
+STRIPE_PRICE_ID=price_xxxxx

@@ -1,0 +1,33 @@
+# CreativeWriter Premium Subscription API
+# Cloudflare Worker Configuration
+
+name = "creativewriter-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# KV Namespace for subscription data
+# Run: wrangler kv:namespace create SUBSCRIPTIONS
+# Then update the id below
+[[kv_namespaces]]
+binding = "SUBSCRIPTIONS"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Environment variables (non-sensitive)
+[vars]
+ALLOWED_ORIGINS = "https://creativewriter.app,http://localhost:4200"
+SUCCESS_URL = "https://creativewriter.app/settings?subscription=success"
+CANCEL_URL = "https://creativewriter.app/settings?subscription=cancelled"
+
+# Secrets (set via wrangler secret put):
+# - STRIPE_API_KEY
+# - STRIPE_WEBHOOK_SECRET
+# - STRIPE_PRICE_ID
+
+# Development overrides
+[env.dev]
+name = "creativewriter-api-dev"
+
+[env.dev.vars]
+ALLOWED_ORIGINS = "http://localhost:4200,http://127.0.0.1:4200"
+SUCCESS_URL = "http://localhost:4200/settings?subscription=success"
+CANCEL_URL = "http://localhost:4200/settings?subscription=cancelled"
