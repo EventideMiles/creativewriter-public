@@ -11,7 +11,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   arrowBack, send, personCircle, chatbubbles, copy, refresh,
-  close, helpCircle, timeOutline, logoGoogle, globeOutline
+  close, helpCircle, timeOutline, logoGoogle, globeOutline, chevronForward
 } from 'ionicons/icons';
 import { NgSelectModule } from '@ng-select/ng-select';
 import { OpenRouterIconComponent } from '../../../ui/icons/openrouter-icon.component';
@@ -22,6 +22,8 @@ import { OllamaIconComponent } from '../../../ui/icons/ollama-icon.component';
 import { StoryService } from '../../services/story.service';
 import { CodexService } from '../../services/codex.service';
 import { SubscriptionService } from '../../../core/services/subscription.service';
+import { CharacterChatHistoryService } from '../../services/character-chat-history.service';
+import { CharacterChatHistoryDoc } from '../../models/chat-history.interface';
 import {
   PremiumModuleService,
   CharacterInfo,
@@ -86,6 +88,7 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   private geminiService = inject(GoogleGeminiApiService);
   private settingsService = inject(SettingsService);
   private aiLogger = inject(AIRequestLoggerService);
+  private characterChatHistoryService = inject(CharacterChatHistoryService);
 
   // State
   story: Story | null = null;
@@ -114,19 +117,30 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   // Suggested starters
   suggestedStarters: string[] = [];
 
-  // Header actions
-  headerActions: HeaderAction[] = [
-    { icon: 'time-outline', action: () => this.openKnowledgeSettings(), tooltip: 'Knowledge Cutoff' },
-    { icon: 'help-circle', action: () => this.showHelp(), tooltip: 'Help' }
-  ];
+  // Persistence state
+  private activeHistoryId: string | null = null;
+  showHistoryList = false;
+  histories: CharacterChatHistoryDoc[] = [];
+
+  // Header actions - initialized in constructor
+  headerActions: HeaderAction[] = [];
 
   private subscriptions = new Subscription();
 
   constructor() {
     addIcons({
       arrowBack, send, personCircle, chatbubbles, copy, refresh,
-      close, helpCircle, timeOutline, logoGoogle, globeOutline
+      close, helpCircle, timeOutline, logoGoogle, globeOutline, chevronForward
     });
+    this.initializeHeaderActions();
+  }
+
+  private initializeHeaderActions(): void {
+    this.headerActions = [
+      { icon: 'time-outline', action: () => this.openHistoryList(), tooltip: 'Chat History' },
+      { icon: 'refresh', action: () => this.startNewChat(), tooltip: 'New Chat' },
+      { icon: 'help-circle', action: () => this.showHelp(), tooltip: 'Help' }
+    ];
   }
 
   ngOnInit(): void {
@@ -371,7 +385,13 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   selectCharacter(character: CodexEntry): void {
     this.selectedCharacter = character;
     this.messages = [];
+    this.activeHistoryId = null;
     this.updateSuggestedStarters();
+
+    // Restore latest history for this character
+    if (this.storyId && character.id) {
+      this.restoreLatestHistory(this.storyId, character.id).catch(() => void 0);
+    }
   }
 
   private updateSuggestedStarters(): void {
@@ -454,6 +474,9 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
       });
 
       this.scrollToBottom();
+
+      // Persist snapshot of conversation
+      this.saveHistorySnapshot().catch(() => void 0);
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -583,5 +606,92 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.sendMessage();
     }
+  }
+
+  // History management methods
+  private async restoreLatestHistory(storyId: string, characterId: string): Promise<void> {
+    const latest = await this.characterChatHistoryService.getLatestForCharacter(storyId, characterId);
+    if (!latest) return;
+    this.applyHistory(latest);
+  }
+
+  private async saveHistorySnapshot(): Promise<void> {
+    if (!this.storyId || !this.selectedCharacter) return;
+
+    // Skip if only empty or no real messages
+    const hasRealMessages = this.messages.some(m => m.role === 'user');
+    if (!hasRealMessages) return;
+
+    const saved = await this.characterChatHistoryService.saveSnapshot({
+      storyId: this.storyId,
+      characterId: this.selectedCharacter.id,
+      characterName: this.selectedCharacter.title,
+      messages: this.messages,
+      selectedModel: this.selectedModel || undefined,
+      knowledgeCutoff: this.knowledgeCutoff || undefined,
+      historyId: this.activeHistoryId
+    });
+    this.activeHistoryId = saved.historyId;
+  }
+
+  async openHistoryList(): Promise<void> {
+    if (!this.storyId || !this.selectedCharacter) return;
+    try {
+      this.histories = await this.characterChatHistoryService.listHistoriesForCharacter(
+        this.storyId,
+        this.selectedCharacter.id
+      );
+      this.showHistoryList = true;
+    } catch (e) {
+      console.error('Failed to load histories', e);
+    }
+  }
+
+  async selectHistory(history: CharacterChatHistoryDoc): Promise<void> {
+    this.applyHistory(history);
+    this.showHistoryList = false;
+  }
+
+  private applyHistory(history: CharacterChatHistoryDoc): void {
+    // Replace current chat with stored one
+    this.messages = (history.messages || []).map(m => ({
+      ...m,
+      timestamp: new Date(m.timestamp)
+    }));
+    if (history.selectedModel) {
+      this.selectedModel = history.selectedModel;
+    }
+    if (history.knowledgeCutoff) {
+      this.knowledgeCutoff = history.knowledgeCutoff;
+    }
+    this.activeHistoryId = history.historyId;
+    this.scrollToBottom();
+  }
+
+  startNewChat(): void {
+    if (!this.selectedCharacter) return;
+
+    // Clear messages and reset state
+    this.messages = [];
+    this.activeHistoryId = null;
+    this.updateSuggestedStarters();
+    this.scrollToBottom();
+  }
+
+  getHistoryTitle(h: CharacterChatHistoryDoc): string {
+    if (h.title && h.title.trim()) return h.title;
+    const firstUser = (h.messages || []).find(m => m.role === 'user');
+    const base = firstUser ? firstUser.content.trim().slice(0, 60) : '';
+    return base ? `${base}${(firstUser!.content.length > 60 ? '…' : '')}` : `Chat ${new Date(h.updatedAt).toLocaleString()}`;
+  }
+
+  getHistoryMeta(h: CharacterChatHistoryDoc): string {
+    const count = (h.messages || []).length;
+    const when = new Date(h.updatedAt).toLocaleString();
+    return `${count} messages · ${when}`;
+  }
+
+  closeHistoryList(): void {
+    this.showHistoryList = false;
   }
 }
