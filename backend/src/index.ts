@@ -15,7 +15,6 @@ interface Env {
   SUBSCRIPTIONS: KVNamespace;
 
   // Environment variables
-  ALLOWED_ORIGINS: string;
   SUCCESS_URL: string;
   CANCEL_URL: string;
 }
