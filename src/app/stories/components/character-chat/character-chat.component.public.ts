@@ -146,7 +146,7 @@ export class CharacterChatComponent {
   goBack(): void {
     const storyId = this.route.snapshot.paramMap.get('storyId');
     if (storyId) {
-      this.router.navigate(['/story', storyId]);
+      this.router.navigate(['/stories/editor', storyId]);
     } else {
       this.router.navigate(['/']);
     }
