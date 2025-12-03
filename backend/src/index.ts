@@ -59,7 +59,7 @@ interface ErrorResponse {
 // Initialize Stripe with Worker-compatible HTTP client
 function getStripe(env: Env): Stripe {
   return new Stripe(env.STRIPE_API_KEY, {
-    apiVersion: '2024-11-20.acacia',
+    apiVersion: '2025-02-24.acacia',
     httpClient: Stripe.createFetchHttpClient(),
   });
 }
@@ -362,15 +362,32 @@ async function handleVerify(
     );
   }
 
-  // Look up customer ID by email
-  const customerId = await env.SUBSCRIPTIONS.get(`email:${email}`);
+  const stripe = getStripe(env);
+
+  // Look up customer ID by email (check cache first, then Stripe)
+  let customerId = await env.SUBSCRIPTIONS.get(`email:${email}`);
 
   if (!customerId) {
-    return jsonResponse<VerifyResponse>(
-      { active: false, status: 'none' },
-      200,
-      headers
-    );
+    // Customer not in cache - search Stripe directly
+    // This handles cases where customers were created directly in Stripe
+    // or where the cache was cleared
+    const existing = await stripe.customers.list({
+      email: email,
+      limit: 1,
+    });
+
+    if (existing.data.length > 0) {
+      customerId = existing.data[0].id;
+      // Cache the email -> customerId mapping
+      await env.SUBSCRIPTIONS.put(`email:${email}`, customerId);
+    } else {
+      // No customer exists in Stripe for this email
+      return jsonResponse<VerifyResponse>(
+        { active: false, status: 'none' },
+        200,
+        headers
+      );
+    }
   }
 
   // Try to get cached subscription data
@@ -385,7 +402,6 @@ async function handleVerify(
     }
   } else {
     // Fetch from Stripe and cache
-    const stripe = getStripe(env);
     subData = await syncStripeDataToKV(stripe, env.SUBSCRIPTIONS, customerId, env);
   }
 
