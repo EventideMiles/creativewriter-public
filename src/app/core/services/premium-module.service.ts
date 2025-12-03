@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { SettingsService } from './settings.service';
 import { SubscriptionService } from './subscription.service';
+import { environment } from '../../../environments/environment';
 
 export interface CharacterChatModule {
   CharacterChatService: new (aiService: unknown) => CharacterChatServiceInterface;
@@ -64,7 +65,7 @@ export interface ChatMessage {
   providedIn: 'root'
 })
 export class PremiumModuleService {
-  private readonly API_URL = 'https://creativewriter-api.nostramo.workers.dev/api';
+  private readonly API_URL = environment.premiumApiUrl;
 
   private settingsService = inject(SettingsService);
   private subscriptionService = inject(SubscriptionService);

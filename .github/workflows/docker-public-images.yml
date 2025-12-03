@@ -144,6 +144,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.dockerfile }}
           cache-to: type=gha,mode=max,scope=${{ matrix.dockerfile }}
+          build-args: |
+            BUILD_CONFIGURATION=production
           # provenance and sbom removed due to permissions limitations
 
       # Note: Attestation removed due to permissions limitations in public repo

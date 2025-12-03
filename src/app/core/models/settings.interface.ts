@@ -1,3 +1,5 @@
+import { environment } from '../../../environments/environment';
+
 export interface FavoriteModelLists {
   beatInput: string[];
   sceneSummary: string[];
@@ -197,7 +199,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   premium: {
     email: '',
-    apiUrl: 'https://creativewriter-api.nostramo.workers.dev/api',
+    apiUrl: environment.premiumApiUrl,
     cachedStatus: {
       active: false
     }

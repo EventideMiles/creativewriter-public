@@ -3,6 +3,9 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Build configuration argument (production or development)
+ARG BUILD_CONFIGURATION=production
+
 # Copy package files first for better layer caching
 COPY package*.json ./
 
@@ -14,8 +17,8 @@ COPY src/ ./src/
 COPY angular.json tsconfig*.json ./
 COPY public/ ./public/
 
-# Build the application
-RUN npm run build
+# Build the application with specified configuration
+RUN npm run build -- --configuration=${BUILD_CONFIGURATION}
 
 # Production stage
 FROM nginx:alpine

@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { SettingsService } from './settings.service';
+import { environment } from '../../../environments/environment';
 
 export interface SubscriptionStatus {
   active: boolean;
@@ -14,7 +15,7 @@ export interface SubscriptionStatus {
   providedIn: 'root'
 })
 export class SubscriptionService {
-  private readonly API_URL = 'https://creativewriter-api.nostramo.workers.dev/api';
+  private readonly API_URL = environment.premiumApiUrl;
   private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
   private readonly GRACE_PERIOD = 3 * 24 * 60 * 60 * 1000; // 3 days offline grace
 
