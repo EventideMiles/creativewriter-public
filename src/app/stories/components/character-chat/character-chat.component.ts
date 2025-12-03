@@ -89,6 +89,7 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
 
   // State
   story: Story | null = null;
+  private storyId: string | null = null;
   codex: Codex | null = null;
   characters: CodexEntry[] = [];
   selectedCharacter: CodexEntry | null = null;
@@ -171,21 +172,21 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   }
 
   private async loadStoryData(): Promise<void> {
-    const storyId = this.route.snapshot.paramMap.get('storyId');
-    if (!storyId) {
+    this.storyId = this.route.snapshot.paramMap.get('storyId');
+    if (!this.storyId) {
       this.router.navigate(['/']);
       return;
     }
 
     try {
-      this.story = await this.storyService.getStory(storyId);
+      this.story = await this.storyService.getStory(this.storyId);
       if (!this.story) {
         this.router.navigate(['/']);
         return;
       }
 
       // Load codex and extract characters
-      this.codex = await this.codexService.getOrCreateCodex(storyId);
+      this.codex = await this.codexService.getOrCreateCodex(this.storyId);
       if (this.codex) {
         const charactersCategory = this.codex.categories.find(
           c => c.title.toLowerCase() === 'characters'
@@ -549,7 +550,13 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
 
   // Utility methods
   goBack(): void {
-    this.router.navigate(['/story', this.story?.id]);
+    // Use storyId from route as fallback to ensure correct navigation
+    const targetId = this.story?.id || this.storyId;
+    if (targetId) {
+      this.router.navigate(['/stories/editor', targetId]);
+    } else {
+      this.router.navigate(['/']);
+    }
   }
 
   showHelp(): void {
