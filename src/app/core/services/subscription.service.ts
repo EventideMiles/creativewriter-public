@@ -47,6 +47,14 @@ export class SubscriptionService {
     const settings = this.settingsService.getSettings();
     const premium = settings.premium;
 
+    // No email configured - nothing to do
+    if (!premium?.email) {
+      console.log('[SubscriptionService] No premium email configured');
+      return;
+    }
+
+    console.log('[SubscriptionService] Initializing with email:', premium.email);
+
     if (premium?.cachedStatus?.active) {
       // Check if cache is still valid or within grace period
       const now = Date.now();
@@ -57,12 +65,19 @@ export class SubscriptionService {
       const isValid = expiresAt > now ||
         (lastVerified > 0 && (now - lastVerified) < this.GRACE_PERIOD);
 
+      console.log('[SubscriptionService] Cache check:', { expiresAt, lastVerified, isValid, now });
+
       this.isPremium$.next(Boolean(isValid));
 
       // Trigger background verification if cache is stale
       if (lastVerified && (now - lastVerified) > this.CACHE_DURATION) {
+        console.log('[SubscriptionService] Cache stale, verifying in background');
         this.verifySubscription().catch(console.error);
       }
+    } else {
+      // No valid cache, verify now
+      console.log('[SubscriptionService] No cached status, verifying now');
+      this.verifySubscription().catch(console.error);
     }
   }
 
