@@ -6,6 +6,33 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 jobs:
+  # Deploy Cloudflare Worker backend to production environment
+  deploy-backend-production:
+    name: Deploy Backend (Production)
+    runs-on: ubuntu-latest
+    if: github.repository == 'MarcoDroll/creativewriter2'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Deploy to Cloudflare Workers (Production)
+        working-directory: ./backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "🚀 Deploying backend to production environment..."
+          wrangler deploy
+          echo "✅ Backend deployed to production environment"
+
   sync-public:
     runs-on: ubuntu-latest
     if: github.repository == 'MarcoDroll/creativewriter2' # Only run on private repo
@@ -223,6 +250,7 @@ jobs:
           echo "# 🔄 Public Repository Sync Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## ✅ Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Deployment (Production)**: ✅ Deployed to Cloudflare Workers" >> $GITHUB_STEP_SUMMARY
           echo "- **Private → Public Sync**: ✅ Successful" >> $GITHUB_STEP_SUMMARY
           echo "- **Release Creation**: ✅ Successful" >> $GITHUB_STEP_SUMMARY
           echo "- **Docker Images**: 🔄 Building (triggered by release)" >> $GITHUB_STEP_SUMMARY

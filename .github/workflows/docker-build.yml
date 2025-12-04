@@ -122,3 +122,30 @@ jobs:
     #     subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
     #     subject-digest: ${{ steps.build.outputs.digest }}
     #     push-to-registry: true
+
+  # Deploy Cloudflare Worker backend to dev environment
+  deploy-backend-dev:
+    name: Deploy Backend (Dev)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Wrangler
+      run: npm install -g wrangler
+
+    - name: Deploy to Cloudflare Workers (Dev)
+      working-directory: ./backend
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        echo "🚀 Deploying backend to dev environment..."
+        wrangler deploy --env dev
+        echo "✅ Backend deployed to dev environment"
