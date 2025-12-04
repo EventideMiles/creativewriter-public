@@ -310,7 +310,7 @@ export class StoryListComponent implements OnInit, OnDestroy {
    * BUGFIX: Prevents race condition where we try to load metadata index
    * before it has synced from remote
    */
-  private async waitForInitialSync(timeoutMs = 10000): Promise<void> {
+  private async waitForInitialSync(timeoutMs = 60000): Promise<void> {
     return new Promise((resolve) => {
       const startTime = Date.now();
       let syncSubscription: Subscription | null = null;

@@ -686,10 +686,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
    * Phase 5: Provides better UX by waiting for story data to be available
    *
    * @param storyId - The ID of the story to wait for
-   * @param timeoutMs - Maximum time to wait (default: 10 seconds)
+   * @param timeoutMs - Maximum time to wait (default: 60 seconds for large databases)
    * @returns Promise that resolves when story is synced or timeout occurs
    */
-  private async waitForStorySynced(storyId: string, timeoutMs = 10000): Promise<void> {
+  private async waitForStorySynced(storyId: string, timeoutMs = 60000): Promise<void> {
     const startTime = Date.now();
     this.addDebugLog(`Waiting for story to sync...`);
     console.info(`[StoryEditor] Waiting for story ${storyId} to sync...`);
