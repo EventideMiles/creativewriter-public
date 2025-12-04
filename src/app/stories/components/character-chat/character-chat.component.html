@@ -146,28 +146,85 @@
         </div>
 
         <!-- Message list -->
-        <div *ngFor="let message of messages"
+        <div *ngFor="let message of messages; let i = index"
              class="message"
              [class.user-message]="message.role === 'user'"
-             [class.assistant-message]="message.role === 'assistant'">
+             [class.assistant-message]="message.role === 'assistant'"
+             [class.editing]="editingMessageIndex === i">
           <div class="message-avatar">
             <ion-avatar>
               <ion-icon [name]="message.role === 'user' ? 'person-outline' : 'person-circle'"></ion-icon>
             </ion-avatar>
           </div>
           <div class="message-content">
-            <div class="message-text">{{ message.content }}</div>
-            <div class="message-meta">
-              <span class="message-time">{{ formatTime(message.timestamp) }}</span>
-              <ion-button
-                size="small"
-                fill="clear"
-                color="medium"
-                (click)="copyMessage(message.content)"
-                title="Copy message">
-                <ion-icon name="copy-outline" slot="icon-only"></ion-icon>
-              </ion-button>
-            </div>
+            <!-- Normal view -->
+            <ng-container *ngIf="editingMessageIndex !== i">
+              <div class="message-text">{{ message.content }}</div>
+              <div class="message-meta">
+                <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+                <!-- Copy button -->
+                <ion-button
+                  size="small"
+                  fill="clear"
+                  color="medium"
+                  (click)="copyMessage(message.content)"
+                  title="Copy message">
+                  <ion-icon name="copy-outline" slot="icon-only"></ion-icon>
+                </ion-button>
+                <!-- Edit button for user messages -->
+                <ion-button
+                  *ngIf="message.role === 'user' && !isGenerating"
+                  size="small"
+                  fill="clear"
+                  color="medium"
+                  (click)="startEditMessage(i)"
+                  title="Edit message">
+                  <ion-icon name="create-outline" slot="icon-only"></ion-icon>
+                </ion-button>
+                <!-- Retry button for last assistant message -->
+                <ion-button
+                  *ngIf="message.role === 'assistant' && isLastAssistantMessage(i) && !isGenerating"
+                  size="small"
+                  fill="clear"
+                  color="medium"
+                  (click)="retryLastMessage()"
+                  title="Regenerate response">
+                  <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
+                </ion-button>
+              </div>
+            </ng-container>
+
+            <!-- Edit mode -->
+            <ng-container *ngIf="editingMessageIndex === i">
+              <div class="edit-container">
+                <ion-textarea
+                  [(ngModel)]="editingContent"
+                  [autoGrow]="true"
+                  [rows]="2"
+                  class="edit-textarea"
+                  placeholder="Edit your message...">
+                </ion-textarea>
+                <div class="edit-actions">
+                  <ion-button
+                    size="small"
+                    fill="clear"
+                    color="medium"
+                    (click)="cancelEditMessage()"
+                    title="Cancel">
+                    <ion-icon name="close-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                  <ion-button
+                    size="small"
+                    fill="clear"
+                    color="primary"
+                    (click)="submitEditedMessage()"
+                    [disabled]="!editingContent.trim()"
+                    title="Send edited message">
+                    <ion-icon name="checkmark-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                </div>
+              </div>
+            </ng-container>
           </div>
         </div>
 

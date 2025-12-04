@@ -11,7 +11,8 @@ import {
 import { addIcons } from 'ionicons';
 import {
   arrowBack, send, personCircle, chatbubbles, copy, refresh,
-  close, helpCircle, timeOutline, logoGoogle, globeOutline, chevronForward
+  close, helpCircle, timeOutline, logoGoogle, globeOutline, chevronForward,
+  createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline
 } from 'ionicons/icons';
 import { NgSelectModule } from '@ng-select/ng-select';
 import { OpenRouterIconComponent } from '../../../ui/icons/openrouter-icon.component';
@@ -122,6 +123,10 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   showHistoryList = false;
   histories: CharacterChatHistoryDoc[] = [];
 
+  // Edit message state
+  editingMessageIndex: number | null = null;
+  editingContent = '';
+
   // Header actions - initialized in constructor
   headerActions: HeaderAction[] = [];
 
@@ -130,7 +135,8 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   constructor() {
     addIcons({
       arrowBack, send, personCircle, chatbubbles, copy, refresh,
-      close, helpCircle, timeOutline, logoGoogle, globeOutline, chevronForward
+      close, helpCircle, timeOutline, logoGoogle, globeOutline, chevronForward,
+      createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline
     });
     this.initializeHeaderActions();
   }
@@ -693,5 +699,184 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
 
   closeHistoryList(): void {
     this.showHistoryList = false;
+  }
+
+  // Edit and Retry functionality
+
+  /**
+   * Check if the message at the given index is the last assistant message
+   */
+  isLastAssistantMessage(index: number): boolean {
+    if (this.messages[index]?.role !== 'assistant') return false;
+    // Find the last assistant message index
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === 'assistant') {
+        return i === index;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Retry the last assistant message by removing it and regenerating
+   */
+  async retryLastMessage(): Promise<void> {
+    if (this.isGenerating || this.messages.length === 0) return;
+
+    // Find the last assistant message
+    let lastAssistantIndex = -1;
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].role === 'assistant') {
+        lastAssistantIndex = i;
+        break;
+      }
+    }
+
+    if (lastAssistantIndex === -1) return;
+
+    // Find the user message that triggered this response
+    let userMessageIndex = -1;
+    for (let i = lastAssistantIndex - 1; i >= 0; i--) {
+      if (this.messages[i].role === 'user') {
+        userMessageIndex = i;
+        break;
+      }
+    }
+
+    if (userMessageIndex === -1) return;
+
+    // Remove the assistant message
+    this.messages.splice(lastAssistantIndex, 1);
+
+    // Get the user message content and regenerate
+    const userMessage = this.messages[userMessageIndex].content;
+
+    this.scrollToBottom();
+    this.isGenerating = true;
+
+    try {
+      if (!this.chatService || !this.selectedCharacter) {
+        throw new Error('Chat service not available');
+      }
+
+      const characterInfo = this.buildCharacterInfo(this.selectedCharacter);
+      const storyContext = this.buildStoryContext();
+      const conversationHistory = this.messages.slice(0, userMessageIndex).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }));
+
+      const response = await this.chatService.chat(
+        characterInfo,
+        userMessage,
+        conversationHistory,
+        storyContext,
+        this.knowledgeCutoff || undefined,
+        this.selectedModel
+      );
+
+      this.messages.push({
+        role: 'assistant',
+        content: response,
+        timestamp: new Date()
+      });
+
+      this.scrollToBottom();
+      this.saveHistorySnapshot().catch(() => void 0);
+
+    } catch (error) {
+      console.error('Retry error:', error);
+      this.messages.push({
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      });
+    } finally {
+      this.isGenerating = false;
+    }
+  }
+
+  /**
+   * Start editing a user message
+   */
+  startEditMessage(index: number): void {
+    if (this.messages[index]?.role !== 'user' || this.isGenerating) return;
+    this.editingMessageIndex = index;
+    this.editingContent = this.messages[index].content;
+  }
+
+  /**
+   * Cancel editing
+   */
+  cancelEditMessage(): void {
+    this.editingMessageIndex = null;
+    this.editingContent = '';
+  }
+
+  /**
+   * Submit the edited message - removes all messages after this one and resends
+   */
+  async submitEditedMessage(): Promise<void> {
+    if (this.editingMessageIndex === null || !this.editingContent.trim() || this.isGenerating) {
+      return;
+    }
+
+    const editIndex = this.editingMessageIndex;
+    const newContent = this.editingContent.trim();
+
+    // Reset edit state
+    this.editingMessageIndex = null;
+    this.editingContent = '';
+
+    // Update the message content
+    this.messages[editIndex].content = newContent;
+    this.messages[editIndex].timestamp = new Date();
+
+    // Remove all messages after this one (reset chat to this point)
+    this.messages.splice(editIndex + 1);
+
+    this.scrollToBottom();
+    this.isGenerating = true;
+
+    try {
+      if (!this.chatService || !this.selectedCharacter) {
+        throw new Error('Chat service not available');
+      }
+
+      const characterInfo = this.buildCharacterInfo(this.selectedCharacter);
+      const storyContext = this.buildStoryContext();
+      const conversationHistory = this.messages.slice(0, editIndex).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }));
+
+      const response = await this.chatService.chat(
+        characterInfo,
+        newContent,
+        conversationHistory,
+        storyContext,
+        this.knowledgeCutoff || undefined,
+        this.selectedModel
+      );
+
+      this.messages.push({
+        role: 'assistant',
+        content: response,
+        timestamp: new Date()
+      });
+
+      this.scrollToBottom();
+      this.saveHistorySnapshot().catch(() => void 0);
+
+    } catch (error) {
+      console.error('Edit message error:', error);
+      this.messages.push({
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      });
+    } finally {
+      this.isGenerating = false;
+    }
   }
 }

@@ -258,6 +258,50 @@
   }
 }
 
+// Edit mode container
+.edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+
+  .edit-textarea {
+    --background: rgba(20, 20, 20, 0.6);
+    --padding-start: 0.75rem;
+    --padding-end: 0.75rem;
+    --padding-top: 0.5rem;
+    --padding-bottom: 0.5rem;
+    --color: #e0e0e0;
+    border: 1px solid rgba(139, 180, 248, 0.3);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    min-height: 60px;
+
+    &:focus-within {
+      border-color: rgba(139, 180, 248, 0.5);
+    }
+  }
+
+  .edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+
+    ion-button {
+      --padding-start: 8px;
+      --padding-end: 8px;
+      height: 32px;
+    }
+  }
+}
+
+.message.editing {
+  .message-content {
+    background: rgba(139, 180, 248, 0.1);
+    border: 1px solid rgba(139, 180, 248, 0.3);
+  }
+}
+
 // Typing indicator
 .typing-indicator {
   display: flex;
