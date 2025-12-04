@@ -71,8 +71,7 @@ import { SettingsService } from '../../core/services/settings.service';
             expand="block"
             fill="outline"
             color="primary"
-            href="https://creativewriter.app/premium"
-            target="_blank">
+            (click)="openPremiumPage()">
             <ion-icon name="link" slot="start"></ion-icon>
             Get Premium
           </ion-button>
@@ -263,6 +262,10 @@ export class PremiumSettingsComponent implements OnInit, OnDestroy {
         }
       });
     }
+  }
+
+  openPremiumPage(): void {
+    window.open('https://creativewriter.app/premium', '_blank');
   }
 
   async verifySubscription(): Promise<void> {
