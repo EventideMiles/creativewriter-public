@@ -4,6 +4,7 @@
 name = "creativewriter-api"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
+account_id = "3212451f28678107f428550011f034a8"
 
 # KV Namespace for subscription data
 # Run: wrangler kv:namespace create SUBSCRIPTIONS
