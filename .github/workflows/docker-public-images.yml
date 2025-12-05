@@ -146,6 +146,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.dockerfile }}
           build-args: |
             BUILD_CONFIGURATION=production
+            CACHE_BUST=${{ github.sha }}
           # provenance and sbom removed due to permissions limitations
 
       # Note: Attestation removed due to permissions limitations in public repo

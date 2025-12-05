@@ -17,8 +17,12 @@ COPY src/ ./src/
 COPY angular.json tsconfig*.json ./
 COPY public/ ./public/
 
+# Cache-busting argument - ensures build always runs fresh when commit changes
+# This is necessary because Angular generates unique chunk hashes per build
+ARG CACHE_BUST=unknown
+
 # Build the application with specified configuration
-RUN npm run build -- --configuration=${BUILD_CONFIGURATION}
+RUN echo "Build cache bust: ${CACHE_BUST}" && npm run build -- --configuration=${BUILD_CONFIGURATION}
 
 # Production stage
 FROM nginx:alpine
