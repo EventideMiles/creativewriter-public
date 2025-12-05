@@ -307,17 +307,22 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const language = this.story?.settings?.language || 'en';
+
     // Use the premium module for suggested starters if available
     if (this.chatService) {
       const characterInfo = this.buildCharacterInfo(this.selectedCharacter);
-      this.suggestedStarters = this.chatService.getSuggestedStarters(characterInfo);
+      this.suggestedStarters = this.chatService.getSuggestedStarters(characterInfo, language);
     } else {
-      // Fallback: simple starters (no secret logic exposed)
+      // Fallback: simple starters (no secret logic exposed) - language-aware
       const name = this.selectedCharacter.title;
-      this.suggestedStarters = [
-        `Hello, ${name}.`,
-        `What's on your mind?`
-      ];
+      const fallbackStarters: Record<string, string[]> = {
+        en: [`Hello, ${name}.`, "What's on your mind?"],
+        de: [`Hallo, ${name}.`, 'Was beschäftigt dich?'],
+        fr: [`Bonjour, ${name}.`, "Qu'as-tu en tête?"],
+        es: [`Hola, ${name}.`, '¿Qué tienes en mente?']
+      };
+      this.suggestedStarters = fallbackStarters[language] || fallbackStarters['en'];
     }
   }
 

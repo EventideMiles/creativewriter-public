@@ -20,7 +20,7 @@ export interface CharacterChatServiceInterface {
     knowledgeCutoff: KnowledgeCutoff | undefined,
     modelId: string
   ): Promise<string>;
-  getSuggestedStarters(character: CharacterInfo): string[];
+  getSuggestedStarters(character: CharacterInfo, language?: string): string[];
 }
 
 export interface CharacterInfo {

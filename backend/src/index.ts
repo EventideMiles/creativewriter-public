@@ -677,23 +677,58 @@ IMPORTANT RULES:
   }
 
   /**
-   * Get suggested conversation starters based on character
+   * Get suggested conversation starters based on character and story language
    */
-  getSuggestedStarters(character) {
-    const starters = [
-      \`Tell me about yourself, \${character.name}.\`,
-      \`What's on your mind lately?\`,
-      \`How do you feel about the current situation?\`,
-    ];
+  getSuggestedStarters(character, language = 'en') {
+    // Language-specific starter templates
+    const templates = {
+      en: {
+        intro: \`Tell me about yourself, \${character.name}.\`,
+        mind: "What's on your mind lately?",
+        situation: "How do you feel about the current situation?",
+        goals: "What are you hoping to achieve?",
+        relationships: "Tell me about the people in your life.",
+        background: "What was your life like before all this?"
+      },
+      de: {
+        intro: \`Erzähl mir von dir, \${character.name}.\`,
+        mind: "Was beschäftigt dich in letzter Zeit?",
+        situation: "Wie fühlst du dich bei der aktuellen Situation?",
+        goals: "Was erhoffst du dir zu erreichen?",
+        relationships: "Erzähl mir von den Menschen in deinem Leben.",
+        background: "Wie war dein Leben vor all dem?"
+      },
+      fr: {
+        intro: \`Parle-moi de toi, \${character.name}.\`,
+        mind: "Qu'est-ce qui te préoccupe ces derniers temps?",
+        situation: "Comment te sens-tu par rapport à la situation actuelle?",
+        goals: "Qu'espères-tu accomplir?",
+        relationships: "Parle-moi des gens dans ta vie.",
+        background: "Comment était ta vie avant tout ça?"
+      },
+      es: {
+        intro: \`Cuéntame sobre ti, \${character.name}.\`,
+        mind: "¿Qué tienes en mente últimamente?",
+        situation: "¿Cómo te sientes sobre la situación actual?",
+        goals: "¿Qué esperas lograr?",
+        relationships: "Cuéntame sobre las personas en tu vida.",
+        background: "¿Cómo era tu vida antes de todo esto?"
+      }
+    };
+
+    // Fall back to English for custom or unknown languages
+    const t = templates[language] || templates.en;
+
+    const starters = [t.intro, t.mind, t.situation];
 
     if (character.goals) {
-      starters.push(\`What are you hoping to achieve?\`);
+      starters.push(t.goals);
     }
     if (character.relationships) {
-      starters.push(\`Tell me about the people in your life.\`);
+      starters.push(t.relationships);
     }
     if (character.background) {
-      starters.push(\`What was your life like before all this?\`);
+      starters.push(t.background);
     }
 
     return starters;
