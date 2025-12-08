@@ -150,23 +150,12 @@ export class BeatOperationsService {
     const { state } = editorView;
     let markerPos: number | null = null;
 
-    // Debug: Log all beatEndMarker nodes in the document
-    const markers: { pos: number; beatId: string }[] = [];
     state.doc.descendants((node, pos) => {
-      if (node.type.name === 'beatEndMarker') {
-        markers.push({ pos, beatId: node.attrs['beatId'] });
-        if (node.attrs['beatId'] === beatId) {
-          markerPos = pos;
-          return false; // Stop iteration
-        }
+      if (node.type.name === 'beatEndMarker' && node.attrs['beatId'] === beatId) {
+        markerPos = pos;
+        return false; // Stop iteration
       }
       return true;
-    });
-
-    console.log('[BeatOps] findBeatEndMarkerPosition:', {
-      lookingFor: beatId,
-      foundMarkers: markers,
-      result: markerPos
     });
 
     return markerPos;
@@ -177,11 +166,9 @@ export class BeatOperationsService {
    * Returns the position where the marker was inserted
    */
   private insertBeatEndMarker(editorView: EditorView, beatId: string, position: number): void {
-    console.log('[BeatOps] insertBeatEndMarker:', { beatId, position });
     const markerNode = editorView.state.schema.nodes['beatEndMarker'].create({ beatId });
     const tr = editorView.state.tr.insert(position, markerNode);
     editorView.dispatch(tr);
-    console.log('[BeatOps] Marker inserted successfully');
   }
 
   /**
@@ -189,69 +176,32 @@ export class BeatOperationsService {
    * Falls back to deleteContentAfterBeat if no marker exists (backward compatibility)
    */
   deleteGeneratedContentOnly(editorView: EditorView | null, beatId: string, getHTMLContent: () => string): boolean {
-    console.log('[BeatOps] deleteGeneratedContentOnly called for beat:', beatId);
-
-    if (!editorView) {
-      console.log('[BeatOps] No editor view');
-      return false;
-    }
+    if (!editorView) return false;
 
     const beatPos = this.findBeatNodePosition(editorView, beatId);
-    if (beatPos === null) {
-      console.log('[BeatOps] Beat not found');
-      return false;
-    }
+    if (beatPos === null) return false;
 
     const { state } = editorView;
     const beatNode = state.doc.nodeAt(beatPos);
-    if (!beatNode) {
-      console.log('[BeatOps] Beat node is null');
-      return false;
-    }
+    if (!beatNode) return false;
 
     const deleteStartPos = beatPos + beatNode.nodeSize;
-    console.log('[BeatOps] deleteStartPos:', deleteStartPos, 'beatPos:', beatPos, 'beatNodeSize:', beatNode.nodeSize);
 
     // Try to find the marker for this beat
     const markerPos = this.findBeatEndMarkerPosition(editorView, beatId);
 
     // If no marker exists, fall back to old behavior (delete to next beat)
     if (markerPos === null) {
-      console.log('[BeatOps] NO MARKER FOUND - falling back to deleteContentAfterBeat');
       return this.deleteContentAfterBeat(editorView, beatId, getHTMLContent);
     }
 
-    console.log('[BeatOps] Marker found at position:', markerPos, '- deleting from', deleteStartPos, 'to', markerPos);
-
-    // Debug: Log document structure BEFORE deletion
-    console.log('[BeatOps] === DOCUMENT STRUCTURE BEFORE DELETION ===');
-    console.log('[BeatOps] Total doc size:', state.doc.content.size);
-    state.doc.descendants((node, pos) => {
-      const textPreview = node.isText ? node.text?.substring(0, 50) : '';
-      console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
-      return true;
-    });
-    console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
-
     // Delete only up to the marker (not including the marker itself)
     if (markerPos <= deleteStartPos) {
-      console.log('[BeatOps] Marker position <= deleteStartPos, nothing to delete');
       return false;
     }
 
     const tr = state.tr.delete(deleteStartPos, markerPos);
     editorView.dispatch(tr);
-
-    // Debug: Log document structure AFTER deletion
-    console.log('[BeatOps] === DOCUMENT STRUCTURE AFTER DELETION ===');
-    const newState = editorView.state;
-    console.log('[BeatOps] Total doc size:', newState.doc.content.size);
-    newState.doc.descendants((node, pos) => {
-      const textPreview = node.isText ? node.text?.substring(0, 50) : '';
-      console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
-      return true;
-    });
-    console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
 
     const content = getHTMLContent();
     this.contentUpdate$.next(content);
@@ -263,7 +213,6 @@ export class BeatOperationsService {
       });
     }, 500);
 
-    console.log('[BeatOps] Deleted content up to marker successfully');
     return true;
   }
 
@@ -644,38 +593,12 @@ export class BeatOperationsService {
     const afterBeatPos = beatPos + beatNode.nodeSize;
 
     if (isFirstChunk) {
-      console.log('[BeatOps] appendContentAfterBeatNode - FIRST CHUNK for beat:', beatId);
-
-      // Debug: Log document structure BEFORE marker insertion
-      console.log('[BeatOps] === DOCUMENT STRUCTURE BEFORE MARKER INSERTION ===');
-      console.log('[BeatOps] Total doc size:', state.doc.content.size);
-      state.doc.descendants((node, pos) => {
-        const textPreview = node.isText ? node.text?.substring(0, 50) : '';
-        console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
-        return true;
-      });
-      console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
-
       // Check if marker already exists (regenerate case)
       const existingMarkerPos = this.findBeatEndMarkerPosition(editorView, beatId);
 
       // If no marker exists, insert one first so generated content will push it down
       if (existingMarkerPos === null) {
-        console.log('[BeatOps] No existing marker found, inserting new marker at position:', afterBeatPos);
         this.insertBeatEndMarker(editorView, beatId, afterBeatPos);
-
-        // Debug: Log document structure AFTER marker insertion
-        console.log('[BeatOps] === DOCUMENT STRUCTURE AFTER MARKER INSERTION ===');
-        const newState = editorView.state;
-        console.log('[BeatOps] Total doc size:', newState.doc.content.size);
-        newState.doc.descendants((node, pos) => {
-          const textPreview = node.isText ? node.text?.substring(0, 50) : '';
-          console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
-          return true;
-        });
-        console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
-      } else {
-        console.log('[BeatOps] Marker already exists at position:', existingMarkerPos, '- NOT inserting new marker');
       }
 
       // First chunk - create HTML with <p> wrapper and process linebreaks
@@ -689,7 +612,6 @@ export class BeatOperationsService {
       if (!updatedBeatNode) return;
       const updatedAfterBeatPos = updatedBeatPos + updatedBeatNode.nodeSize;
 
-      console.log('[BeatOps] Inserting content at position:', updatedAfterBeatPos);
       this.insertHtmlContent(editorView, beatId, htmlContent, updatedAfterBeatPos);
     } else {
       // Subsequent chunks - process linebreaks and append to existing content
