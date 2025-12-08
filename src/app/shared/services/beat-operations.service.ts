@@ -210,7 +210,7 @@ export class BeatOperationsService {
     }
 
     const deleteStartPos = beatPos + beatNode.nodeSize;
-    console.log('[BeatOps] deleteStartPos:', deleteStartPos);
+    console.log('[BeatOps] deleteStartPos:', deleteStartPos, 'beatPos:', beatPos, 'beatNodeSize:', beatNode.nodeSize);
 
     // Try to find the marker for this beat
     const markerPos = this.findBeatEndMarkerPosition(editorView, beatId);
@@ -223,6 +223,16 @@ export class BeatOperationsService {
 
     console.log('[BeatOps] Marker found at position:', markerPos, '- deleting from', deleteStartPos, 'to', markerPos);
 
+    // Debug: Log document structure BEFORE deletion
+    console.log('[BeatOps] === DOCUMENT STRUCTURE BEFORE DELETION ===');
+    console.log('[BeatOps] Total doc size:', state.doc.content.size);
+    state.doc.descendants((node, pos) => {
+      const textPreview = node.isText ? node.text?.substring(0, 50) : '';
+      console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
+      return true;
+    });
+    console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
+
     // Delete only up to the marker (not including the marker itself)
     if (markerPos <= deleteStartPos) {
       console.log('[BeatOps] Marker position <= deleteStartPos, nothing to delete');
@@ -231,6 +241,17 @@ export class BeatOperationsService {
 
     const tr = state.tr.delete(deleteStartPos, markerPos);
     editorView.dispatch(tr);
+
+    // Debug: Log document structure AFTER deletion
+    console.log('[BeatOps] === DOCUMENT STRUCTURE AFTER DELETION ===');
+    const newState = editorView.state;
+    console.log('[BeatOps] Total doc size:', newState.doc.content.size);
+    newState.doc.descendants((node, pos) => {
+      const textPreview = node.isText ? node.text?.substring(0, 50) : '';
+      console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
+      return true;
+    });
+    console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
 
     const content = getHTMLContent();
     this.contentUpdate$.next(content);
@@ -625,6 +646,16 @@ export class BeatOperationsService {
     if (isFirstChunk) {
       console.log('[BeatOps] appendContentAfterBeatNode - FIRST CHUNK for beat:', beatId);
 
+      // Debug: Log document structure BEFORE marker insertion
+      console.log('[BeatOps] === DOCUMENT STRUCTURE BEFORE MARKER INSERTION ===');
+      console.log('[BeatOps] Total doc size:', state.doc.content.size);
+      state.doc.descendants((node, pos) => {
+        const textPreview = node.isText ? node.text?.substring(0, 50) : '';
+        console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
+        return true;
+      });
+      console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
+
       // Check if marker already exists (regenerate case)
       const existingMarkerPos = this.findBeatEndMarkerPosition(editorView, beatId);
 
@@ -632,6 +663,17 @@ export class BeatOperationsService {
       if (existingMarkerPos === null) {
         console.log('[BeatOps] No existing marker found, inserting new marker at position:', afterBeatPos);
         this.insertBeatEndMarker(editorView, beatId, afterBeatPos);
+
+        // Debug: Log document structure AFTER marker insertion
+        console.log('[BeatOps] === DOCUMENT STRUCTURE AFTER MARKER INSERTION ===');
+        const newState = editorView.state;
+        console.log('[BeatOps] Total doc size:', newState.doc.content.size);
+        newState.doc.descendants((node, pos) => {
+          const textPreview = node.isText ? node.text?.substring(0, 50) : '';
+          console.log(`[BeatOps]   pos ${pos}: ${node.type.name}${textPreview ? ` "${textPreview}..."` : ''} (size: ${node.nodeSize})`);
+          return true;
+        });
+        console.log('[BeatOps] === END DOCUMENT STRUCTURE ===');
       } else {
         console.log('[BeatOps] Marker already exists at position:', existingMarkerPos, '- NOT inserting new marker');
       }
