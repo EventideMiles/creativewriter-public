@@ -1297,7 +1297,7 @@ Please rewrite the above text according to the instructions. Only output the rew
         chapterId: ctx.chapterId
       }));
 
-      const versionId = await this.beatHistoryService.saveVersion(
+      await this.beatHistoryService.saveVersion(
         beatId,
         options.storyId,
         {
