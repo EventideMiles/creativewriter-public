@@ -142,6 +142,81 @@ export class BeatOperationsService {
   }
 
   /**
+   * Find the position of a beat end marker by beat ID
+   */
+  findBeatEndMarkerPosition(editorView: EditorView | null, beatId: string): number | null {
+    if (!editorView) return null;
+
+    const { state } = editorView;
+    let markerPos: number | null = null;
+
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'beatEndMarker' && node.attrs['beatId'] === beatId) {
+        markerPos = pos;
+        return false; // Stop iteration
+      }
+      return true;
+    });
+
+    return markerPos;
+  }
+
+  /**
+   * Insert a beat end marker at the specified position
+   * Returns the position where the marker was inserted
+   */
+  private insertBeatEndMarker(editorView: EditorView, beatId: string, position: number): void {
+    const markerNode = editorView.state.schema.nodes['beatEndMarker'].create({ beatId });
+    const tr = editorView.state.tr.insert(position, markerNode);
+    editorView.dispatch(tr);
+  }
+
+  /**
+   * Delete only the generated content between a beat and its end marker
+   * Falls back to deleteContentAfterBeat if no marker exists (backward compatibility)
+   */
+  deleteGeneratedContentOnly(editorView: EditorView | null, beatId: string, getHTMLContent: () => string): boolean {
+    if (!editorView) return false;
+
+    const beatPos = this.findBeatNodePosition(editorView, beatId);
+    if (beatPos === null) return false;
+
+    const { state } = editorView;
+    const beatNode = state.doc.nodeAt(beatPos);
+    if (!beatNode) return false;
+
+    const deleteStartPos = beatPos + beatNode.nodeSize;
+
+    // Try to find the marker for this beat
+    const markerPos = this.findBeatEndMarkerPosition(editorView, beatId);
+
+    // If no marker exists, fall back to old behavior (delete to next beat)
+    if (markerPos === null) {
+      return this.deleteContentAfterBeat(editorView, beatId, getHTMLContent);
+    }
+
+    // Delete only up to the marker (not including the marker itself)
+    if (markerPos <= deleteStartPos) {
+      return false;
+    }
+
+    const tr = state.tr.delete(deleteStartPos, markerPos);
+    editorView.dispatch(tr);
+
+    const content = getHTMLContent();
+    this.contentUpdate$.next(content);
+
+    // Refresh prompt manager after the deletion
+    setTimeout(() => {
+      this.promptManager.refresh().catch(error => {
+        console.error('Error refreshing prompt manager:', error);
+      });
+    }, 500);
+
+    return true;
+  }
+
+  /**
    * Get the text content between a beat and the next beat (or end of scene)
    */
   getTextAfterBeat(editorView: EditorView | null, beatId: string): string | null {
@@ -235,6 +310,11 @@ export class BeatOperationsService {
           console.error('[BeatOperations] Failed to save previous content to history:', error);
         });
       }
+    }
+
+    // Handle regenerate action - delete only generated content (up to marker) before regenerating
+    if (event.action === 'regenerate') {
+      this.deleteGeneratedContentOnly(editorView, event.beatId, getHTMLContent);
     }
 
     // Handle rewrite action - delete old content before rewriting
@@ -513,11 +593,26 @@ export class BeatOperationsService {
     const afterBeatPos = beatPos + beatNode.nodeSize;
 
     if (isFirstChunk) {
+      // Check if marker already exists (regenerate case)
+      const existingMarkerPos = this.findBeatEndMarkerPosition(editorView, beatId);
+
+      // If no marker exists, insert one first so generated content will push it down
+      if (existingMarkerPos === null) {
+        this.insertBeatEndMarker(editorView, beatId, afterBeatPos);
+      }
+
       // First chunk - create HTML with <p> wrapper and process linebreaks
       const htmlContent = '<p>' + newContent.replace(/\n/g, '</p><p>') + '</p>';
 
-      // Parse HTML and insert into document
-      this.insertHtmlContent(editorView, beatId, htmlContent, afterBeatPos);
+      // Parse HTML and insert into document (at afterBeatPos, before the marker)
+      // Need to re-calculate afterBeatPos since document may have changed after marker insertion
+      const updatedBeatPos = this.findBeatNodePosition(editorView, beatId);
+      if (updatedBeatPos === null) return;
+      const updatedBeatNode = editorView.state.doc.nodeAt(updatedBeatPos);
+      if (!updatedBeatNode) return;
+      const updatedAfterBeatPos = updatedBeatPos + updatedBeatNode.nodeSize;
+
+      this.insertHtmlContent(editorView, beatId, htmlContent, updatedAfterBeatPos);
     } else {
       // Subsequent chunks - process linebreaks and append to existing content
       const processedContent = newContent.replace(/\n/g, '</p><p>');
