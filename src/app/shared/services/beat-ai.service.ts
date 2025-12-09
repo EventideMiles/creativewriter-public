@@ -1181,7 +1181,9 @@ Please rewrite the above text according to the instructions. Only output the rew
         });
 
         // For scene beats, replace the beat_generation_task with scene-specific instructions
+        console.log('[BeatAI] buildStructuredPromptFromTemplate - beatType:', options.beatType);
         if (options.beatType === 'scene') {
+          console.log('[BeatAI] Using scene beat instructions, textAfterBeat:', options.textAfterBeat ? 'present' : 'none');
           processedTemplate = this.replaceWithSceneBeatInstructions(
             processedTemplate,
             placeholders,
@@ -1318,8 +1320,10 @@ ${bridgingSection}
     // Match from <beat_generation_task> to </beat_generation_task>
     const taskRegex = /<beat_generation_task>[\s\S]*?<\/beat_generation_task>/;
     if (taskRegex.test(template)) {
+      console.log('[BeatAI] Found and replacing beat_generation_task with scene-specific instructions');
       return template.replace(taskRegex, sceneBeatTask);
     }
+    console.log('[BeatAI] WARNING: beat_generation_task not found in template');
 
     // If no beat_generation_task found, append before "Generate the beat now:"
     const generateNowRegex = /Generate the beat now:/;
