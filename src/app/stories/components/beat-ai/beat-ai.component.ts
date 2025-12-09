@@ -197,10 +197,10 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
             // Generation completed
             this.beatData.isGenerating = false;
             this.contentUpdate.emit(this.beatData);
+            // Only trigger change detection on completion - streaming text is handled
+            // directly by ProseMirror, not Angular templates
+            this.cdr.markForCheck();
           }
-          // Note: Streaming text is handled directly in the editor via ProseMirror service
-          // The component just tracks the generation state
-          this.cdr.markForCheck();
         }
       })
     );
