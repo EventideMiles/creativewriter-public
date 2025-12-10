@@ -519,13 +519,9 @@ export class DatabaseService {
   async stopSync(): Promise<void> {
     if (this.syncHandler) {
       try {
-        // Remove all event listeners to prevent memory leaks
-        this.syncHandler.off('change');
-        this.syncHandler.off('active');
-        this.syncHandler.off('paused');
-        this.syncHandler.off('error');
-
-        // Cancel the sync
+        // Cancel the sync - this also cleans up event listeners internally
+        // Note: We don't call .off() because PouchDB's cancel() handles cleanup
+        // and .off() requires the original function references which we don't store
         this.syncHandler.cancel();
       } catch (error) {
         console.warn('Error canceling sync:', error);
@@ -593,20 +589,57 @@ export class DatabaseService {
     await this.stopSync();
     this.startSync();
 
-    // Do a forced pull to get all documents immediately
-    try {
-      const result = await this.forcePull();
-      console.info(`[DatabaseService] Bootstrap sync completed: ${result.docsProcessed} docs`);
-      return result;
-    } finally {
-      // Disable bootstrap mode after sync completes
-      console.info('[DatabaseService] Disabling bootstrap sync mode');
-      this.bootstrapSyncMode = false;
+    // Wait for sync to complete by monitoring the sync status
+    // The 'paused' event indicates sync has caught up with all changes
+    return new Promise((resolve) => {
+      let totalDocsProcessed = 0;
+      let syncCompleted = false;
+      const timeoutMs = 60000; // 60 second timeout
 
-      // Restart sync with normal selective filtering
-      await this.stopSync();
+      const subscription = this.syncStatus$.subscribe(status => {
+        // Track documents processed
+        if (status.syncProgress?.docsProcessed) {
+          totalDocsProcessed = Math.max(totalDocsProcessed, status.syncProgress.docsProcessed);
+        }
+
+        // Sync is complete when it's no longer syncing and we've had a sync event
+        if (!status.isSync && status.lastSync && !syncCompleted) {
+          syncCompleted = true;
+          console.info(`[DatabaseService] Bootstrap sync completed: ${totalDocsProcessed} docs processed`);
+
+          // Clean up subscription and disable bootstrap mode
+          subscription.unsubscribe();
+          this.disableBootstrapSync();
+          resolve({ docsProcessed: totalDocsProcessed });
+        }
+      });
+
+      // Timeout fallback - don't wait forever
+      setTimeout(() => {
+        if (!syncCompleted) {
+          console.warn('[DatabaseService] Bootstrap sync timed out, proceeding anyway');
+          syncCompleted = true;
+          subscription.unsubscribe();
+          this.disableBootstrapSync();
+          resolve({ docsProcessed: totalDocsProcessed });
+        }
+      }, timeoutMs);
+    });
+  }
+
+  /**
+   * Disable bootstrap sync mode and restart with selective sync
+   */
+  private disableBootstrapSync(): void {
+    console.info('[DatabaseService] Disabling bootstrap sync mode');
+    this.bootstrapSyncMode = false;
+
+    // Restart sync with normal selective filtering
+    this.stopSync().then(() => {
       this.startSync();
-    }
+    }).catch(err => {
+      console.warn('[DatabaseService] Error restarting sync after bootstrap:', err);
+    });
   }
 
   /**
