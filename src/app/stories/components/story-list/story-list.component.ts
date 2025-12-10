@@ -275,11 +275,32 @@ export class StoryListComponent implements OnInit, OnDestroy {
         if (reset) {
           this.checkForMissingStories();
         }
-      } else if (!this.syncStatus.isSync && !this.syncStatus.isConnecting) {
-        // Only show EMPTY if sync is complete and we have no stories
+      } else if (this.syncStatus.isSync || this.syncStatus.isConnecting) {
+        // Sync is in progress - show syncing state
+        this.loadingState = LoadingState.SYNCING;
+      } else if (!this.syncStatus.lastSync && this.currentUser) {
+        // User is logged in but we haven't synced yet - likely just connected
+        // Show syncing state and wait for sync to complete
+        this.loadingState = LoadingState.SYNCING;
+        console.info('[StoryList] No stories and no sync history - waiting for initial sync');
+      } else if (reset && this.currentUser) {
+        // Sync completed but no stories - check if remote has stories we're missing
+        // This can happen if selective sync filter blocked story documents
+        const missingCheck = await this.databaseService.checkForMissingStories();
+        if (missingCheck && missingCheck.remoteCount > 0) {
+          console.info('[StoryList] Sync complete but remote has stories - triggering bootstrap sync');
+          this.loadingState = LoadingState.SYNCING;
+          this.cdr.markForCheck();
+          await this.triggerBootstrapSync();
+          return; // Exit - bootstrap sync will reload
+        } else {
+          // Truly empty - no stories locally or remotely
+          this.loadingState = LoadingState.EMPTY;
+        }
+      } else {
+        // Not logged in and no stories - show empty
         this.loadingState = LoadingState.EMPTY;
       }
-      // If syncing, keep current state (SYNCING) - it will update when sync completes
 
     } catch (error) {
       console.error('[StoryList] Failed to load metadata index, falling back to full stories:', error);
@@ -297,58 +318,14 @@ export class StoryListComponent implements OnInit, OnDestroy {
         // BOOTSTRAP SYNC: If local DB is empty but we have a remote connection,
         // it likely means the selective sync filter is blocking story documents.
         // Enable bootstrap mode to sync ALL documents and populate the database.
-        if (newStories.length === 0 && reset) {
+        if (newStories.length === 0 && reset && this.currentUser) {
           const missingCheck = await this.databaseService.checkForMissingStories();
           if (missingCheck && missingCheck.remoteCount > 0) {
-            console.info('[StoryList] Local DB empty but remote has stories - triggering bootstrap sync');
+            console.info('[StoryList] Fallback: Local DB empty but remote has stories - triggering bootstrap sync');
             this.loadingState = LoadingState.SYNCING;
             this.cdr.markForCheck();
-
-            try {
-              const result = await this.databaseService.enableBootstrapSync();
-              console.info(`[StoryList] Bootstrap sync completed: ${result.docsProcessed} docs synced`);
-
-              // Reload stories after bootstrap sync
-              const bootstrappedStories = await this.storyService.getAllStories(
-                this.pageSize,
-                0
-              );
-              this.totalStories = await this.storyService.getTotalStoriesCount();
-
-              // Map Story to StoryMetadata for display
-              const bootstrappedMetadata: StoryMetadata[] = bootstrappedStories.map(story => ({
-                id: story.id,
-                title: story.title,
-                coverImageThumbnail: story.coverImage,
-                previewText: this.storyService.getStoryPreview(story),
-                chapterCount: story.chapters.length,
-                sceneCount: story.chapters.reduce((sum, ch) => sum + ch.scenes.length, 0),
-                wordCount: this.storyService.getWordCount(story),
-                createdAt: story.createdAt,
-                updatedAt: story.updatedAt,
-                order: story.order
-              }));
-
-              this.stories = bootstrappedMetadata;
-              this.hasMoreStories = bootstrappedStories.length === this.pageSize && this.totalStories > this.pageSize;
-
-              // Rebuild the metadata index from the newly synced stories
-              console.info('[StoryList] Rebuilding metadata index after bootstrap sync');
-              try {
-                await this.metadataIndexService.rebuildIndex(true); // force=true since we just synced
-              } catch (indexError) {
-                console.warn('[StoryList] Failed to rebuild metadata index:', indexError);
-                // Not critical - index will be rebuilt naturally as stories are modified
-              }
-
-              // Set state based on whether bootstrap succeeded
-              this.loadingState = this.stories.length > 0 ? LoadingState.READY : LoadingState.EMPTY;
-              return; // Exit early, we've loaded stories via bootstrap
-            } catch (bootstrapError) {
-              console.error('[StoryList] Bootstrap sync failed:', bootstrapError);
-              // Fall through to show empty state
-              this.loadingState = LoadingState.EMPTY;
-            }
+            await this.triggerBootstrapSync();
+            return; // Exit early, bootstrap sync handled everything
           }
         }
 
@@ -622,6 +599,58 @@ export class StoryListComponent implements OnInit, OnDestroy {
       return 'First time loading may take a moment';
     }
     return null;
+  }
+
+  /**
+   * Trigger bootstrap sync to load all stories from remote
+   * Used when local database is empty but remote has stories
+   */
+  private async triggerBootstrapSync(): Promise<void> {
+    try {
+      const result = await this.databaseService.enableBootstrapSync();
+      console.info(`[StoryList] Bootstrap sync completed: ${result.docsProcessed} docs synced`);
+
+      // Reload stories after bootstrap sync
+      const bootstrappedStories = await this.storyService.getAllStories(
+        this.pageSize,
+        0
+      );
+      this.totalStories = await this.storyService.getTotalStoriesCount();
+
+      // Map Story to StoryMetadata for display
+      const bootstrappedMetadata: StoryMetadata[] = bootstrappedStories.map(story => ({
+        id: story.id,
+        title: story.title,
+        coverImageThumbnail: story.coverImage,
+        previewText: this.storyService.getStoryPreview(story),
+        chapterCount: story.chapters.length,
+        sceneCount: story.chapters.reduce((sum, ch) => sum + ch.scenes.length, 0),
+        wordCount: this.storyService.getWordCount(story),
+        createdAt: story.createdAt,
+        updatedAt: story.updatedAt,
+        order: story.order
+      }));
+
+      this.stories = bootstrappedMetadata;
+      this.hasMoreStories = bootstrappedStories.length === this.pageSize && this.totalStories > this.pageSize;
+
+      // Rebuild the metadata index from the newly synced stories
+      console.info('[StoryList] Rebuilding metadata index after bootstrap sync');
+      try {
+        await this.metadataIndexService.rebuildIndex(true); // force=true since we just synced
+      } catch (indexError) {
+        console.warn('[StoryList] Failed to rebuild metadata index:', indexError);
+        // Not critical - index will be rebuilt naturally as stories are modified
+      }
+
+      // Set state based on whether bootstrap succeeded
+      this.loadingState = this.stories.length > 0 ? LoadingState.READY : LoadingState.EMPTY;
+    } catch (bootstrapError) {
+      console.error('[StoryList] Bootstrap sync failed:', bootstrapError);
+      this.loadingState = LoadingState.EMPTY;
+    } finally {
+      this.cdr.markForCheck();
+    }
   }
 
   /**
