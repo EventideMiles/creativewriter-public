@@ -105,6 +105,11 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   // Model selection
   selectedModel = '';
 
+  // Quick picks from story settings
+  get quickPickIds(): string[] {
+    return this.story?.settings?.favoriteModelLists?.characterChat || [];
+  }
+
   // Suggested starters
   suggestedStarters: string[] = [];
 

@@ -225,7 +225,8 @@ export class StorySettingsComponent implements OnInit {
       this.settings.favoriteModelLists = {
         beatInput: [...this.settings.favoriteModels],
         sceneSummary: [],
-        rewrite: []
+        rewrite: [],
+        characterChat: []
       };
     }
 

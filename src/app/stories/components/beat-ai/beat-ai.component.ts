@@ -1048,7 +1048,8 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       this.story.settings.favoriteModelLists = {
         beatInput: [...this.story.settings.favoriteModels],
         sceneSummary: [],
-        rewrite: []
+        rewrite: [],
+        characterChat: []
       };
     }
 
