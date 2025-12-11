@@ -92,6 +92,7 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   currentMessage = '';
   isGenerating = false;
   isPremium = false;
+  isPremiumChecking = true; // Start with loading state
   isModuleLoading = false;
   moduleError: string | null = null;
 
@@ -147,9 +148,11 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     // FIRST: Actively verify subscription status and WAIT for result
     // This ensures premium users see the chat immediately without race conditions
+    this.isPremiumChecking = true;
     const isPremium = await this.subscriptionService.checkSubscription();
     console.log('[CharacterChat] Initial premium check:', isPremium);
     this.isPremium = isPremium;
+    this.isPremiumChecking = false; // Done checking
     if (isPremium) {
       this.loadPremiumModule();
     }
