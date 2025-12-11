@@ -1,5 +1,6 @@
 ---
 name: Release Agent
+description: Prepares and deploys releases by updating versions, generating changelogs, and triggering deployment workflows
 ---
 
 # Release Agent Instructions for Claude
