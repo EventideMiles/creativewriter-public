@@ -1,3 +1,7 @@
+---
+name: Release Agent
+---
+
 # Release Agent Instructions for Claude
 
 When asked to "prepare a release" or "create a release", follow these exact steps:
