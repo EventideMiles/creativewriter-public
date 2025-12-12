@@ -87,9 +87,19 @@ jobs:
           rm -rf .claude/ || true  # Remove Claude development files
           rm -rf .vscode/ || true  # Remove VS Code settings
           rm -rf .claudescreenshots/ || true  # Remove Claude screenshots
-          rm -rf docs/ || true  # Exclude private docs from public sync
           rm -f docker-compose.public.yml || true  # Remove the public compose file itself
           rm -rf backend/ || true  # Remove Cloudflare Worker backend (premium features)
+
+          # Selectively remove private docs, keeping public ones (screenshots, unraid)
+          rm -rf docs/premium-feature-plan/ || true  # Remove premium docs
+          rm -f docs/reddit-post.md || true  # Remove private drafts
+          rm -f docs/sample-beat-prompt.txt || true  # Remove sample files
+          # Remove internal drafts from unraid folder
+          rm -f docs/unraid/CA-ISSUE-DRAFT.md || true
+          rm -f docs/unraid/CA-SUBMISSION.md || true
+          rm -f docs/unraid/FORUM-POST-DRAFT.md || true
+          rm -f docs/unraid/USER-REPLY-DRAFT.md || true
+          # Keep: docs/screenshots/, docs/unraid/ (README, docker-compose, xml, png), docs/beat-version-history/
 
           # Replace premium components with public stubs
           CHAR_CHAT_DIR="src/app/stories/components/character-chat"
