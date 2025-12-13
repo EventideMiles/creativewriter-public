@@ -854,15 +854,18 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
       }
     }
 
-    // For custom models, pass the actual model name and provider
+    // For custom models, pass the actual model name, provider, and context length
     let customModelName: string | undefined;
     let customModelProvider: string | undefined;
+    let customContextLength: number | undefined;
 
     if (mappedModel === 'custom' && selectedModelOption) {
       customModelName = selectedModelOption.label;
       // Extract provider from the model ID (format: provider:model-id)
       const providerMatch = selectedModelOption.id.match(/^([^:]+):/);
       customModelProvider = providerMatch ? this.formatProviderName(providerMatch[1]) : undefined;
+      // Use the actual context length from the model option
+      customContextLength = selectedModelOption.contextLength;
     }
 
     const popover = await this.popoverController.create({
@@ -872,7 +875,8 @@ export class BeatAIComponent implements OnInit, OnDestroy, AfterViewInit {
         model: mappedModel,
         showComparison: true,
         customModelName,
-        customModelProvider
+        customModelProvider,
+        customContextLength
       },
       cssClass: 'token-info-popover',
       translucent: true,

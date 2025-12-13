@@ -409,6 +409,8 @@ export class TokenInfoPopoverComponent implements OnInit {
   @Input() showComparison = false;
   @Input() customModelName?: string;
   @Input() customModelProvider?: string;
+  @Input() customContextLength?: number;
+  @Input() customOutputLimit?: number;
 
   tokenResult!: TokenCountResult;
   modelInfo!: ReturnType<TokenCounterService['getModelInfo']>;
@@ -451,7 +453,7 @@ export class TokenInfoPopoverComponent implements OnInit {
 
   async calculateTokens() {
     this.loading = true;
-    
+
     try {
       // Try async tokenization first for Claude models
       this.tokenResult = await this.tokenCounter.countTokens(this.prompt, this.model);
@@ -460,8 +462,14 @@ export class TokenInfoPopoverComponent implements OnInit {
       console.warn('Failed to use async tokenization, falling back to sync:', error);
       this.tokenResult = this.tokenCounter.countTokensSync(this.prompt, this.model);
     }
-    
-    this.modelInfo = this.tokenCounter.getModelInfo(this.model);
+
+    // Pass custom values for custom models to get accurate context/output limits
+    this.modelInfo = this.tokenCounter.getModelInfo(this.model, {
+      customContextLength: this.customContextLength,
+      customOutputLimit: this.customOutputLimit,
+      customModelName: this.customModelName,
+      customModelProvider: this.customModelProvider
+    });
     this.usagePercentage = (this.tokenResult.tokens / this.modelInfo.contextWindow) * 100;
     this.loading = false;
   }
