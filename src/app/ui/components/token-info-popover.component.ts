@@ -1,6 +1,6 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonContent, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIcon, IonList, IonItem, IonLabel, IonNote, IonProgressBar, IonBadge, IonGrid, IonRow, IonCol } from '@ionic/angular/standalone';
+import { IonContent, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIcon, IonList, IonItem, IonLabel, IonNote, IonProgressBar, IonGrid, IonRow, IonCol } from '@ionic/angular/standalone';
 import { PopoverController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { closeOutline, informationCircleOutline } from 'ionicons/icons';
@@ -23,7 +23,6 @@ import { TokenCounterService, SupportedModel, TokenCountResult } from '../../sha
     IonLabel,
     IonNote,
     IonProgressBar,
-    IonBadge,
     IonGrid,
     IonRow,
     IonCol
@@ -59,7 +58,6 @@ import { TokenCounterService, SupportedModel, TokenCountResult } from '../../sha
             <h2>{{ displayModelName }}</h2>
             <p>{{ displayModelProvider }}</p>
           </ion-label>
-          <ion-badge slot="end" color="primary">{{ model }}</ion-badge>
         </ion-item>
 
         <!-- Token Count -->
