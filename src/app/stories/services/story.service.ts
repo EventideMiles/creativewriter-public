@@ -366,11 +366,13 @@ export class StoryService {
       await targetDb.remove(doc);
       console.info(`[StoryService] Story deleted from ${targetDb === this.db ? 'local' : 'remote'} database`);
 
-      // Remove story from metadata index
-      // Run in background - don't block story deletion
-      this.metadataIndexService.removeStoryMetadata(storyId).catch(err => {
+      // Remove story from metadata index - await to ensure UI updates immediately
+      try {
+        await this.metadataIndexService.removeStoryMetadata(storyId);
+      } catch (err) {
+        // Log but don't fail the overall deletion
         console.error('[StoryService] Failed to remove story from metadata index:', err);
-      });
+      }
     } catch (error) {
       console.error('Error deleting story:', error);
       throw error;
