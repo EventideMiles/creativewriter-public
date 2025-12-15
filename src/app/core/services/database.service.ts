@@ -435,6 +435,7 @@ export class DatabaseService {
   /**
    * Fetches only the story-metadata-index document from remote.
    * Used on startup to minimize initial sync - full sync only starts when user selects a story.
+   * If metadata index doesn't exist on remote, falls back to bootstrap sync.
    */
   private async fetchMetadataIndexOnly(): Promise<void> {
     if (!this.db || !this.remoteDb) {
@@ -448,12 +449,31 @@ export class DatabaseService {
       });
       console.info('[Sync] story-metadata-index fetch complete, docs:', result.docs_written);
 
-      // Emit sync status update to trigger UI refresh (story list subscribes to this)
       if (result.docs_written > 0) {
+        // Emit sync status update to trigger UI refresh (story list subscribes to this)
         this.updateSyncStatus({
           lastSync: new Date(),
           syncProgress: { docsProcessed: result.docs_written, operation: 'pull' }
         });
+      } else {
+        // Metadata index doesn't exist on remote - check if remote has any stories
+        // If so, we need bootstrap sync to pull them and rebuild the index
+        console.info('[Sync] No metadata index on remote, checking for stories...');
+        try {
+          const remoteInfo = await this.remoteDb.allDocs({ limit: 10, include_docs: true });
+          const hasStories = remoteInfo.rows.some(row => {
+            const doc = row.doc as Record<string, unknown> | undefined;
+            return doc && typeof doc === 'object' && 'chapters' in doc && !row.id.startsWith('_');
+          });
+          if (hasStories) {
+            console.info('[Sync] Remote has stories but no index - triggering bootstrap sync');
+            this.enableBootstrapSync();
+          } else {
+            console.info('[Sync] Remote has no stories - fresh database');
+          }
+        } catch (checkError) {
+          console.warn('[Sync] Could not check remote for stories:', checkError);
+        }
       }
     } catch (error) {
       console.warn('[Sync] Failed to fetch story-metadata-index:', error);
