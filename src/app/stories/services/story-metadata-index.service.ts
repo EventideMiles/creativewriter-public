@@ -66,7 +66,7 @@ export class StoryMetadataIndexService {
         const doc = await remoteDb.get('story-metadata-index') as any;
 
         if (isStoryMetadataIndex(doc)) {
-          console.info('[MetadataIndex] Got index from remote with', Object.keys(doc.stories || {}).length, 'stories');
+          console.info('[MetadataIndex] Got index from remote with', (doc.stories || []).length, 'stories');
           const index = this.deserializeIndex(doc);
           this.metadataCache = index;
 
