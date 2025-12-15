@@ -342,6 +342,38 @@ export class DatabaseService {
   }
 
   /**
+   * Check if a document ID represents an actual story document.
+   * Stories have IDs like 'mc6nmx4fliwa83d68m' - alphanumeric without prefixes.
+   * Other document types use ID prefixes like 'image_', 'video_', 'scene-chat_', etc.
+   */
+  private isStoryDocumentId(docId: string): boolean {
+    // System documents (design docs, local docs) are not stories
+    if (docId.startsWith('_')) {
+      return false;
+    }
+
+    // Documents with known prefixes are not stories
+    const nonStoryPrefixes = [
+      'image_',
+      'video_',
+      'association_',
+      'scene-chat_',
+      'story-research_',
+      'codex_',
+      'beat-history_',
+    ];
+
+    for (const prefix of nonStoryPrefixes) {
+      if (docId.startsWith(prefix)) {
+        return false;
+      }
+    }
+
+    // If no type field and no known prefix, it's likely a story document
+    return true;
+  }
+
+  /**
    * Returns the selective sync filter function.
    * This filter is used by both live sync and manual replication to ensure
    * consistent filtering behavior across all sync operations.
@@ -361,11 +393,25 @@ export class DatabaseService {
         return true;
       }
 
+      // Always sync design documents (CouchDB indexes)
+      if (docId.startsWith('_design/')) {
+        return true;
+      }
+
       // Sync user-wide documents (not story-specific)
-      // These include: custom backgrounds, videos, etc.
+      // These include: custom backgrounds, videos, images, associations, etc.
       const userWideTypes = ['custom-background', 'video', 'image-video-association'];
       if (docType && userWideTypes.includes(docType)) {
         return true;
+      }
+
+      // Sync documents identified by ID prefix (these don't have type fields)
+      // These are user-wide resources that should always sync
+      const userWidePrefixes = ['image_', 'video_', 'association_'];
+      for (const prefix of userWidePrefixes) {
+        if (docId.startsWith(prefix)) {
+          return true;
+        }
       }
 
       // BOOTSTRAP MODE: When enabled, sync ALL documents to populate empty database
@@ -379,16 +425,26 @@ export class DatabaseService {
       // If no active story is set (viewing story list), ONLY sync index + user-wide docs
       // DO NOT sync individual story documents - they're not needed for the list view
       if (!this.activeStoryId) {
-        // Story documents have no type field - exclude them
-        if (!docType) {
-          console.debug(`[SyncFilter] Excluding story document ${docId} (no activeStoryId)`);
-          return false;
-        }
         // Codex documents are story-specific - exclude them
         if (docType === 'codex') {
           return false;
         }
-        // Allow other document types (already handled user-wide types above)
+
+        // Story-specific documents identified by prefix - exclude when no active story
+        const storySpecificPrefixes = ['scene-chat_', 'story-research_'];
+        for (const prefix of storySpecificPrefixes) {
+          if (docId.startsWith(prefix)) {
+            return false;
+          }
+        }
+
+        // Documents without type field that look like story IDs - exclude them
+        if (!docType && this.isStoryDocumentId(docId)) {
+          console.debug(`[SyncFilter] Excluding story document ${docId} (no activeStoryId)`);
+          return false;
+        }
+
+        // Allow other document types
         return true;
       }
 
@@ -407,8 +463,18 @@ export class DatabaseService {
         return true;
       }
 
-      // 3. Exclude all other documents (other stories, their codex entries, etc.)
-      if (!docType) {
+      // 3. Sync story-specific documents (scene-chat, story-research) for active story
+      // These documents have IDs like 'scene-chat_STORYID_UUID'
+      const storySpecificPrefixes = ['scene-chat_', 'story-research_'];
+      for (const prefix of storySpecificPrefixes) {
+        if (docId.startsWith(prefix + this.activeStoryId + '_')) {
+          console.info(`[SyncFilter] ✓ Syncing ${prefix.slice(0, -1)} for active story: ${docId}`);
+          return true;
+        }
+      }
+
+      // 4. Exclude all other documents (other stories, their codex entries, etc.)
+      if (!docType && this.isStoryDocumentId(docId)) {
         console.debug(`[SyncFilter] Excluding story document ${docId} (not active story ${this.activeStoryId})`);
       }
       return false;
