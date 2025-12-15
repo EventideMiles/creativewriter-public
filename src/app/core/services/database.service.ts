@@ -353,14 +353,15 @@ export class DatabaseService {
     }
 
     // Documents with known prefixes are not stories
+    // Note: beat-history documents use 'history-' prefix and are stored in separate DB
     const nonStoryPrefixes = [
       'image_',
       'video_',
       'association_',
       'scene-chat_',
       'story-research_',
+      'character-chat_',
       'codex_',
-      'beat-history_',
     ];
 
     for (const prefix of nonStoryPrefixes) {
@@ -431,7 +432,7 @@ export class DatabaseService {
         }
 
         // Story-specific documents identified by prefix - exclude when no active story
-        const storySpecificPrefixes = ['scene-chat_', 'story-research_'];
+        const storySpecificPrefixes = ['scene-chat_', 'story-research_', 'character-chat_'];
         for (const prefix of storySpecificPrefixes) {
           if (docId.startsWith(prefix)) {
             return false;
@@ -463,9 +464,9 @@ export class DatabaseService {
         return true;
       }
 
-      // 3. Sync story-specific documents (scene-chat, story-research) for active story
-      // These documents have IDs like 'scene-chat_STORYID_UUID'
-      const storySpecificPrefixes = ['scene-chat_', 'story-research_'];
+      // 3. Sync story-specific documents (scene-chat, story-research, character-chat) for active story
+      // These documents have IDs like 'scene-chat_STORYID_UUID' or 'character-chat_STORYID_CHARID_UUID'
+      const storySpecificPrefixes = ['scene-chat_', 'story-research_', 'character-chat_'];
       for (const prefix of storySpecificPrefixes) {
         if (docId.startsWith(prefix + this.activeStoryId + '_')) {
           console.info(`[SyncFilter] ✓ Syncing ${prefix.slice(0, -1)} for active story: ${docId}`);
