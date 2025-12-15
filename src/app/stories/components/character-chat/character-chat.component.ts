@@ -12,7 +12,8 @@ import { addIcons } from 'ionicons';
 import {
   arrowBack, send, personCircle, chatbubbles, copy, refresh,
   close, helpCircle, timeOutline, chevronForward,
-  createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline, copyOutline
+  createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline, copyOutline,
+  hourglassOutline
 } from 'ionicons/icons';
 import { ModelSelectorComponent } from '../../../shared/components/model-selector/model-selector.component';
 
@@ -132,13 +133,15 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
     addIcons({
       arrowBack, send, personCircle, chatbubbles, copy, refresh,
       close, helpCircle, timeOutline, chevronForward,
-      createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline, copyOutline
+      createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline, copyOutline,
+      hourglassOutline
     });
     this.initializeHeaderActions();
   }
 
   private initializeHeaderActions(): void {
     this.headerActions = [
+      { icon: 'hourglass-outline', action: () => this.openKnowledgeSettings(), tooltip: 'Knowledge Cutoff', showOnDesktop: true, showOnMobile: true },
       { icon: 'time-outline', action: () => this.openHistoryList(), tooltip: 'Chat History', showOnDesktop: true, showOnMobile: true },
       { icon: 'refresh', action: () => this.startNewChat(), tooltip: 'New Chat', showOnDesktop: true, showOnMobile: true },
       { icon: 'help-circle', action: () => this.showHelp(), tooltip: 'Help', showOnDesktop: true, showOnMobile: true }
