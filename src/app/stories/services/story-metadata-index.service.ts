@@ -163,12 +163,18 @@ export class StoryMetadataIndexService {
    */
   private async checkRemoteHasStories(remoteDb: PouchDB.Database): Promise<boolean> {
     try {
-      const result = await remoteDb.allDocs({ limit: 50, include_docs: true });
-      return result.rows.some(row => {
+      // Get all documents - don't limit as stories may be after other docs alphabetically
+      const result = await remoteDb.allDocs({ include_docs: true });
+      console.info(`[MetadataIndex] Checking ${result.rows.length} remote documents for stories...`);
+
+      const storyCount = result.rows.filter(row => {
         const doc = row.doc as { type?: string; chapters?: unknown; _id?: string } | undefined;
         // Stories don't have a type field, must have chapters, and are not system docs
         return doc && !doc.type && doc.chapters && !row.id.startsWith('_');
-      });
+      }).length;
+
+      console.info(`[MetadataIndex] Found ${storyCount} story documents on remote`);
+      return storyCount > 0;
     } catch (err) {
       console.warn('[MetadataIndex] Failed to check remote for stories:', err);
       return false;
