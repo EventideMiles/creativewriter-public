@@ -101,6 +101,9 @@ export class StoryListComponent implements OnInit, OnDestroy {
   hasMoreStories = false;
   isLoadingMore = false;
 
+  // Guard to prevent loadStories re-entry (sync events can cause loops)
+  private isLoadingInProgress = false;
+
   constructor() {
     // Register Ionic icons
     addIcons({ add, download, settings, statsChart, trash, create, images, menu, close, reorderThree, swapVertical, move, appsOutline, checkmarkCircle, alertCircle, sync });
@@ -199,6 +202,14 @@ export class StoryListComponent implements OnInit, OnDestroy {
   }
 
   async loadStories(reset = true): Promise<void> {
+    // Guard against re-entry to prevent sync loops
+    // (getMetadataIndex saves to local DB which triggers sync events, which calls loadStories again)
+    if (this.isLoadingInProgress) {
+      console.debug('[StoryList] loadStories already in progress, skipping');
+      return;
+    }
+    this.isLoadingInProgress = true;
+
     if (reset) {
       this.currentPage = 0;
       this.stories = [];
@@ -314,6 +325,7 @@ export class StoryListComponent implements OnInit, OnDestroy {
         this.loadingState = this.stories.length > 0 ? LoadingState.READY : LoadingState.EMPTY;
       }
       this.isLoadingMore = false;
+      this.isLoadingInProgress = false;
       this.cdr.markForCheck();
     }
   }
