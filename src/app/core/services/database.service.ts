@@ -341,6 +341,80 @@ export class DatabaseService {
     return port === '3080' || (port !== '5984' && port !== '');
   }
 
+  /**
+   * Returns the selective sync filter function.
+   * This filter is used by both live sync and manual replication to ensure
+   * consistent filtering behavior across all sync operations.
+   */
+  private getSyncFilter(): (doc: PouchDB.Core.Document<Record<string, unknown>>) => boolean {
+    return (doc: PouchDB.Core.Document<Record<string, unknown>>) => {
+      const docType = (doc as { type?: string }).type;
+      const docId = doc._id;
+
+      // Always exclude snapshots
+      if (docType === 'story-snapshot') {
+        return false;
+      }
+
+      // ALWAYS sync the story metadata index (lightweight document for story list)
+      if (docId === 'story-metadata-index' || docType === 'story-metadata-index') {
+        return true;
+      }
+
+      // Sync user-wide documents (not story-specific)
+      // These include: custom backgrounds, videos, etc.
+      const userWideTypes = ['custom-background', 'video', 'image-video-association'];
+      if (docType && userWideTypes.includes(docType)) {
+        return true;
+      }
+
+      // BOOTSTRAP MODE: When enabled, sync ALL documents to populate empty database
+      // This is used when local database is empty and metadata index is missing
+      if (this.bootstrapSyncMode) {
+        // In bootstrap mode, sync everything except snapshots (already excluded above)
+        console.info(`[SyncFilter] ✓ Bootstrap mode: syncing ${docId}`);
+        return true;
+      }
+
+      // If no active story is set (viewing story list), ONLY sync index + user-wide docs
+      // DO NOT sync individual story documents - they're not needed for the list view
+      if (!this.activeStoryId) {
+        // Story documents have no type field - exclude them
+        if (!docType) {
+          console.debug(`[SyncFilter] Excluding story document ${docId} (no activeStoryId)`);
+          return false;
+        }
+        // Codex documents are story-specific - exclude them
+        if (docType === 'codex') {
+          return false;
+        }
+        // Allow other document types (already handled user-wide types above)
+        return true;
+      }
+
+      // SELECTIVE SYNC ENABLED: Only sync active story and related documents
+
+      // 1. Sync the active story document (stories have no type field)
+      if (!docType && docId === this.activeStoryId) {
+        console.info(`[SyncFilter] ✓ Syncing active story: ${docId}`);
+        return true;
+      }
+
+      // 2. Sync codex for the active story
+      const storyId = (doc as { storyId?: string }).storyId;
+      if (docType === 'codex' && storyId === this.activeStoryId) {
+        console.info(`[SyncFilter] ✓ Syncing codex for active story: ${docId}`);
+        return true;
+      }
+
+      // 3. Exclude all other documents (other stories, their codex entries, etc.)
+      if (!docType) {
+        console.debug(`[SyncFilter] Excluding story document ${docId} (not active story ${this.activeStoryId})`);
+      }
+      return false;
+    };
+  }
+
   private startSync(): void {
     if (!this.remoteDb || !this.db) return;
 
@@ -350,72 +424,7 @@ export class DatabaseService {
       timeout: 30000,
       // SELECTIVE SYNC: Filter to only sync active story and related documents
       // This significantly reduces memory usage and sync operations on mobile
-      filter: (doc: PouchDB.Core.Document<Record<string, unknown>>) => {
-        const docType = (doc as { type?: string }).type;
-        const docId = doc._id;
-
-        // Always exclude snapshots
-        if (docType === 'story-snapshot') {
-          return false;
-        }
-
-        // ALWAYS sync the story metadata index (lightweight document for story list)
-        if (docId === 'story-metadata-index' || docType === 'story-metadata-index') {
-          return true;
-        }
-
-        // Sync user-wide documents (not story-specific)
-        // These include: custom backgrounds, videos, etc.
-        const userWideTypes = ['custom-background', 'video', 'image-video-association'];
-        if (docType && userWideTypes.includes(docType)) {
-          return true;
-        }
-
-        // BOOTSTRAP MODE: When enabled, sync ALL documents to populate empty database
-        // This is used when local database is empty and metadata index is missing
-        if (this.bootstrapSyncMode) {
-          // In bootstrap mode, sync everything except snapshots (already excluded above)
-          console.info(`[SyncFilter] ✓ Bootstrap mode: syncing ${docId}`);
-          return true;
-        }
-
-        // If no active story is set (viewing story list), ONLY sync index + user-wide docs
-        // DO NOT sync individual story documents - they're not needed for the list view
-        if (!this.activeStoryId) {
-          // Story documents have no type field - exclude them
-          if (!docType) {
-            console.debug(`[SyncFilter] Excluding story document ${docId} (no activeStoryId)`);
-            return false;
-          }
-          // Codex documents are story-specific - exclude them
-          if (docType === 'codex') {
-            return false;
-          }
-          // Allow other document types (already handled user-wide types above)
-          return true;
-        }
-
-        // SELECTIVE SYNC ENABLED: Only sync active story and related documents
-
-        // 1. Sync the active story document (stories have no type field)
-        if (!docType && docId === this.activeStoryId) {
-          console.info(`[SyncFilter] ✓ Syncing active story: ${docId}`);
-          return true;
-        }
-
-        // 2. Sync codex for the active story
-        const storyId = (doc as { storyId?: string }).storyId;
-        if (docType === 'codex' && storyId === this.activeStoryId) {
-          console.info(`[SyncFilter] ✓ Syncing codex for active story: ${docId}`);
-          return true;
-        }
-
-        // 3. Exclude all other documents (other stories, their codex entries, etc.)
-        if (!docType) {
-          console.debug(`[SyncFilter] Excluding story document ${docId} (not active story ${this.activeStoryId})`);
-        }
-        return false;
-      }
+      filter: this.getSyncFilter()
     }) as unknown as PouchSync;
 
     this.syncHandler = (handler as unknown as PouchDB.Replication.Sync<Record<string, unknown>>)
@@ -720,10 +729,11 @@ export class DatabaseService {
 
     try {
       // Create replication with progress tracking
+      // Apply the same selective sync filter used by live sync
       const replicationPromise = (async () => {
         const replication = direction === 'push'
-          ? this.db!.replicate.to(this.remoteDb!)
-          : this.db!.replicate.from(this.remoteDb!);
+          ? this.db!.replicate.to(this.remoteDb!, { filter: this.getSyncFilter() })
+          : this.db!.replicate.from(this.remoteDb!, { filter: this.getSyncFilter() });
 
         // Track progress during replication with document details
         let totalProcessed = 0;
