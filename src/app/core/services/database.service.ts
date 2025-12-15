@@ -197,6 +197,14 @@ export class DatabaseService {
   }
 
   /**
+   * Get the remote database instance (if connected)
+   * Returns null if not connected to remote
+   */
+  getRemoteDatabase(): PouchDB.Database | null {
+    return this.remoteDb;
+  }
+
+  /**
    * Set the active story ID for selective sync.
    * Only the active story and its related documents will be synced.
    * Set to null to sync all documents.
@@ -299,9 +307,10 @@ export class DatabaseService {
       // Connection successful, clear connecting state
       this.updateSyncStatus({ isConnecting: false });
 
-      // Fetch metadata index on startup - must complete before UI loads story list
-      // This is blocking to ensure the story list has data to display
-      await this.fetchMetadataIndexOnly();
+      // Note: We don't start full sync here anymore.
+      // - Metadata index is queried directly from remote by StoryMetadataIndexService
+      // - Full sync only starts when user selects a story (setActiveStoryId)
+      // - Bootstrap sync is triggered if needed when metadata index is missing
 
     } catch (error) {
       console.warn('Could not setup sync:', error);
@@ -430,64 +439,6 @@ export class DatabaseService {
       // ═══════════════════════════════════════════════════════════════════════
       return true;
     };
-  }
-
-  /**
-   * Fetches only the story-metadata-index document from remote.
-   * Used on startup to minimize initial sync - full sync only starts when user selects a story.
-   * If metadata index doesn't exist on remote, falls back to bootstrap sync.
-   */
-  private async fetchMetadataIndexOnly(): Promise<void> {
-    if (!this.db || !this.remoteDb) {
-      return;
-    }
-
-    try {
-      console.info('[Sync] Fetching story-metadata-index only...');
-      const result = await this.db.replicate.from(this.remoteDb, {
-        doc_ids: ['story-metadata-index']
-      });
-      console.info('[Sync] story-metadata-index fetch complete, docs:', result.docs_written);
-
-      if (result.docs_written > 0) {
-        // Emit sync status update to trigger UI refresh (story list subscribes to this)
-        this.updateSyncStatus({
-          lastSync: new Date(),
-          syncProgress: { docsProcessed: result.docs_written, operation: 'pull' }
-        });
-      } else {
-        // Metadata index doesn't exist on remote - check if remote has any stories
-        // If so, we need bootstrap sync to pull them and rebuild the index
-        console.info('[Sync] No metadata index on remote, checking for stories...');
-        const remoteInfo = await this.remoteDb.allDocs({ limit: 50, include_docs: true });
-        console.info('[Sync] Remote has', remoteInfo.rows.length, 'documents');
-
-        // Log first 5 documents to debug structure
-        remoteInfo.rows.slice(0, 5).forEach(row => {
-          const doc = row.doc as Record<string, unknown> | undefined;
-          const fields = doc ? Object.keys(doc).join(', ') : 'no doc';
-          console.info('[Sync] Doc:', row.id, '| Fields:', fields);
-        });
-
-        const hasStories = remoteInfo.rows.some(row => {
-          const doc = row.doc as Record<string, unknown> | undefined;
-          const isStory = doc && typeof doc === 'object' && 'chapters' in doc && !row.id.startsWith('_');
-          if (isStory) {
-            console.info('[Sync] Found story document:', row.id);
-          }
-          return isStory;
-        });
-
-        if (hasStories) {
-          console.info('[Sync] Remote has stories but no index - triggering bootstrap sync');
-          await this.enableBootstrapSync();
-        } else {
-          console.info('[Sync] Remote has no stories - fresh database');
-        }
-      }
-    } catch (error) {
-      console.warn('[Sync] Failed to fetch story-metadata-index:', error);
-    }
   }
 
   private startSync(): void {
