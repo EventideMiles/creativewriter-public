@@ -3,7 +3,6 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { AuthService, User } from './auth.service';
 import { SyncLoggerService } from './sync-logger.service';
 import { PouchDB } from '../../app';
-import { countStories } from '../../shared/utils/document-filters';
 
 // Minimal static type for the PouchDB constructor when loaded via ESM
 interface PouchDBStatic {
@@ -1005,55 +1004,22 @@ export class DatabaseService {
 
   /**
    * Check if there are stories in the remote database that are missing locally
-   * This is a quick check that compares story counts between local and remote databases
-   * @returns Object with hasMissing flag and counts, or null if remote DB is unavailable
+   *
+   * NOTE: This check is no longer relevant with the metadata index architecture.
+   * Stories are displayed from the remote metadata index (no sync needed for list view).
+   * Full story content syncs on-demand when user opens a story.
+   *
+   * @returns Always returns null (no missing stories) - feature disabled
+   * @deprecated No longer needed with metadata index architecture
    */
   async checkForMissingStories(): Promise<{
     hasMissing: boolean;
     localCount: number;
     remoteCount: number;
   } | null> {
-    try {
-      // Check if we have a remote database connection
-      if (!this.remoteDb) {
-        return null;
-      }
-
-      // Get local database
-      const localDb = await this.getDatabase();
-
-      // Quick count using allDocs (same efficient method used by StoryService)
-      const countStoriesInDb = async (db: PouchDB.Database): Promise<number> => {
-        const result = await db.allDocs({
-          include_docs: true  // REQUIRED: filterStoryRows needs full documents to check type/chapters fields
-        });
-        // Use shared utility function for consistent story document filtering
-        return countStories(result.rows);
-      };
-
-      // Count local stories first
-      const localCount = await countStoriesInDb(localDb);
-
-      // Count remote stories with separate error handling
-      // Remote DB may be unavailable or return malformed responses
-      let remoteCount: number;
-      try {
-        remoteCount = await countStoriesInDb(this.remoteDb);
-      } catch {
-        // Remote database unavailable or returned invalid response
-        // This is expected when offline or server is unreachable
-        console.warn('[DatabaseService] Remote database unavailable for story count check');
-        return null;
-      }
-
-      return {
-        hasMissing: remoteCount > localCount,
-        localCount,
-        remoteCount
-      };
-    } catch (error) {
-      console.error('[DatabaseService] Error checking for missing stories:', error);
-      return null;
-    }
+    // With the metadata index architecture, stories are displayed from the remote
+    // metadata index, not from local documents. Full story documents sync on-demand
+    // when a user opens a story. The concept of "missing stories" is no longer relevant.
+    return null;
   }
 }
