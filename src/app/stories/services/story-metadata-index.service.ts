@@ -30,6 +30,9 @@ export class StoryMetadataIndexService {
 
   private metadataCache: StoryMetadataIndex | null = null;
 
+  // Guard to prevent concurrent getMetadataIndex calls (which cause loops during initial sync)
+  private pendingFetch: Promise<StoryMetadataIndex> | null = null;
+
   /**
    * Get the current database instance
    * Always get fresh reference to handle user login/logout which creates new databases
@@ -55,6 +58,32 @@ export class StoryMetadataIndexService {
    * @throws Error if index cannot be loaded or created
    */
   async getMetadataIndex(): Promise<StoryMetadataIndex> {
+    // Return cached result if available (quick path)
+    if (this.metadataCache) {
+      return this.metadataCache;
+    }
+
+    // If a fetch is already in progress, wait for it instead of starting a new one
+    // This prevents concurrent calls during initial sync from causing loops
+    if (this.pendingFetch) {
+      console.debug('[MetadataIndex] Fetch already in progress, waiting...');
+      return this.pendingFetch;
+    }
+
+    // Start fetch and store the promise
+    this.pendingFetch = this.doGetMetadataIndex();
+
+    try {
+      return await this.pendingFetch;
+    } finally {
+      this.pendingFetch = null;
+    }
+  }
+
+  /**
+   * Internal implementation of getMetadataIndex
+   */
+  private async doGetMetadataIndex(): Promise<StoryMetadataIndex> {
     const db = await this.getDb();
     const remoteDb = this.databaseService.getRemoteDatabase();
 
