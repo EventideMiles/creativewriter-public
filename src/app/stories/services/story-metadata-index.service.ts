@@ -327,11 +327,13 @@ export class StoryMetadataIndexService {
    * Remove a story from the index
    *
    * Call this after story deletion
+   * Updates BOTH local and remote databases to prevent re-sync issues
    *
    * @param storyId The ID of the story to remove
    */
   async removeStoryMetadata(storyId: string): Promise<void> {
     const db = await this.getDb();
+    const remoteDb = this.databaseService.getRemoteDatabase();
 
     // Retry up to 3 times for conflict resolution
     const maxRetries = 3;
@@ -350,9 +352,37 @@ export class StoryMetadataIndexService {
         // Only update if something was actually removed
         if (index.stories.length < originalCount) {
           index.lastUpdated = new Date();
-          const result = await db.put(index);
+
+          // Save to REMOTE first (if available) - this is the source of truth
+          if (remoteDb) {
+            try {
+              // Get fresh _rev from remote
+              const remoteDoc = await remoteDb.get('story-metadata-index').catch(() => null);
+              const remoteIndex = {
+                ...index,
+                _id: 'story-metadata-index',
+                _rev: remoteDoc ? (remoteDoc as { _rev: string })._rev : undefined
+              };
+              const remoteResult = await remoteDb.put(remoteIndex);
+              index._rev = remoteResult.rev;
+              console.info(`[MetadataIndex] Removed story ${storyId} from remote index`);
+            } catch (remoteErr) {
+              console.warn('[MetadataIndex] Failed to update remote index:', remoteErr);
+              // Continue with local update even if remote fails
+            }
+          }
+
+          // Save to local database
+          const localDoc = await db.get('story-metadata-index').catch(() => null);
+          const localIndex = {
+            ...index,
+            _id: 'story-metadata-index',
+            _rev: localDoc ? (localDoc as { _rev: string })._rev : undefined
+          };
+          const result = await db.put(localIndex);
           index._rev = result.rev;
           this.metadataCache = index;
+          console.info(`[MetadataIndex] Removed story ${storyId} from local index`);
         }
         return; // Success - exit retry loop
 
