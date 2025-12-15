@@ -342,143 +342,90 @@ export class DatabaseService {
   }
 
   /**
-   * Check if a document ID represents an actual story document.
-   * Stories have IDs like 'mc6nmx4fliwa83d68m' - alphanumeric without prefixes.
-   * Other document types use ID prefixes like 'image_', 'video_', 'scene-chat_', etc.
-   */
-  private isStoryDocumentId(docId: string): boolean {
-    // System documents (design docs, local docs) are not stories
-    if (docId.startsWith('_')) {
-      return false;
-    }
-
-    // Documents with known prefixes are not stories
-    // Note: beat-history documents use 'history-' prefix and are stored in separate DB
-    const nonStoryPrefixes = [
-      'image_',
-      'video_',
-      'association_',
-      'scene-chat_',
-      'story-research_',
-      'character-chat_',
-      'codex_',
-    ];
-
-    for (const prefix of nonStoryPrefixes) {
-      if (docId.startsWith(prefix)) {
-        return false;
-      }
-    }
-
-    // If no type field and no known prefix, it's likely a story document
-    return true;
-  }
-
-  /**
    * Returns the selective sync filter function.
-   * This filter is used by both live sync and manual replication to ensure
-   * consistent filtering behavior across all sync operations.
+   *
+   * BLACKLIST APPROACH: Instead of whitelisting specific document types,
+   * we identify story-specific documents by their properties and exclude them
+   * when appropriate. This makes the filter future-proof for new document types.
+   *
+   * Story-specific documents are identified by:
+   * 1. Having a `storyId` field (codex, scene-chat, story-research, character-chat, etc.)
+   * 2. Being a story document itself (has `chapters` field)
+   *
+   * All other documents sync by default, ensuring new features work automatically.
    */
   private getSyncFilter(): (doc: PouchDB.Core.Document<Record<string, unknown>>) => boolean {
     return (doc: PouchDB.Core.Document<Record<string, unknown>>) => {
-      const docType = (doc as { type?: string }).type;
       const docId = doc._id;
+      const docType = (doc as { type?: string }).type;
+      const storyId = (doc as { storyId?: string }).storyId;
+      const hasChapters = 'chapters' in doc;
 
-      // Always exclude snapshots
+      // ═══════════════════════════════════════════════════════════════════════
+      // ALWAYS EXCLUDE: Snapshots are too large, handled separately
+      // ═══════════════════════════════════════════════════════════════════════
       if (docType === 'story-snapshot') {
         return false;
       }
 
-      // ALWAYS sync the story metadata index (lightweight document for story list)
+      // ═══════════════════════════════════════════════════════════════════════
+      // ALWAYS SYNC: Critical system documents
+      // ═══════════════════════════════════════════════════════════════════════
+
+      // Story metadata index - lightweight document for story list
       if (docId === 'story-metadata-index' || docType === 'story-metadata-index') {
         return true;
       }
 
-      // Always sync design documents (CouchDB indexes)
-      if (docId.startsWith('_design/')) {
+      // Design documents (CouchDB indexes) and local documents
+      if (docId.startsWith('_')) {
         return true;
       }
 
-      // Sync user-wide documents (not story-specific)
-      // These include: custom backgrounds, videos, images, associations, etc.
-      const userWideTypes = ['custom-background', 'video', 'image-video-association'];
-      if (docType && userWideTypes.includes(docType)) {
-        return true;
-      }
-
-      // Sync documents identified by ID prefix (these don't have type fields)
-      // These are user-wide resources that should always sync
-      const userWidePrefixes = ['image_', 'video_', 'association_'];
-      for (const prefix of userWidePrefixes) {
-        if (docId.startsWith(prefix)) {
-          return true;
-        }
-      }
-
-      // BOOTSTRAP MODE: When enabled, sync ALL documents to populate empty database
-      // This is used when local database is empty and metadata index is missing
+      // ═══════════════════════════════════════════════════════════════════════
+      // BOOTSTRAP MODE: Sync everything to populate empty database
+      // ═══════════════════════════════════════════════════════════════════════
       if (this.bootstrapSyncMode) {
-        // In bootstrap mode, sync everything except snapshots (already excluded above)
         console.info(`[SyncFilter] ✓ Bootstrap mode: syncing ${docId}`);
         return true;
       }
 
-      // If no active story is set (viewing story list), ONLY sync index + user-wide docs
-      // DO NOT sync individual story documents - they're not needed for the list view
-      if (!this.activeStoryId) {
-        // Codex documents are story-specific - exclude them
-        if (docType === 'codex') {
+      // ═══════════════════════════════════════════════════════════════════════
+      // SELECTIVE SYNC: Filter story-specific documents
+      // ═══════════════════════════════════════════════════════════════════════
+
+      // Check if this is a story document (has chapters field)
+      if (hasChapters) {
+        if (!this.activeStoryId) {
+          console.debug(`[SyncFilter] Excluding story ${docId} (no active story)`);
           return false;
         }
-
-        // Story-specific documents identified by prefix - exclude when no active story
-        const storySpecificPrefixes = ['scene-chat_', 'story-research_', 'character-chat_'];
-        for (const prefix of storySpecificPrefixes) {
-          if (docId.startsWith(prefix)) {
-            return false;
-          }
-        }
-
-        // Documents without type field that look like story IDs - exclude them
-        if (!docType && this.isStoryDocumentId(docId)) {
-          console.debug(`[SyncFilter] Excluding story document ${docId} (no activeStoryId)`);
-          return false;
-        }
-
-        // Allow other document types
-        return true;
-      }
-
-      // SELECTIVE SYNC ENABLED: Only sync active story and related documents
-
-      // 1. Sync the active story document (stories have no type field)
-      if (!docType && docId === this.activeStoryId) {
-        console.info(`[SyncFilter] ✓ Syncing active story: ${docId}`);
-        return true;
-      }
-
-      // 2. Sync codex for the active story
-      const storyId = (doc as { storyId?: string }).storyId;
-      if (docType === 'codex' && storyId === this.activeStoryId) {
-        console.info(`[SyncFilter] ✓ Syncing codex for active story: ${docId}`);
-        return true;
-      }
-
-      // 3. Sync story-specific documents (scene-chat, story-research, character-chat) for active story
-      // These documents have IDs like 'scene-chat_STORYID_UUID' or 'character-chat_STORYID_CHARID_UUID'
-      const storySpecificPrefixes = ['scene-chat_', 'story-research_', 'character-chat_'];
-      for (const prefix of storySpecificPrefixes) {
-        if (docId.startsWith(prefix + this.activeStoryId + '_')) {
-          console.info(`[SyncFilter] ✓ Syncing ${prefix.slice(0, -1)} for active story: ${docId}`);
+        if (docId === this.activeStoryId) {
+          console.info(`[SyncFilter] ✓ Syncing active story: ${docId}`);
           return true;
         }
+        console.debug(`[SyncFilter] Excluding story ${docId} (not active story ${this.activeStoryId})`);
+        return false;
       }
 
-      // 4. Exclude all other documents (other stories, their codex entries, etc.)
-      if (!docType && this.isStoryDocumentId(docId)) {
-        console.debug(`[SyncFilter] Excluding story document ${docId} (not active story ${this.activeStoryId})`);
+      // Check if this is a story-specific document (has non-empty storyId field)
+      if (storyId && typeof storyId === 'string' && storyId.length > 0) {
+        if (!this.activeStoryId) {
+          console.debug(`[SyncFilter] Excluding ${docType || 'doc'} ${docId} (no active story)`);
+          return false;
+        }
+        if (storyId === this.activeStoryId) {
+          console.info(`[SyncFilter] ✓ Syncing ${docType || 'doc'} for active story: ${docId}`);
+          return true;
+        }
+        console.debug(`[SyncFilter] Excluding ${docType || 'doc'} ${docId} (storyId ${storyId} != active ${this.activeStoryId})`);
+        return false;
       }
-      return false;
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // DEFAULT: Sync all other documents (user-wide resources, new doc types)
+      // ═══════════════════════════════════════════════════════════════════════
+      return true;
     };
   }
 
