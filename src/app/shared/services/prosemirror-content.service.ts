@@ -225,7 +225,9 @@ export class ProseMirrorContentService {
    */
   createSimpleEditorPlugins(schema: Schema, placeholder: string): Plugin[] {
     return [
-      history(),
+      // Limit history depth to prevent unbounded memory growth on mobile
+      // Reduced from 50 to 15 for simple editors
+      history({ depth: 15, newGroupDelay: 500 }),
       keymap({
         'Mod-z': undo,
         'Mod-y': redo,

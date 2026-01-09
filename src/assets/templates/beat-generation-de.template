@@ -24,7 +24,7 @@
   <narrative_parameters>
     {pointOfView}
     <word_count>{wordCount} Wörter (±50 Wörter akzeptabel)</word_count>
-    <tense>Entspreche der etablierten Zeitform (typischerweise Vergangenheit)</tense>
+    <tense>{tense}</tense>
   </narrative_parameters>
 
   <beat_requirements>
@@ -34,7 +34,6 @@
   <style_guidance>
     - Entspreche exakt dem Ton und der Erzählstimme der aktuellen Szene
     - Behalte die etablierte Balance von Dialog, Handlung und Innenperspektive bei
-    - {writingStyle}
     - Beende mit einem bedeutsamen Moment, Entscheidungspunkt oder natürlichem Übergang
   </style_guidance>
 
@@ -44,6 +43,8 @@
     - Führe KEINE unverbundenen Nebenhandlungen oder größere neue Story-Elemente ein
     - Schreibe NICHT über das hinaus, was in den Beat-Anforderungen spezifisch verlangt wird
   </constraints>
+
+  {rules}
 
   <output_format>
     Reine narrative Prosa. Keine Meta-Kommentare, Szenenmarkierungen, Kapitelüberschriften oder Autorennotizen.

@@ -4,5 +4,7 @@ export const environment = {
   stripe: {
     publishableKey: 'pk_test_51SZn3QFMve58hrbp2nVnKymJww8W6OZ6qZ2nYHwTRP6t6X8JSJFccmaY0Tq2naMIDsiTfn6jyXdHdcKEnjafQXxl00nRv3NtPY',
     pricingTableId: 'prctbl_1SauwOFMve58hrbpmS0BGyMx'
-  }
+  },
+  // CouchDB URL for local development - set to null to use auto-detection (uses proxy)
+  couchDbBaseUrl: null as string | null
 };

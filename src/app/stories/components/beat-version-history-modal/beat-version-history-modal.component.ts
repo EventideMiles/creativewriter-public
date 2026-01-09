@@ -21,7 +21,7 @@ import {
   LoadingController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { close, timeOutline, trashOutline, checkmarkCircle, chevronDown, chevronUp } from 'ionicons/icons';
+import { close, timeOutline, trashOutline, checkmarkCircle, chevronDown, chevronUp, copyOutline, checkmarkOutline, refreshOutline } from 'ionicons/icons';
 import { BeatHistoryService } from '../../../shared/services/beat-history.service';
 import { ProseMirrorEditorService } from '../../../shared/services/prosemirror-editor.service';
 import { BeatVersion } from '../../models/beat-version-history.interface';
@@ -58,6 +58,10 @@ export class BeatVersionHistoryModalComponent implements OnInit {
   loading = false;
   error: string | null = null;
 
+  // Track which version was recently copied (for visual feedback)
+  copiedPromptId: string | null = null;
+  copiedContentId: string | null = null;
+
   private readonly modalController = inject(ModalController);
   private readonly beatHistoryService = inject(BeatHistoryService);
   private readonly proseMirrorService = inject(ProseMirrorEditorService);
@@ -65,7 +69,7 @@ export class BeatVersionHistoryModalComponent implements OnInit {
   private readonly loadingController = inject(LoadingController);
 
   constructor() {
-    addIcons({ close, timeOutline, trashOutline, checkmarkCircle, chevronDown, chevronUp });
+    addIcons({ close, timeOutline, trashOutline, checkmarkCircle, chevronDown, chevronUp, copyOutline, checkmarkOutline, refreshOutline });
   }
 
   async ngOnInit() {
@@ -176,6 +180,62 @@ export class BeatVersionHistoryModalComponent implements OnInit {
   }
 
   /**
+   * Copy prompt to clipboard
+   */
+  async copyPrompt(version: BeatVersion, event: Event): Promise<void> {
+    event.stopPropagation();
+    await this.copyToClipboard(version.prompt, 'prompt', version.versionId);
+  }
+
+  /**
+   * Copy generated content to clipboard
+   */
+  async copyContent(version: BeatVersion, event: Event): Promise<void> {
+    event.stopPropagation();
+    const plainText = this.htmlToPlainText(version.content);
+    await this.copyToClipboard(plainText, 'content', version.versionId);
+  }
+
+  /**
+   * Copy text to clipboard with visual feedback
+   */
+  private async copyToClipboard(text: string, type: 'prompt' | 'content', versionId: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.showCopyFeedback(type, versionId);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      this.showCopyFeedback(type, versionId);
+    }
+  }
+
+  /**
+   * Show visual feedback after copying
+   */
+  private showCopyFeedback(type: 'prompt' | 'content', versionId: string): void {
+    if (type === 'prompt') {
+      this.copiedPromptId = versionId;
+    } else {
+      this.copiedContentId = versionId;
+    }
+    setTimeout(() => {
+      if (type === 'prompt') {
+        this.copiedPromptId = null;
+      } else {
+        this.copiedContentId = null;
+      }
+    }, 1500);
+  }
+
+  /**
    * Restore a previous version
    */
   async restoreVersion(version: BeatVersion) {
@@ -207,8 +267,10 @@ export class BeatVersionHistoryModalComponent implements OnInit {
 
               await loading.dismiss();
 
-              // Notify parent that version was changed
-              await this.modalController.dismiss({ versionChanged: true });
+              // Notify parent that version was changed, including the restored prompt
+              // For rewrite versions, don't pass the prompt (it's the rewrite instruction, not original prompt)
+              const restoredPrompt = version.action === 'rewrite' ? undefined : version.prompt;
+              await this.modalController.dismiss({ versionChanged: true, restoredPrompt });
             } catch (error) {
               await loading.dismiss();
               console.error('[BeatVersionHistoryModal] Error restoring version:', error);

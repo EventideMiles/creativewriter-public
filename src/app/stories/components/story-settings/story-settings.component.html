@@ -54,101 +54,163 @@
       </div>
       
       <!-- AI System Tab -->
-      <div *ngSwitchCase="'ai-system'">
-        <ion-card class="settings-section">
-          <ion-card-header>
-            <ion-card-title>AI System Message</ion-card-title>
-            <ion-button 
-              slot="end" 
-              fill="clear" 
-              size="small"
-              (click)="refreshTemplates()"
-              color="primary"
-              title="Reload templates from files">
-              <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
-            </ion-button>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-text color="medium">
-              <p>This message defines the context and personality of the AI assistant for this story.</p>
-            </ion-text>
+      <div *ngSwitchCase="'ai-system'" class="ai-system-tab">
+        <div class="ai-system-header">
+          <h2>AI System Configuration</h2>
+          <p>Configure the context and behavior of your AI assistant for this story</p>
+        </div>
 
-            <ion-item>
-              <ion-label position="stacked">Story Language</ion-label>
-              <ion-select
-                [(ngModel)]="settings.language"
-                (ionChange)="onSettingsChange()"
-                interface="popover"
-                aria-label="Select story language">
-                <ion-select-option value="en">English</ion-select-option>
-                <ion-select-option value="de">Deutsch</ion-select-option>
-                <ion-select-option value="fr">Français</ion-select-option>
-                <ion-select-option value="es">Español</ion-select-option>
-                <ion-select-option value="custom">Custom (use scene language)</ion-select-option>
-              </ion-select>
+        <!-- Template Type Switcher - Global control above accordions -->
+        <div class="template-type-section">
+          <h3 class="template-type-label">Generation Template Type</h3>
+          <div class="beat-type-toggle">
+            <ion-segment [value]="activeBeatType" (ionChange)="onBeatTypeChange($any($event).detail.value)" aria-label="Select generation template type">
+              <ion-segment-button value="story">
+                <ion-label>Story Beat</ion-label>
+              </ion-segment-button>
+              <ion-segment-button value="scene">
+                <ion-label>Scene Beat</ion-label>
+              </ion-segment-button>
+              <ion-segment-button value="sceneFromOutline">
+                <ion-label>Scene from Outline</ion-label>
+              </ion-segment-button>
+            </ion-segment>
+          </div>
+        </div>
+
+        <div class="beat-type-header">
+          <ion-note class="beat-type-description">
+            <span *ngIf="activeBeatType === 'story'">
+              Story beats advance the narrative and move the plot forward.
+            </span>
+            <span *ngIf="activeBeatType === 'scene'">
+              Scene beats expand moments with detail, focusing on immersion rather than plot.
+            </span>
+            <span *ngIf="activeBeatType === 'sceneFromOutline'">
+              Generate a complete scene from an outline description (up to 5000 words).
+            </span>
+          </ion-note>
+        </div>
+
+        <ion-accordion-group [multiple]="true" [value]="['system-message']" class="ai-system-accordion" aria-label="AI System Settings">
+
+          <!-- Language & System Message Accordion -->
+          <ion-accordion value="system-message">
+            <ion-item slot="header" lines="full">
+              <ion-icon name="chatbox-outline" slot="start"></ion-icon>
+              <ion-label>
+                <h3>Language & System Message</h3>
+                <p>AI personality and communication style</p>
+              </ion-label>
+              <ion-badge slot="end" color="primary">
+                {{ (settings.language || 'en').toUpperCase() }}
+              </ion-badge>
             </ion-item>
-            <ion-note>
-              <small>Changing the language affects AI outputs (titles, summaries, beats). Use “Reload templates” to load language-specific templates.</small>
-            </ion-note>
+            <div slot="content" class="accordion-content">
+              <div class="language-row">
+                <ion-item class="language-select">
+                  <ion-label position="stacked">Story Language</ion-label>
+                  <ion-select
+                    [(ngModel)]="settings.language"
+                    (ionChange)="onSettingsChange()"
+                    interface="popover"
+                    aria-label="Select story language">
+                    <ion-select-option value="en">English</ion-select-option>
+                    <ion-select-option value="de">Deutsch</ion-select-option>
+                    <ion-select-option value="fr">Français</ion-select-option>
+                    <ion-select-option value="es">Español</ion-select-option>
+                    <ion-select-option value="custom">Custom (use scene language)</ion-select-option>
+                  </ion-select>
+                </ion-item>
+                <ion-button
+                  fill="outline"
+                  size="small"
+                  (click)="refreshTemplates()"
+                  color="primary"
+                  class="reload-button">
+                  <ion-icon name="refresh-outline" slot="start"></ion-icon>
+                  Reload Templates
+                </ion-button>
+              </div>
+              <ion-note class="language-note">
+                <small>Changing the language affects AI outputs. Use "Reload Templates" to load language-specific templates.</small>
+              </ion-note>
 
-            <ion-text color="medium">
-              <p><small><strong>Current:</strong> {{ (settings.language || 'en') | uppercase }}</small></p>
-            </ion-text>
-            <ion-textarea
-              [(ngModel)]="settings.systemMessage"
-              (ionInput)="onSettingsChange()"
-              placeholder="Enter the system message..."
-              rows="6"
-              class="settings-textarea"
-              auto-grow="true">
-            </ion-textarea>
-            <ion-note class="char-count">{{ settings.systemMessage.length }} characters</ion-note>
-          </ion-card-content>
-        </ion-card>
-        
-        <ion-card class="settings-section">
-          <ion-card-header>
-            <ion-card-title>Beat Generation Template</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-text color="medium">
-              <p>XML template for beat generation in messages format. Available placeholders:</p>
-            </ion-text>
-            
-            <div class="template-placeholders">
-              <ion-grid>
-                <ion-row>
-                  <ion-col size="12" size-md="6" size-lg="4" *ngFor="let placeholder of placeholders">
-                    <ion-chip color="warning" class="placeholder-chip">
-                      <ion-icon name="code-slash-outline"></ion-icon>
-                      <ion-label>{{ placeholder }}</ion-label>
-                    </ion-chip>
-                  </ion-col>
-                </ion-row>
-              </ion-grid>
+              <ion-label class="textarea-label">System Message</ion-label>
+              <ion-textarea
+                [(ngModel)]="settings.systemMessage"
+                (ionInput)="onSettingsChange()"
+                placeholder="Enter the system message that defines AI context and personality..."
+                rows="18"
+                class="settings-textarea"
+                aria-label="System Message">
+              </ion-textarea>
+              <ion-note class="section-placement-note">
+                This message is sent to the AI at the very start, before all other content.
+              </ion-note>
+              <ion-note class="char-count">{{ (settings.systemMessage || '').length }} characters</ion-note>
             </div>
-            
-            <ion-textarea
-              [(ngModel)]="settings.beatGenerationTemplate"
-              (ionInput)="onSettingsChange()"
-              placeholder="Geben Sie das Beat-Template ein..."
-              rows="12"
-              class="settings-textarea large"
-              auto-grow="true">
-            </ion-textarea>
-            
-            <ion-note class="char-count">{{ settings.beatGenerationTemplate.length }} Zeichen</ion-note>
-            
-            <ion-item *ngIf="!settings.beatGenerationTemplate.includes('{prompt}')" class="template-warning">
-              <ion-icon name="warning-outline" color="warning" slot="start"></ion-icon>
-              <ion-label color="warning">
-                The template should contain {{ '{prompt}' }} to insert the user prompt.
+          </ion-accordion>
+
+          <!-- Generation Templates Accordion -->
+          <ion-accordion value="beat-template">
+            <ion-item slot="header" lines="full">
+              <ion-icon name="code-slash-outline" slot="start"></ion-icon>
+              <ion-label>
+                <h3>Generation Template — {{ getTemplateTypeName() }}</h3>
+                <p>Configure prompts for {{ getTemplateTypeName().toLowerCase() }} generation</p>
               </ion-label>
             </ion-item>
-          </ion-card-content>
-        </ion-card>
+            <div slot="content" class="accordion-content">
+              <!-- Section Editor Component -->
+              <app-beat-template-sections
+                [beatType]="activeBeatType"
+                [sections]="beatTemplateSections"
+                [sceneSections]="sceneBeatTemplateSections"
+                [sceneFromOutlineSections]="sceneFromOutlineTemplateSections"
+                (sectionsChange)="onBeatSectionsChange($event)"
+                (sceneSectionsChange)="onSceneBeatSectionsChange($event)"
+                (sceneFromOutlineSectionsChange)="onSceneFromOutlineSectionsChange($event)">
+              </app-beat-template-sections>
+            </div>
+          </ion-accordion>
+
+          <!-- Generation Rules Accordion -->
+          <ion-accordion value="beat-rules">
+            <ion-item slot="header" lines="full">
+              <ion-icon name="list-outline" slot="start"></ion-icon>
+              <ion-label>
+                <h3>Generation Rules</h3>
+                <p>Custom rules for AI output</p>
+              </ion-label>
+              <ion-badge slot="end" [color]="(settings.beatRules || '').length > 0 ? 'primary' : 'medium'">
+                {{ (settings.beatRules || '').length || 'None' }}
+              </ion-badge>
+            </ion-item>
+            <div slot="content" class="accordion-content">
+              <ion-text color="medium">
+                <p>Define custom rules that will be included in every beat generation prompt.</p>
+              </ion-text>
+
+              <ion-label class="textarea-label">Generation Rules</ion-label>
+              <ion-textarea
+                [(ngModel)]="settings.beatRules"
+                (ionInput)="onSettingsChange()"
+                placeholder="Enter your custom rules here...&#10;&#10;Example:&#10;- Always use vivid sensory descriptions&#10;- Keep dialogue concise and punchy&#10;- Avoid purple prose"
+                rows="24"
+                class="settings-textarea"
+                aria-label="Generation Rules">
+              </ion-textarea>
+              <ion-note class="section-placement-note">
+                These rules are inserted after Constraints, before Output Format in the prompt.
+              </ion-note>
+              <ion-note class="char-count">{{ (settings.beatRules || '').length }} characters</ion-note>
+            </div>
+          </ion-accordion>
+
+        </ion-accordion-group>
       </div>
-      
+
       <!-- Beat Config Tab -->
       <div *ngSwitchCase="'beat-config'">
         <ion-card class="settings-section">
@@ -172,26 +234,6 @@
               </ion-label>
             </ion-item>
 
-            <ion-item class="radio-section">
-              <ion-label>
-                <h3>Beat Instruction</h3>
-                <p>Default instruction for Beat AI generation.</p>
-              </ion-label>
-            </ion-item>
-            
-            <ion-radio-group
-              [(ngModel)]="settings.beatInstruction"
-              (ionChange)="onSettingsChange()">
-              <ion-item>
-                <ion-radio slot="start" value="continue"></ion-radio>
-                <ion-label>Continue the story</ion-label>
-              </ion-item>
-              <ion-item>
-                <ion-radio slot="start" value="stay"></ion-radio>
-                <ion-label>Stay in the moment</ion-label>
-              </ion-item>
-            </ion-radio-group>
-
             <ion-item class="setting-item">
               <ion-label position="stacked">
                 <h3>Narrative Perspective (POV)</h3>
@@ -203,6 +245,22 @@
                 interface="popover"
                 aria-label="Select narrative perspective">
                 <ion-select-option *ngFor="let option of narrativePerspectiveOptions" [value]="option.value">
+                  {{ option.label }}
+                </ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <ion-item class="setting-item">
+              <ion-label position="stacked">
+                <h3>Tense</h3>
+                <p>The grammatical tense for AI-generated content.</p>
+              </ion-label>
+              <ion-select
+                [(ngModel)]="settings.tense"
+                (ionChange)="onSettingsChange()"
+                interface="popover"
+                aria-label="Select tense">
+                <ion-select-option *ngFor="let option of tenseOptions" [value]="option.value">
                   {{ option.label }}
                 </ion-select-option>
               </ion-select>
@@ -317,305 +375,147 @@
         </ion-accordion-group>
       </div>
 
-      <!-- DB Maintenance Tab -->
-      <div *ngSwitchCase="'db-maintenance'">
-        <!-- Database Statistics -->
+      <!-- Export/Import Tab -->
+      <div *ngSwitchCase="'export-import'">
+        <!-- Export Section -->
         <ion-card class="settings-section">
           <ion-card-header>
-            <ion-card-title>Database Statistics</ion-card-title>
+            <ion-card-title>Export Story</ion-card-title>
           </ion-card-header>
           <ion-card-content>
-            <ion-button
-              fill="outline"
-              size="small"
-              (click)="loadDatabaseStats()"
-              [disabled]="isScanning">
-              <ion-icon name="stats-chart-outline" slot="start"></ion-icon>
-              Load Statistics
-            </ion-button>
+            <ion-text color="medium">
+              <p>Export this story and its Codex as a JSON file. The export can be imported into another Creative Writer database.</p>
+            </ion-text>
 
-            <div *ngIf="databaseStats" class="stats-grid">
+            <div class="export-info">
               <ion-grid>
                 <ion-row>
                   <ion-col size="6" size-md="3">
                     <div class="stat-item">
                       <ion-text color="primary">
-                        <h3>{{ databaseStats.totalStories }}</h3>
+                        <h3>{{ story.chapters?.length || 0 }}</h3>
                       </ion-text>
-                      <ion-note>Stories</ion-note>
+                      <ion-note>Chapters</ion-note>
                     </div>
                   </ion-col>
                   <ion-col size="6" size-md="3">
                     <div class="stat-item">
                       <ion-text color="primary">
-                        <h3>{{ databaseStats.totalImages }}</h3>
+                        <h3>{{ getStorySceneCount() }}</h3>
                       </ion-text>
-                      <ion-note>Images</ion-note>
-                    </div>
-                  </ion-col>
-                  <ion-col size="6" size-md="3">
-                    <div class="stat-item">
-                      <ion-text color="warning">
-                        <h3>{{ databaseStats.orphanedImages }}</h3>
-                      </ion-text>
-                      <ion-note>Orphaned Images</ion-note>
-                    </div>
-                  </ion-col>
-                  <ion-col size="6" size-md="3">
-                    <div class="stat-item">
-                      <ion-text color="medium">
-                        <h3>{{ formatBytes(databaseStats.databaseSizeEstimate) }}</h3>
-                      </ion-text>
-                      <ion-note>Total size (approx.)</ion-note>
+                      <ion-note>Scenes</ion-note>
                     </div>
                   </ion-col>
                 </ion-row>
               </ion-grid>
             </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Progress Display -->
-        <ion-card *ngIf="isScanning" class="settings-section progress-card">
-          <ion-card-content>
-            <div class="progress-container">
-              <ion-text color="primary">
-                <h4>{{ scanProgress.operation }}</h4>
-              </ion-text>
-              <ion-progress-bar [value]="scanProgress.progress / 100"></ion-progress-bar>
-              <ion-note>{{ scanProgress.message }}</ion-note>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Orphaned Images -->
-        <ion-card class="settings-section">
-          <ion-card-header>
-            <ion-card-title>Orphaned Images</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-text color="medium">
-              <p>Images that are no longer used in stories.</p>
-            </ion-text>
-
-            <div class="action-buttons">
-              <ion-button
-                fill="outline"
-                size="small"
-                (click)="scanOrphanedImages()"
-                [disabled]="isScanning">
-                <ion-icon name="scan-outline" slot="start"></ion-icon>
-                Scan
-              </ion-button>
-
-              <ion-button
-                fill="outline"
-                size="small"
-                color="secondary"
-                (click)="selectAllOrphanedImages()"
-                [disabled]="orphanedImages.length === 0">
-                <ion-icon name="checkbox-outline" slot="start"></ion-icon>
-                Select All
-              </ion-button>
-
-              <ion-button
-                fill="outline"
-                size="small"
-                color="medium"
-                (click)="deselectAllOrphanedImages()"
-                [disabled]="selectedOrphanedImages.size === 0">
-                <ion-icon name="square-outline" slot="start"></ion-icon>
-                Deselect All
-              </ion-button>
-
-              <ion-button
-                fill="solid"
-                size="small"
-                color="danger"
-                (click)="deleteSelectedOrphanedImages()"
-                [disabled]="selectedOrphanedImages.size === 0 || isScanning">
-                <ion-icon name="trash-outline" slot="start"></ion-icon>
-                Delete ({{ selectedOrphanedImages.size }})
-              </ion-button>
-            </div>
-
-            <ion-list *ngIf="orphanedImages.length > 0" class="media-list">
-              <ion-item
-                *ngFor="let image of orphanedImages"
-                button
-                (click)="toggleOrphanedImageSelection(image.id)">
-                <ion-checkbox
-                  slot="start"
-                  [checked]="selectedOrphanedImages.has(image.id)">
-                </ion-checkbox>
-                <ion-thumbnail slot="start">
-                  <img [src]="'data:' + image.mimeType + ';base64,' + image.base64Data" [alt]="image.name">
-                </ion-thumbnail>
-                <ion-label>
-                  <h3>{{ image.name }}</h3>
-                  <p>{{ formatBytes(image.size) }} • {{ image.createdAt | date:'short' }}</p>
-                </ion-label>
-              </ion-item>
-            </ion-list>
-
-            <div *ngIf="orphanedImages.length === 0 && !isScanning" class="empty-state">
-              <ion-text color="medium">
-                <p>No orphaned images found or not yet scanned.</p>
-              </ion-text>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Duplicate Images -->
-        <ion-card class="settings-section">
-          <ion-card-header>
-            <ion-card-title>Duplicate Images</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-text color="medium">
-              <p>Identical images with different IDs.</p>
-            </ion-text>
-
-            <div class="action-buttons">
-              <ion-button
-                fill="outline"
-                size="small"
-                (click)="scanDuplicateImages()"
-                [disabled]="isScanning">
-                <ion-icon name="copy-outline" slot="start"></ion-icon>
-                Duplikate suchen
-              </ion-button>
-
-              <ion-button
-                fill="outline"
-                size="small"
-                color="secondary"
-                (click)="selectAllDuplicates()"
-                [disabled]="duplicateImages.length === 0">
-                <ion-icon name="checkbox-outline" slot="start"></ion-icon>
-                Select All
-              </ion-button>
-
-              <ion-button
-                fill="outline"
-                size="small"
-                color="medium"
-                (click)="deselectAllDuplicates()"
-                [disabled]="selectedDuplicates.size === 0">
-                <ion-icon name="square-outline" slot="start"></ion-icon>
-                Deselect All
-              </ion-button>
-
-              <ion-button
-                fill="solid"
-                size="small"
-                color="danger"
-                (click)="deleteSelectedDuplicates()"
-                [disabled]="selectedDuplicates.size === 0 || isScanning">
-                <ion-icon name="trash-outline" slot="start"></ion-icon>
-                Delete Duplicates ({{ selectedDuplicates.size }})
-              </ion-button>
-            </div>
-
-            <ion-list *ngIf="duplicateImages.length > 0" class="media-list">
-              <ion-item
-                *ngFor="let duplicate of duplicateImages"
-                button
-                (click)="toggleDuplicateSelection(duplicate.originalId)">
-                <ion-checkbox
-                  slot="start"
-                  [checked]="selectedDuplicates.has(duplicate.originalId)">
-                </ion-checkbox>
-                <ion-thumbnail slot="start">
-                  <img [src]="'data:image/jpeg;base64,' + duplicate.base64Data" [alt]="duplicate.name">
-                </ion-thumbnail>
-                <ion-label>
-                  <h3>{{ duplicate.name }}</h3>
-                  <p>
-                    {{ formatBytes(duplicate.size) }} •
-                    <ion-badge color="warning">{{ duplicate.duplicateIds.length }} Duplikate</ion-badge>
-                  </p>
-                </ion-label>
-              </ion-item>
-            </ion-list>
-
-            <div *ngIf="duplicateImages.length === 0 && !isScanning" class="empty-state">
-              <ion-text color="medium">
-                <p>No duplicates found or not yet scanned.</p>
-              </ion-text>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Story Integrity -->
-        <ion-card class="settings-section">
-          <ion-card-header>
-            <ion-card-title>Story Integrity</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-text color="medium">
-              <p>Check for damaged or incomplete stories.</p>
-            </ion-text>
 
             <ion-button
-              fill="outline"
-              size="small"
-              (click)="checkIntegrity()"
-              [disabled]="isScanning">
-              <ion-icon name="search-outline" slot="start"></ion-icon>
-              Check Integrity
+              (click)="exportStory()"
+              [disabled]="isExporting"
+              color="primary">
+              <ion-icon name="download-outline" slot="start"></ion-icon>
+              {{ isExporting ? 'Exporting...' : 'Export Story' }}
             </ion-button>
-
-            <ion-list *ngIf="integrityIssues.length > 0" class="integrity-list">
-              <ion-item *ngFor="let issue of integrityIssues">
-                <ion-icon
-                  [name]="issue.severity === 'high' ? 'close-circle-outline' : 'warning-outline'"
-                  [color]="issue.severity === 'high' ? 'danger' : 'warning'"
-                  slot="start">
-                </ion-icon>
-                <ion-label>
-                  <h3>{{ issue.storyTitle }}</h3>
-                  <p>{{ issue.description }}</p>
-                  <ion-note>Schweregrad: {{ issue.severity }}</ion-note>
-                </ion-label>
-              </ion-item>
-            </ion-list>
-
-            <div *ngIf="integrityIssues.length === 0 && !isScanning" class="empty-state">
-              <ion-text color="success">
-                <p>All stories are intact or not yet checked.</p>
-              </ion-text>
-            </div>
           </ion-card-content>
         </ion-card>
 
-        <!-- Database Operations -->
+        <!-- Import Section -->
         <ion-card class="settings-section">
           <ion-card-header>
-            <ion-card-title>Database Operations</ion-card-title>
+            <ion-card-title>Import Story</ion-card-title>
           </ion-card-header>
           <ion-card-content>
-            <div class="db-operations">
-              <ion-button
-                fill="outline"
-                expand="block"
-                (click)="compactDatabase()"
-                [disabled]="isScanning"
-                class="operation-button">
-                <ion-icon name="refresh-outline" slot="start"></ion-icon>
-                Datenbank komprimieren
-              </ion-button>
+            <ion-text color="medium">
+              <p>Import a story from a JSON export file. A new story will be created with all imported data.</p>
+            </ion-text>
 
+            <!-- File Input -->
+            <div class="file-input-wrapper" *ngIf="!importPreview">
+              <input
+                type="file"
+                accept=".json"
+                (change)="onImportFileSelected($event)"
+                id="importFileInput"
+                class="hidden-file-input">
+              <label for="importFileInput" class="file-input-label">
+                <ion-icon name="cloud-upload-outline"></ion-icon>
+                <span>Choose JSON file or drag here</span>
+              </label>
             </div>
 
-            <ion-text color="medium">
-              <p>
-                <strong>Compress:</strong> Removes deleted data and reduces database size.
-              </p>
-            </ion-text>
+            <!-- Error Message -->
+            <div *ngIf="importError" class="import-error">
+              <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+              <ion-text color="danger">{{ importError }}</ion-text>
+            </div>
+
+            <!-- Import Preview -->
+            <div *ngIf="importPreview" class="import-preview">
+              <ion-card class="preview-card">
+                <ion-card-header>
+                  <ion-card-title>
+                    <ion-icon name="document-outline"></ion-icon>
+                    {{ importPreview.story.title }}
+                  </ion-card-title>
+                </ion-card-header>
+                <ion-card-content>
+                  <ion-grid>
+                    <ion-row>
+                      <ion-col size="4">
+                        <div class="preview-stat">
+                          <strong>{{ getImportChapterCount() }}</strong>
+                          <span>Chapters</span>
+                        </div>
+                      </ion-col>
+                      <ion-col size="4">
+                        <div class="preview-stat">
+                          <strong>{{ getImportSceneCount() }}</strong>
+                          <span>Scenes</span>
+                        </div>
+                      </ion-col>
+                      <ion-col size="4">
+                        <div class="preview-stat">
+                          <strong>{{ getImportCodexEntryCount() }}</strong>
+                          <span>Codex Entries</span>
+                        </div>
+                      </ion-col>
+                    </ion-row>
+                  </ion-grid>
+
+                  <ion-note *ngIf="importPreview.codex">
+                    <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
+                    Includes Codex data
+                  </ion-note>
+
+                  <ion-note *ngIf="!importPreview.codex">
+                    <ion-icon name="information-circle-outline" color="medium"></ion-icon>
+                    No Codex data included
+                  </ion-note>
+
+                  <div class="preview-actions">
+                    <ion-button
+                      (click)="confirmImport()"
+                      [disabled]="isImporting"
+                      color="primary">
+                      <ion-icon name="cloud-download-outline" slot="start"></ion-icon>
+                      {{ isImporting ? 'Importing...' : 'Import Story' }}
+                    </ion-button>
+                    <ion-button
+                      (click)="cancelImport()"
+                      fill="outline"
+                      color="medium"
+                      [disabled]="isImporting">
+                      Cancel
+                    </ion-button>
+                  </div>
+                </ion-card-content>
+              </ion-card>
+            </div>
           </ion-card-content>
         </ion-card>
       </div>
+
     </div>
     </app-settings-content>
 
@@ -630,16 +530,30 @@
       Save Settings
     </ion-button>
     
-    <ion-button 
-      expand="block" 
-      fill="outline" 
-      color="medium" 
+    <ion-button
+      expand="block"
+      fill="outline"
+      color="medium"
       (click)="resetToDefaults()"
       class="reset-button">
       <ion-icon name="refresh-outline" slot="start"></ion-icon>
       Reset to Default
     </ion-button>
     </div>
+
+    <!-- Template Preview Modal -->
+    <app-beat-ai-preview-modal
+      [isVisible]="showTemplatePreview"
+      [content]="templatePreviewContent"
+      (closeModal)="showTemplatePreview = false">
+    </app-beat-ai-preview-modal>
+
+    <!-- Preview Template FAB - only visible on AI System tab -->
+    <ion-fab *ngIf="selectedTab === 'ai-system'" slot="fixed" vertical="bottom" horizontal="end">
+      <ion-fab-button (click)="openTemplatePreview()" color="primary">
+        <ion-icon name="eye-outline"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
   </ion-content>
 
   <ion-content *ngIf="!story">

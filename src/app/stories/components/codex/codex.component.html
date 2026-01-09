@@ -126,7 +126,17 @@
                         <ion-col *ngFor="let entry of searchResults()" size="12" size-md="6" size-lg="4">
                           <ion-card button (click)="selectEntry(entry)" class="entry-card">
                             <ion-card-header>
-                              <ion-card-title>{{ entry.title }}</ion-card-title>
+                              <div class="entry-header-with-thumbnail">
+                                <div class="entry-thumbnail" *ngIf="getPortraitSrc(entry)">
+                                  <img [src]="getPortraitSrc(entry)" [alt]="entry.title">
+                                </div>
+                                <div class="entry-thumbnail placeholder" *ngIf="!getPortraitSrc(entry)">
+                                  <ion-icon name="person-outline"></ion-icon>
+                                </div>
+                                <div class="entry-title-area">
+                                  <ion-card-title>{{ entry.title }}</ion-card-title>
+                                </div>
+                              </div>
                             </ion-card-header>
                             <ion-card-content>
                               <ion-text color="medium">
@@ -185,7 +195,17 @@
                             size-lg="4">
                             <ion-card button (click)="selectEntry(entry)" class="entry-card">
                               <ion-card-header>
-                                <ion-card-title>{{ entry.title }}</ion-card-title>
+                                <div class="entry-header-with-thumbnail">
+                                  <div class="entry-thumbnail" *ngIf="getPortraitSrc(entry)">
+                                    <img [src]="getPortraitSrc(entry)" [alt]="entry.title">
+                                  </div>
+                                  <div class="entry-thumbnail placeholder" *ngIf="!getPortraitSrc(entry)">
+                                    <ion-icon name="person-outline"></ion-icon>
+                                  </div>
+                                  <div class="entry-title-area">
+                                    <ion-card-title>{{ entry.title }}</ion-card-title>
+                                  </div>
+                                </div>
                               </ion-card-header>
                               <ion-card-content>
                                 <ion-text color="medium">
@@ -291,27 +311,97 @@
                 </div>
               </div>
 
-              <!-- Media Section -->
-              <div class="form-section" *ngIf="editingEntry.imageUrl || !editingEntry.imageUrl">
-                <h3 class="section-title">Media</h3>
-                
-                <div class="form-group">
-                  <ion-item lines="none" class="form-item">
-                    <ion-label position="stacked">Image URL</ion-label>
-                    <ion-input 
-                      [(ngModel)]="editingEntry.imageUrl" 
-                      placeholder="https://example.com/image.jpg"
-                      type="url"
-                      class="url-input">
-                    </ion-input>
-                  </ion-item>
-                  <div class="image-preview" *ngIf="editingEntry.imageUrl">
-                    <img 
-                      [src]="editingEntry.imageUrl" 
-                      alt="Preview"
-                      (error)="editingEntry.imageUrl = ''">
+              <!-- Portrait Section -->
+              <div class="form-section">
+                <h3 class="section-title">Portrait</h3>
+
+                <!-- Portrait Gallery (horizontal thumbnail strip) -->
+                <div class="portrait-gallery" *ngIf="editingEntry.portraitGallery?.length">
+                  <div
+                    *ngFor="let portrait of editingEntry.portraitGallery"
+                    class="gallery-thumbnail"
+                    [class.active]="portrait.id === editingEntry.activePortraitId"
+                    (click)="selectPortrait(portrait.id)"
+                    (keyup.enter)="selectPortrait(portrait.id)"
+                    (keyup.space)="selectPortrait(portrait.id)"
+                    tabindex="0"
+                    role="button"
+                    [attr.aria-label]="'Select portrait ' + (editingEntry.portraitGallery!.indexOf(portrait) + 1)"
+                    [attr.aria-pressed]="portrait.id === editingEntry.activePortraitId">
+                    <img
+                      [src]="'data:image/jpeg;base64,' + portrait.base64"
+                      alt="Portrait thumbnail">
+                    <ion-button
+                      fill="clear"
+                      color="danger"
+                      size="small"
+                      class="remove-gallery-item-btn"
+                      (click)="$event.stopPropagation(); removeGalleryPortrait(portrait.id)">
+                      <ion-icon name="close-circle" slot="icon-only"></ion-icon>
+                    </ion-button>
+                    <div class="active-indicator" *ngIf="portrait.id === editingEntry.activePortraitId">
+                      <ion-icon name="checkmark-circle"></ion-icon>
+                    </div>
                   </div>
                 </div>
+
+                <!-- Active Portrait Large Preview -->
+                <div class="portrait-preview" *ngIf="getActivePortraitBase64()">
+                  <img
+                    [src]="'data:image/jpeg;base64,' + getActivePortraitBase64()"
+                    alt="Active Portrait">
+                  <ion-button fill="clear" color="danger" size="small" (click)="removePortrait()" class="remove-portrait-btn" title="Clear all portraits">
+                    <ion-icon name="trash" slot="icon-only"></ion-icon>
+                  </ion-button>
+                </div>
+
+                <!-- Empty State -->
+                <div class="portrait-empty" *ngIf="!editingEntry.portraitGallery?.length && !editingEntry.portraitBase64">
+                  <ion-icon name="person-outline" class="empty-portrait-icon"></ion-icon>
+                  <p>No portraits yet</p>
+                </div>
+
+                <!-- Gallery Info -->
+                <ion-note *ngIf="editingEntry.portraitGallery?.length" color="medium" class="gallery-info">
+                  <ion-icon name="images-outline"></ion-icon>
+                  {{ editingEntry.portraitGallery!.length }}/5 portraits
+                  <span *ngIf="editingEntry.portraitGallery!.length > 0"> - Click a thumbnail to set as active</span>
+                </ion-note>
+
+                <!-- Portrait Actions -->
+                <div class="portrait-actions">
+                  <!-- Generate Button (Characters Only, Premium) -->
+                  <ion-button
+                    *ngIf="isCharacterEntry()"
+                    fill="outline"
+                    size="small"
+                    [disabled]="!canGeneratePortrait() || isGeneratingPortrait()"
+                    (click)="generatePortrait()">
+                    <ion-icon name="sparkles" slot="start"></ion-icon>
+                    {{ isGeneratingPortrait() ? 'Generating...' : 'Generate Portrait' }}
+                    <ion-spinner *ngIf="isGeneratingPortrait()" name="crescent" slot="end" style="margin-left: 8px;"></ion-spinner>
+                  </ion-button>
+
+                  <!-- Upload Button (All Users, All Entry Types) -->
+                  <ion-button fill="outline" size="small" (click)="fileInput.click()" [disabled]="uploadingImage()">
+                    <ion-icon name="cloud-upload" slot="start"></ion-icon>
+                    {{ uploadingImage() ? 'Uploading...' : 'Upload Image' }}
+                    <ion-spinner *ngIf="uploadingImage()" name="crescent" slot="end" style="margin-left: 8px;"></ion-spinner>
+                  </ion-button>
+
+                  <input #fileInput type="file" accept="image/*" (change)="uploadPortrait($event)" style="display: none;">
+                </div>
+
+                <!-- Info notes -->
+                <ion-note *ngIf="isGalleryFull()" color="warning" class="portrait-info-note">
+                  <ion-icon name="information-circle"></ion-icon>
+                  Gallery is full (5 portraits). Oldest will be removed when adding new ones.
+                </ion-note>
+
+                <ion-note *ngIf="isCharacterEntry() && !portraitService.isOpenRouterConfigured()" color="warning" class="portrait-info-note">
+                  <ion-icon name="information-circle"></ion-icon>
+                  Configure OpenRouter in Settings to enable AI portrait generation
+                </ion-note>
               </div>
                 
               <!-- Story Role Section -->
@@ -448,11 +538,11 @@
             </ion-content>
             <ion-footer class="entry-modal-footer">
               <div class="modal-actions">
-                <ion-button (click)="deleteEntry()" fill="outline" color="danger" size="default">
+                <ion-button (click)="deleteEntry()" fill="outline" class="cw-btn-danger" size="default">
                   <ion-icon name="trash" slot="start"></ion-icon>
                   Delete
                 </ion-button>
-                <ion-button (click)="saveEntry()" color="primary" size="default">
+                <ion-button (click)="saveEntry()" class="cw-btn-primary" size="default">
                   <ion-icon name="save" slot="start"></ion-icon>
                   Save
                 </ion-button>
@@ -469,11 +559,11 @@
             <ion-toolbar>
               <ion-title>New Category</ion-title>
               <ion-buttons slot="end">
-                <ion-button (click)="addCategory()" color="primary">
+                <ion-button (click)="addCategory()" class="cw-btn-primary">
                   <ion-icon name="save" slot="start"></ion-icon>
                   Create
                 </ion-button>
-                <ion-button (click)="showAddCategoryModal.set(false)">
+                <ion-button (click)="showAddCategoryModal.set(false)" class="cw-btn-icon">
                   <ion-icon name="close" slot="icon-only"></ion-icon>
                 </ion-button>
               </ion-buttons>

@@ -1,609 +1,279 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, BehaviorSubject, interval, switchMap, takeWhile, map, catchError, of } from 'rxjs';
-import { SettingsService } from '../../core/services/settings.service';
+import { Observable, BehaviorSubject, from, of } from 'rxjs';
+import { map, catchError, tap } from 'rxjs/operators';
 import {
+  ImageProvider,
   ImageGenerationModel,
   ImageGenerationRequest,
-  ImageGenerationResponse,
   ImageGenerationJob,
-  ModelInput
-} from '../models/image-generation.interface';
+  IImageProvider
+} from './image-providers/image-provider.interface';
+import { OpenRouterImageProvider } from './image-providers/openrouter-image.provider';
+import { FalImageProvider } from './image-providers/fal-image.provider';
+import { ReplicateImageProvider } from './image-providers/replicate-image.provider';
+import { ImageHistoryService } from './image-history.service';
+import { ImageModelService } from './image-model.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ImageGenerationService {
-  private http = inject(HttpClient);
-  private settingsService = inject(SettingsService);
+  // Inject providers
+  private openRouterProvider = inject(OpenRouterImageProvider);
+  private falProvider = inject(FalImageProvider);
+  private replicateProvider = inject(ReplicateImageProvider);
 
-  private readonly apiUrl = '/api/replicate';
-  private readonly storageKey = 'creative-writer-image-jobs';
-  private readonly lastPromptKey = 'creative-writer-last-prompt';
-  private jobsSubject = new BehaviorSubject<ImageGenerationJob[]>([]);
-  public jobs$ = this.jobsSubject.asObservable();
+  // Inject services
+  private historyService = inject(ImageHistoryService);
+  private modelService = inject(ImageModelService);
 
-  private availableModelsSubject = new BehaviorSubject<ImageGenerationModel[]>([]);
-  public availableModels$ = this.availableModelsSubject.asObservable();
-  private modelsLoadingSubject = new BehaviorSubject<boolean>(false);
-  public modelsLoading$ = this.modelsLoadingSubject.asObservable();
+  // Observable streams from sub-services
+  public jobs$ = this.historyService.jobs$;
+  public models$ = this.modelService.models$;
+  public modelsLoading$ = this.modelService.loading$;
+  public modelsByProvider$ = this.modelService.modelsByProvider$;
 
-  // Predefined models configuration
-  private models: ImageGenerationModel[] = [
-    {
-      id: 'asiryan/unlimited-xl',
-      name: 'Unlimited XL',
-      description: 'High-quality image generation model',
-      version: '1a98916be7897ab4d9fbc30d2b20d070c237674148b00d344cf03ff103eb7082',
-      owner: 'asiryan',
-      inputs: [
-        {
-          name: 'prompt',
-          type: 'string',
-          description: 'Input prompt for image generation',
-          required: true
-        },
-        {
-          name: 'negative_prompt',
-          type: 'string',
-          description: 'Negative prompt to avoid certain elements',
-          default: ''
-        },
-        {
-          name: 'width',
-          type: 'integer',
-          description: 'Width of output image',
-          default: 512,
-          minimum: 256,
-          maximum: 2048
-        },
-        {
-          name: 'height',
-          type: 'integer',
-          description: 'Height of output image',
-          default: 512,
-          minimum: 256,
-          maximum: 2048
-        },
-        {
-          name: 'num_inference_steps',
-          type: 'integer',
-          description: 'Number of denoising steps',
-          default: 20,
-          minimum: 1,
-          maximum: 50
-        },
-        {
-          name: 'guidance_scale',
-          type: 'number',
-          description: 'Scale for classifier-free guidance',
-          default: 7.5,
-          minimum: 1,
-          maximum: 20
-        },
-        {
-          name: 'num_outputs',
-          type: 'integer',
-          description: 'Number of images to output',
-          default: 1,
-          minimum: 1,
-          maximum: 4
-        },
-        {
-          name: 'seed',
-          type: 'integer',
-          description: 'Random seed for reproducibility',
-          minimum: 0
-        }
-      ]
-    },
-    {
-      id: 'lucataco/realistic-vision-v5',
-      name: 'Realistic Vision V5',
-      description: 'Photorealistic uncensored model',
-      version: '23e520565b2ce5b779df730ddd71e7b96be852bfe1bbba6284a083e3610e3e3e',
-      owner: 'lucataco',
-      inputs: [
-        {
-          name: 'prompt',
-          type: 'string',
-          description: 'Input prompt for image generation',
-          required: true
-        },
-        {
-          name: 'negative_prompt',
-          type: 'string',
-          description: 'Negative prompt to avoid certain elements',
-          default: 'cartoon, 3d, disfigured, bad art, deformed, extra limbs, weird colors, duplicate, morbid, mutilated'
-        },
-        {
-          name: 'width',
-          type: 'integer',
-          description: 'Width of output image',
-          default: 512,
-          minimum: 128,
-          maximum: 1024
-        },
-        {
-          name: 'height',
-          type: 'integer',
-          description: 'Height of output image',
-          default: 768,
-          minimum: 128,
-          maximum: 1024
-        },
-        {
-          name: 'num_inference_steps',
-          type: 'integer',
-          description: 'Number of denoising steps',
-          default: 30,
-          minimum: 1,
-          maximum: 50
-        },
-        {
-          name: 'guidance_scale',
-          type: 'number',
-          description: 'Scale for classifier-free guidance',
-          default: 7.5,
-          minimum: 1,
-          maximum: 20
-        },
-        {
-          name: 'num_outputs',
-          type: 'integer',
-          description: 'Number of images to output',
-          default: 1,
-          minimum: 1,
-          maximum: 4
-        },
-        {
-          name: 'seed',
-          type: 'integer',
-          description: 'Random seed for reproducibility',
-          minimum: 0
-        }
-      ]
-    },
-    {
-      id: 'stability-ai/sdxl',
-      name: 'Stable Diffusion XL',
-      description: 'Latest SDXL model with high quality output',
-      version: '7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc',
-      owner: 'stability-ai',
-      inputs: [
-        {
-          name: 'prompt',
-          type: 'string',
-          description: 'Input prompt for image generation',
-          required: true
-        },
-        {
-          name: 'negative_prompt',
-          type: 'string',
-          description: 'Negative prompt to avoid certain elements',
-          default: ''
-        },
-        {
-          name: 'width',
-          type: 'integer',
-          description: 'Width of output image',
-          default: 1024,
-          minimum: 512,
-          maximum: 2048
-        },
-        {
-          name: 'height',
-          type: 'integer',
-          description: 'Height of output image',
-          default: 1024,
-          minimum: 512,
-          maximum: 2048
-        },
-        {
-          name: 'num_inference_steps',
-          type: 'integer',
-          description: 'Number of denoising steps',
-          default: 25,
-          minimum: 1,
-          maximum: 50
-        },
-        {
-          name: 'guidance_scale',
-          type: 'number',
-          description: 'Scale for classifier-free guidance',
-          default: 7.5,
-          minimum: 1,
-          maximum: 20
-        },
-        {
-          name: 'num_outputs',
-          type: 'integer',
-          description: 'Number of images to output',
-          default: 1,
-          minimum: 1,
-          maximum: 4
-        },
-        {
-          name: 'scheduler',
-          type: 'string',
-          description: 'Scheduler to use',
-          default: 'DPMSolverMultistep',
-          options: ['DDIM', 'DPMSolverMultistep', 'K_EULER', 'K_EULER_ANCESTRAL', 'PNDM', 'KLMS']
-        }
-      ]
-    }
-  ];
+  // Active generation tracking
+  private generatingSubject = new BehaviorSubject<boolean>(false);
+  public generating$ = this.generatingSubject.asObservable();
 
   constructor() {
-    this.loadJobsFromStorage();
-    this.loadModelsFromApi();
+    // Initialize models on service creation
+    this.modelService.loadAllModels();
   }
 
-  loadModelsFromApi(): void {
-    const settings = this.settingsService.getSettings();
-
-    if (!settings.replicate.enabled || !settings.replicate.apiKey) {
-      // Use default hardcoded models if Replicate is not configured
-      this.availableModelsSubject.next(this.models);
-      return;
-    }
-
-    this.modelsLoadingSubject.next(true);
-
-    const headers = new HttpHeaders({
-      'X-API-Token': settings.replicate.apiKey,
-      'Content-Type': 'application/json'
-    });
-
-    // Fetch from collection only (most reliable and comprehensive)
-    this.http.get<{ models: { url: string; name: string; description?: string; latest_version?: { id: string }; owner: string }[] }>(`${this.apiUrl}/collections/text-to-image`, { headers })
-      .pipe(
-        map(response => {
-          // Transform collection models
-          const collectionModels: ImageGenerationModel[] = (response.models || []).map((model) => ({
-            id: model.url.replace('https://replicate.com/', ''),
-            name: model.name,
-            description: model.description || '',
-            version: model.latest_version?.id || '',
-            owner: model.owner,
-            inputs: this.getDefaultInputsForModel()
-          }));
-
-          console.log(`Loaded ${collectionModels.length} image generation models from collection`);
-
-          // Combine with hardcoded models (put hardcoded first)
-          return [...this.models, ...collectionModels];
-        }),
-        catchError(error => {
-          console.error('Failed to load image generation models from API:', error);
-          // Fall back to hardcoded models
-          return of(this.models);
-        })
-      )
-      .subscribe(models => {
-        this.availableModelsSubject.next(models);
-        this.modelsLoadingSubject.next(false);
+  /**
+   * Generate image(s) using the appropriate provider
+   */
+  generateImage(request: ImageGenerationRequest): Observable<ImageGenerationJob> {
+    // Get the model to determine provider
+    const model = this.modelService.getModel(request.modelId);
+    if (!model) {
+      return of({
+        id: '',
+        modelId: request.modelId,
+        modelName: 'Unknown',
+        provider: 'openrouter' as ImageProvider,
+        prompt: request.prompt,
+        status: 'failed' as const,
+        createdAt: new Date(),
+        error: `Model ${request.modelId} not found`,
+        request
       });
-  }
-
-  private getDefaultInputsForModel(): ModelInput[] {
-    // Return default inputs that work with most text-to-image models
-    return [
-      {
-        name: 'prompt',
-        type: 'string',
-        description: 'Input prompt for image generation',
-        required: true
-      },
-      {
-        name: 'negative_prompt',
-        type: 'string',
-        description: 'Negative prompt to avoid certain elements',
-        default: ''
-      },
-      {
-        name: 'width',
-        type: 'integer',
-        description: 'Width of output image',
-        default: 1024,
-        minimum: 256,
-        maximum: 2048
-      },
-      {
-        name: 'height',
-        type: 'integer',
-        description: 'Height of output image',
-        default: 1024,
-        minimum: 256,
-        maximum: 2048
-      },
-      {
-        name: 'num_outputs',
-        type: 'integer',
-        description: 'Number of images to output',
-        default: 1,
-        minimum: 1,
-        maximum: 4
-      }
-    ];
-  }
-
-  getAvailableModels(): ImageGenerationModel[] {
-    return this.availableModelsSubject.value;
-  }
-
-  getModel(modelId: string): ImageGenerationModel | undefined {
-    return this.availableModelsSubject.value.find(model => model.id === modelId);
-  }
-
-  addCustomModel(modelIdInput: string): Observable<ImageGenerationModel> {
-    const settings = this.settingsService.getSettings();
-
-    if (!settings.replicate.enabled || !settings.replicate.apiKey) {
-      throw new Error('Replicate API key not configured');
     }
 
-    // Parse model ID - handle both "owner/name" and "owner/name:version" formats
-    let modelId = modelIdInput.trim();
-    let version = '';
-
-    // Remove https://replicate.com/ if present
-    modelId = modelId.replace('https://replicate.com/', '');
-
-    // Extract version if present
-    if (modelId.includes(':')) {
-      [modelId, version] = modelId.split(':');
+    // Get the appropriate provider
+    const provider = this.getProviderForModel(model.provider);
+    if (!provider) {
+      return of({
+        id: '',
+        modelId: request.modelId,
+        modelName: model.name,
+        provider: model.provider,
+        prompt: request.prompt,
+        status: 'failed' as const,
+        createdAt: new Date(),
+        error: `Provider ${model.provider} is not configured`,
+        request
+      });
     }
 
-    const headers = new HttpHeaders({
-      'X-API-Token': settings.replicate.apiKey,
-      'Content-Type': 'application/json'
-    });
+    // Create job in history
+    const job = this.historyService.createJob(request, model.name, model.provider);
 
-    // Fetch model details from Replicate
-    return this.http.get<{ name?: string; description?: string; latest_version?: { id: string }; owner?: string }>(`${this.apiUrl}/models/${modelId}`, { headers }).pipe(
-      map(response => {
-        const modelVersion = version || response.latest_version?.id || '';
+    this.generatingSubject.next(true);
 
-        const newModel: ImageGenerationModel = {
-          id: modelId,
-          name: response.name || modelId,
-          description: response.description || 'Custom model',
-          version: modelVersion,
-          owner: response.owner || modelId.split('/')[0],
-          inputs: this.getDefaultInputsForModel()
-        };
-
-        // Add to available models if not already present
-        const currentModels = this.availableModelsSubject.value;
-        const exists = currentModels.find(m => m.id === modelId);
-
-        if (!exists) {
-          this.availableModelsSubject.next([...currentModels, newModel]);
-        }
-
-        return newModel;
+    // Execute generation
+    return from(provider.generate(request)).pipe(
+      tap(result => {
+        // Update job with results
+        this.historyService.completeJob(job.id, result.images);
       }),
+      map(result => ({
+        ...job,
+        status: 'completed' as const,
+        completedAt: new Date(),
+        images: result.images
+      })),
       catchError(error => {
-        console.error('Failed to fetch custom model:', error);
-        throw new Error(`Could not find model: ${modelId}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.historyService.failJob(job.id, errorMessage);
+        return of({
+          ...job,
+          status: 'failed' as const,
+          completedAt: new Date(),
+          error: errorMessage
+        });
+      }),
+      tap(() => {
+        this.generatingSubject.next(false);
       })
     );
   }
 
-  generateImage(modelId: string, input: Record<string, unknown>): Observable<ImageGenerationJob> {
-    const model = this.getModel(modelId);
-    if (!model) {
-      throw new Error(`Model ${modelId} not found`);
+  /**
+   * Regenerate using an existing job's request and append results to that job.
+   * Removes seed from request to generate new variations instead of identical copies.
+   */
+  regenerateAndAppend(jobId: string): Observable<ImageGenerationJob> {
+    const job = this.historyService.getJob(jobId);
+    if (!job) {
+      return of({
+        id: '',
+        modelId: '',
+        modelName: 'Unknown',
+        provider: 'openrouter' as ImageProvider,
+        prompt: '',
+        status: 'failed' as const,
+        createdAt: new Date(),
+        error: 'Job not found',
+        request: { modelId: '', prompt: '' }
+      });
     }
 
+    // Get the provider
+    const provider = this.getProviderForModel(job.provider);
+    if (!provider) {
+      return of({
+        ...job,
+        status: 'failed' as const,
+        error: `Provider ${job.provider} is not configured`
+      });
+    }
 
-    const job: ImageGenerationJob = {
-      id: this.generateJobId(),
-      model: modelId,
-      prompt: (input['prompt'] as string) || '',
-      parameters: input,
-      status: 'pending',
-      createdAt: new Date()
-    };
+    // Clone request and remove seed to get new variations
+    const request: ImageGenerationRequest = { ...job.request };
+    delete request.seed;
 
-    // Add job to the list
-    const currentJobs = this.jobsSubject.value;
-    this.jobsSubject.next([...currentJobs, job]);
-    this.saveJobsToStorage();
+    this.generatingSubject.next(true);
 
-    // Add disable_safety_checker for all models
-    const enhancedInput = {
-      ...input,
-      disable_safety_checker: true
-    };
-
-    const request: ImageGenerationRequest = {
-      version: `${model.id}:${model.version}`,
-      input: enhancedInput
-    };
-
-    // Get API key from settings
-    const settings = this.settingsService.getSettings();
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-      'X-API-Token': settings.replicate?.apiKey || '' // Pass API token to proxy
-    });
-
-    return this.http.post<ImageGenerationResponse>(`${this.apiUrl}/predictions`, request, { headers })
-      .pipe(
-        switchMap(response => {
-          // Update job status
-          this.updateJobStatus(job.id, 'processing');
-
-          // Poll for completion
-          return this.pollPrediction(response.id, job.id).pipe(
-            map(finalResponse => {
-              console.log('Final response received:', finalResponse.status, finalResponse);
-
-              if (finalResponse.status === 'succeeded') {
-                console.log('Raw API output:', finalResponse.output);
-                console.log('Is output array?', Array.isArray(finalResponse.output));
-
-                const outputs: string[] = Array.isArray(finalResponse.output)
-                  ? finalResponse.output.filter((url): url is string => !!url) // Filter out undefined values
-                  : [finalResponse.output].filter((url): url is string => !!url);
-
-                console.log('Processing outputs:', outputs);
-                console.log('Number of outputs:', outputs.length);
-
-                // Store all images in a single job
-                this.updateJob(job.id, {
-                  status: 'completed',
-                  completedAt: new Date(),
-                  imageUrl: outputs[0], // Keep first image for backward compatibility
-                  imageUrls: outputs // Store all images
-                });
-
-                return { ...job, status: 'completed', imageUrl: outputs[0], imageUrls: outputs } as ImageGenerationJob;
-              } else if (finalResponse.status === 'failed') {
-                this.updateJob(job.id, {
-                  status: 'failed',
-                  completedAt: new Date(),
-                  error: finalResponse.error || 'Generation failed'
-                });
-
-                throw new Error(finalResponse.error || 'Generation failed');
-              }
-
-              return job;
-            })
-          );
-        }),
-        catchError(error => {
-          console.error('Full error object:', error);
-
-          // Extract detailed error message from HTTP response
-          let errorMessage = error.message;
-          if (error.error && typeof error.error === 'object') {
-            // If error.error is an object with detail property (common for validation errors)
-            if (error.error.detail) {
-              errorMessage = error.error.detail;
-            } else if (error.error.message) {
-              errorMessage = error.error.message;
-            }
-          } else if (error.error && typeof error.error === 'string') {
-            errorMessage = error.error;
-          }
-
-          this.updateJob(job.id, {
-            status: 'failed',
-            completedAt: new Date(),
-            error: errorMessage
-          });
-
-          // Create enhanced error object for component
-          const enhancedError = new Error(errorMessage);
-          throw enhancedError;
-        })
-      );
-  }
-
-  private pollPrediction(predictionId: string, jobId: string): Observable<ImageGenerationResponse> {
-    // Get API key from settings
-    const settings = this.settingsService.getSettings();
-    const headers = new HttpHeaders({
-      'X-API-Token': settings.replicate?.apiKey || '' // Pass API token to proxy
-    });
-
-    return interval(2000).pipe(
-      switchMap(() => this.http.get<ImageGenerationResponse>(`${this.apiUrl}/predictions/${predictionId}`, { headers })),
-      map(response => {
-        // Update job status in real-time
-        if (response.status === 'processing' || response.status === 'starting') {
-          this.updateJobStatus(jobId, 'processing');
-        }
-
-        return response;
+    return from(provider.generate(request)).pipe(
+      tap(result => {
+        // Append new images to existing job
+        this.historyService.appendImagesToJob(jobId, result.images);
       }),
-      takeWhile(response => {
-        const shouldContinue = response.status === 'starting' || response.status === 'processing';
-        return shouldContinue;
-      }, true)
-    );
-  }
-
-  private updateJobStatus(jobId: string, status: ImageGenerationJob['status']): void {
-    const currentJobs = this.jobsSubject.value;
-    const updatedJobs = currentJobs.map(job =>
-      job.id === jobId ? { ...job, status } : job
-    );
-    this.jobsSubject.next(updatedJobs);
-    this.saveJobsToStorage();
-  }
-
-  private updateJob(jobId: string, updates: Partial<ImageGenerationJob>): void {
-    const currentJobs = this.jobsSubject.value;
-    const updatedJobs = currentJobs.map(job =>
-      job.id === jobId ? { ...job, ...updates } : job
-    );
-    this.jobsSubject.next(updatedJobs);
-    this.saveJobsToStorage();
-  }
-
-  private generateJobId(): string {
-    return `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  getJobs(): ImageGenerationJob[] {
-    return this.jobsSubject.value;
-  }
-
-  clearJobs(): void {
-    this.jobsSubject.next([]);
-    this.saveJobsToStorage();
-  }
-
-  saveLastPrompt(modelId: string, parameters: Record<string, unknown>): void {
-    try {
-      localStorage.setItem(this.lastPromptKey, JSON.stringify({ modelId, parameters }));
-    } catch (error) {
-      console.warn('Failed to save last prompt to localStorage:', error);
-    }
-  }
-
-  getLastPrompt(): { modelId: string; parameters: Record<string, unknown> } | null {
-    try {
-      const saved = localStorage.getItem(this.lastPromptKey);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (error) {
-      console.warn('Failed to load last prompt from localStorage:', error);
-    }
-    return null;
-  }
-
-  private loadJobsFromStorage(): void {
-    try {
-      const saved = localStorage.getItem(this.storageKey);
-      if (saved) {
-        const jobs: ImageGenerationJob[] = JSON.parse(saved);
-        // Convert date strings back to Date objects
-        jobs.forEach(job => {
-          job.createdAt = new Date(job.createdAt);
-          if (job.completedAt) {
-            job.completedAt = new Date(job.completedAt);
-          }
+      map(() => this.historyService.getJob(jobId)!),
+      catchError(error => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        // Don't modify the job on failure, just return error info
+        return of({
+          ...job,
+          error: errorMessage
         });
-        this.jobsSubject.next(jobs);
-      }
-    } catch (error) {
-      console.warn('Failed to load jobs from localStorage:', error);
+      }),
+      tap(() => {
+        this.generatingSubject.next(false);
+      })
+    );
+  }
+
+  /**
+   * Get the appropriate provider instance for a provider type
+   */
+  private getProviderForModel(provider: ImageProvider): IImageProvider | null {
+    switch (provider) {
+      case 'openrouter':
+        return this.openRouterProvider.isConfigured() ? this.openRouterProvider : null;
+      case 'fal':
+        return this.falProvider.isConfigured() ? this.falProvider : null;
+      case 'replicate':
+        return this.replicateProvider.isConfigured() ? this.replicateProvider : null;
+      default:
+        return null;
     }
   }
 
-  private saveJobsToStorage(): void {
-    try {
-      const jobs = this.jobsSubject.value;
-      localStorage.setItem(this.storageKey, JSON.stringify(jobs));
-    } catch (error) {
-      console.warn('Failed to save jobs to localStorage:', error);
-    }
+  /**
+   * Get all available models
+   */
+  getAvailableModels(): ImageGenerationModel[] {
+    return this.modelService.getModels();
   }
+
+  /**
+   * Get models for a specific provider
+   */
+  getModelsByProvider(provider: ImageProvider): ImageGenerationModel[] {
+    return this.modelService.getModelsByProvider(provider);
+  }
+
+  /**
+   * Get a specific model by ID
+   */
+  getModel(modelId: string): ImageGenerationModel | undefined {
+    return this.modelService.getModel(modelId);
+  }
+
+  /**
+   * Refresh all models from providers
+   */
+  async refreshModels(): Promise<void> {
+    await this.modelService.refreshAllModels();
+  }
+
+  /**
+   * Load models from a specific provider
+   */
+  async loadProviderModels(provider: ImageProvider): Promise<ImageGenerationModel[]> {
+    return this.modelService.loadProviderModels(provider);
+  }
+
+  /**
+   * Check which providers are configured
+   */
+  getConfiguredProviders(): ImageProvider[] {
+    return this.modelService.getConfiguredProviders();
+  }
+
+  /**
+   * Check if a specific provider is configured
+   */
+  isProviderConfigured(provider: ImageProvider): boolean {
+    return this.modelService.isProviderConfigured(provider);
+  }
+
+  /**
+   * Get provider display name
+   */
+  getProviderDisplayName(provider: ImageProvider): string {
+    return this.modelService.getProviderDisplayName(provider);
+  }
+
+  /**
+   * Get all jobs
+   */
+  getJobs(): ImageGenerationJob[] {
+    return this.historyService.getJobs();
+  }
+
+  /**
+   * Clear all job history
+   */
+  clearJobs(): void {
+    this.historyService.clearHistory();
+  }
+
+  /**
+   * Delete a specific job
+   */
+  deleteJob(jobId: string): void {
+    this.historyService.deleteJob(jobId);
+  }
+
+  /**
+   * Save last used prompt and settings
+   */
+  saveLastPrompt(modelId: string, parameters: Record<string, unknown>): void {
+    this.historyService.saveLastPrompt(modelId, parameters);
+  }
+
+  /**
+   * Get last used prompt and settings
+   */
+  getLastPrompt(): { modelId: string; parameters: Record<string, unknown> } | null {
+    return this.historyService.getLastPrompt();
+  }
+
+  // Legacy support: expose availableModels$ for backward compatibility
+  public availableModels$ = this.models$;
 }

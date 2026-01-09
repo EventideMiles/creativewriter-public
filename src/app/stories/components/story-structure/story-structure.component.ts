@@ -1,10 +1,9 @@
 import { Component, Input, Output, EventEmitter, AfterViewInit, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectorRef, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
-  IonContent, IonList, IonItem, IonButton, IonIcon, IonInput,
-  IonBadge, ActionSheetController, ModalController
+  IonContent, IonList, IonItem, IonButton, IonIcon, IonLabel,
+  ActionSheetController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -14,6 +13,7 @@ import { Story, Chapter, Scene } from '../../models/story.interface';
 import { StoryService } from '../../services/story.service';
 import { StoryStatsService } from '../../services/story-stats.service';
 import { PromptManagerService } from '../../../shared/services/prompt-manager.service';
+import { DialogService } from '../../../core/services/dialog.service';
 import { Subscription } from 'rxjs';
 import { SceneCreateFromOutlineComponent } from '../scene-create-from-outline/scene-create-from-outline.component';
 
@@ -21,9 +21,8 @@ import { SceneCreateFromOutlineComponent } from '../scene-create-from-outline/sc
   selector: 'app-story-structure',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonContent, IonList, IonItem, IonButton, IonIcon, IonInput,
-    IonBadge
+    CommonModule,
+    IonContent, IonList, IonItem, IonButton, IonIcon, IonLabel
   ],
   templateUrl: './story-structure.component.html',
   styleUrls: ['./story-structure.component.scss'],
@@ -37,6 +36,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
   private actionSheetCtrl = inject(ActionSheetController);
   private modalCtrl = inject(ModalController);
   private storyStats = inject(StoryStatsService);
+  private dialogService = inject(DialogService);
 
   @Input() story!: Story;
   @Input() activeChapterId: string | null = null;
@@ -45,8 +45,6 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
   @Output() closeSidebar = new EventEmitter<void>();
   
   expandedChapters = new Set<string>();
-  isEditingTitle = new Set<string>();
-  private originalTitles = new Map<string, string>();
   private subscription = new Subscription();
 
   constructor() {
@@ -131,20 +129,22 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     }
   }
 
-  async updateChapter(chapter: Chapter): Promise<void> {
-    await this.storyService.updateChapter(this.story.id, chapter.id, { title: chapter.title });
-    // Refresh prompt manager when chapter title changes
-    this.promptManager.refresh();
-  }
-
   async deleteChapter(chapterId: string, event: Event): Promise<void> {
     event.stopPropagation();
     if (this.story.chapters.length <= 1) {
-      alert('A story must have at least one chapter.');
+      await this.dialogService.showInfo({
+        header: 'Cannot Delete',
+        message: 'A story must have at least one chapter.'
+      });
       return;
     }
-    
-    if (confirm('Really delete chapter? All scenes will be lost.')) {
+
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Delete Chapter',
+      message: 'Really delete chapter? All scenes will be lost.',
+      confirmText: 'Delete'
+    });
+    if (confirmed) {
       await this.storyService.deleteChapter(this.story.id, chapterId);
       const updatedStory = await this.storyService.getStory(this.story.id);
       if (updatedStory) {
@@ -228,16 +228,15 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
     }
   }
 
-  async updateScene(chapterId: string, scene: Scene): Promise<void> {
-    await this.storyService.updateScene(this.story.id, chapterId, scene.id, { title: scene.title });
-    // Refresh prompt manager when scene title changes
-    this.promptManager.refresh();
-  }
-
   async deleteScene(chapterId: string, sceneId: string, event: Event): Promise<void> {
     event.stopPropagation();
-    
-    if (confirm('Really delete scene?')) {
+
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Delete Scene',
+      message: 'Really delete scene? This action cannot be undone.',
+      confirmText: 'Delete'
+    });
+    if (confirmed) {
       // Find current index before deletion
       const chapterBefore = this.story.chapters.find(c => c.id === chapterId);
       const idxBefore = chapterBefore?.scenes.findIndex(s => s.id === sceneId) ?? -1;
@@ -377,50 +376,7 @@ export class StoryStructureComponent implements OnInit, OnChanges, AfterViewInit
   onCloseSidebar(): void {
     this.closeSidebar.emit();
   }
-  
-  startEditingTitle(sceneId: string, event: Event): void {
-    event.stopPropagation();
-    event.preventDefault();
-    
-    // Find the scene to store its original title
-    for (const chapter of this.story.chapters) {
-      const scene = chapter.scenes.find(s => s.id === sceneId);
-      if (scene) {
-        this.originalTitles.set(sceneId, scene.title || '');
-        break;
-      }
-    }
-    
-    this.isEditingTitle.add(sceneId);
-    
-    // Focus the input after Angular renders it
-    setTimeout(() => {
-      const inputs = document.querySelectorAll('.scene-title-input-edit');
-      inputs.forEach((input: Element) => {
-        if (input && 'setFocus' in input && typeof (input as { setFocus: () => void }).setFocus === 'function') {
-          (input as { setFocus: () => void }).setFocus();
-        }
-      });
-    }, 50);
-  }
-  
-  stopEditingTitle(chapterId: string, scene: Scene): void {
-    this.isEditingTitle.delete(scene.id);
-    this.originalTitles.delete(scene.id);
-    this.updateScene(chapterId, scene);
-  }
-  
-  cancelEditingTitle(scene: Scene): void {
-    // Restore original title
-    const originalTitle = this.originalTitles.get(scene.id);
-    if (originalTitle !== undefined) {
-      scene.title = originalTitle;
-    }
-    
-    this.isEditingTitle.delete(scene.id);
-    this.originalTitles.delete(scene.id);
-  }
-  
+
   private scrollToActiveScene(): void {
     if (!this.activeSceneId) return;
     

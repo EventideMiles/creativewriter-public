@@ -23,8 +23,17 @@ export interface HeaderAction {
 export interface BurgerMenuItem {
   icon: string;
   label: string;
-  action: () => void;
+  action?: () => void;  // Optional for group headers
   color?: string;
+  disabled?: boolean;
+}
+
+export interface BurgerMenuGroup {
+  label?: string;           // Optional group label
+  items: BurgerMenuItem[];
+  collapsible?: boolean;    // For Developer Tools submenu
+  icon?: string;            // Icon for collapsible header
+  isExpanded?: boolean;     // Track expansion state
 }
 
 @Component({
@@ -124,11 +133,12 @@ export interface BurgerMenuItem {
           </ng-container>
 
           <!-- Burger Menu Button -->
-          <ion-button 
-            *ngIf="showBurgerMenu" 
+          <ion-button
+            *ngIf="showBurgerMenu"
             id="burger-menu-trigger"
             aria-label="Open navigation menu"
             aria-haspopup="menu"
+            aria-controls="burger-menu-popover"
             [title]="burgerMenuTitle || 'Navigation menu'"
             [attr.aria-expanded]="isBurgerMenuOpen">
             <ion-icon name="menu" slot="icon-only" aria-hidden="true"></ion-icon>
@@ -143,10 +153,11 @@ export interface BurgerMenuItem {
     </ion-header>
 
     <!-- Burger Menu Popover -->
-    <ion-popover 
+    <ion-popover
       #burgerMenuPopover
+      id="burger-menu-popover"
       *ngIf="showBurgerMenu"
-      trigger="burger-menu-trigger" 
+      trigger="burger-menu-trigger"
       triggerAction="click"
       side="bottom"
       alignment="end"
@@ -154,25 +165,56 @@ export interface BurgerMenuItem {
       [showBackdrop]="true"
       [keepContentsMounted]="false"
       (ionPopoverWillPresent)="onBurgerMenuWillPresent()"
-      (ionPopoverWillDismiss)="onBurgerMenuWillDismiss()">
+      (ionPopoverWillDismiss)="onBurgerMenuWillDismiss()"
+      (keydown)="onPopoverKeydown($event)">
       <ng-template>
         <ion-content>
           <div class="popover-header" *ngIf="burgerMenuTitle">
             <h3>{{ burgerMenuTitle || 'Navigation' }}</h3>
           </div>
-          
+
           <ion-list lines="none" role="menu" aria-label="Navigation menu">
-            <ion-item 
-              button 
-              *ngFor="let item of burgerMenuItems"
-              (click)="handleBurgerMenuAction(item.action)"
-              role="menuitem"
-              [attr.aria-label]="item.label">
-              <ion-icon [name]="item.icon" slot="start" [color]="item.color || 'medium'" aria-hidden="true"></ion-icon>
-              <ion-label>{{ item.label }}</ion-label>
-            </ion-item>
+            <ng-container *ngFor="let group of displayGroups; let groupIndex = index">
+              <!-- Group Separator -->
+              <div class="menu-separator" *ngIf="groupIndex > 0" role="separator"></div>
+
+              <!-- Collapsible Group Header -->
+              <ion-item
+                *ngIf="group.collapsible && group.label"
+                button
+                (click)="toggleGroup(group)"
+                role="menuitem"
+                class="group-header"
+                [attr.aria-expanded]="group.isExpanded"
+                [attr.aria-label]="group.label + ' submenu'">
+                <ion-icon [name]="group.icon || 'code-slash-outline'" slot="start" color="medium" aria-hidden="true"></ion-icon>
+                <ion-label>{{ group.label }}</ion-label>
+                <ion-icon [name]="group.isExpanded ? 'chevron-down' : 'chevron-forward'" slot="end" class="expand-icon" aria-hidden="true"></ion-icon>
+              </ion-item>
+
+              <!-- Non-collapsible Group Label -->
+              <div class="menu-group-label" *ngIf="!group.collapsible && group.label">
+                <span>{{ group.label }}</span>
+              </div>
+
+              <!-- Group Items -->
+              <ng-container *ngIf="!group.collapsible || group.isExpanded">
+                <ion-item
+                  [button]="!item.disabled"
+                  *ngFor="let item of group.items"
+                  (click)="!item.disabled && item.action && handleBurgerMenuAction(item.action)"
+                  role="menuitem"
+                  [class.submenu-item]="group.collapsible"
+                  [class.disabled]="item.disabled"
+                  [attr.aria-label]="item.label"
+                  [attr.aria-disabled]="item.disabled || null">
+                  <ion-icon [name]="item.icon" slot="start" [color]="item.disabled ? 'medium' : (item.color || 'medium')" aria-hidden="true"></ion-icon>
+                  <ion-label>{{ item.label }}</ion-label>
+                </ion-item>
+              </ng-container>
+            </ng-container>
           </ion-list>
-          
+
           <!-- Burger Menu Footer Content -->
           <div class="popover-footer" *ngIf="burgerMenuFooterContent">
             <ng-container *ngTemplateOutlet="burgerMenuFooterContent"></ng-container>
@@ -337,43 +379,96 @@ export interface BurgerMenuItem {
       margin: 0 0.75rem 0.5rem 0.75rem;
       --border-radius: 8px;
       border: 1px solid rgba(139, 180, 248, 0.15);
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
-    
-    ion-popover ion-item::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(139, 180, 248, 0.1), transparent);
-      transition: left 0.5s ease;
-      z-index: 1;
-    }
-    
+
     ion-popover ion-item:hover {
       --background: rgba(139, 180, 248, 0.1);
       border-color: rgba(139, 180, 248, 0.3);
-      transform: translateX(4px) scale(1.02);
-      box-shadow: 0 4px 12px rgba(139, 180, 248, 0.2);
     }
-    
-    ion-popover ion-item:hover::before {
-      left: 100%;
+
+    ion-popover ion-item:focus-visible {
+      outline: 2px solid rgba(139, 180, 248, 0.6);
+      outline-offset: 2px;
+      --background: rgba(139, 180, 248, 0.15);
     }
-    
-    ion-popover ion-item ion-icon {
-      position: relative;
-      z-index: 2;
-    }
-    
+
     ion-popover ion-item ion-label {
-      position: relative;
-      z-index: 2;
       font-weight: 500;
+    }
+
+    /* Ensure ion-icon colors apply correctly */
+    ion-popover ion-item ion-icon {
+      color: var(--ion-color-base, inherit);
+    }
+
+    ion-popover ion-item ion-icon[color="primary"] {
+      color: var(--ion-color-primary);
+    }
+
+    ion-popover ion-item ion-icon[color="secondary"] {
+      color: var(--ion-color-secondary);
+    }
+
+    ion-popover ion-item ion-icon[color="tertiary"] {
+      color: var(--ion-color-tertiary);
+    }
+
+    ion-popover ion-item ion-icon[color="success"] {
+      color: var(--ion-color-success);
+    }
+
+    ion-popover ion-item ion-icon[color="warning"] {
+      color: var(--ion-color-warning);
+    }
+
+    ion-popover ion-item ion-icon[color="danger"] {
+      color: var(--ion-color-danger);
+    }
+
+    ion-popover ion-item ion-icon[color="medium"] {
+      color: var(--ion-color-medium);
+    }
+
+    /* Menu separator between groups */
+    .menu-separator {
+      height: 1px;
+      background: linear-gradient(90deg, transparent 10%, rgba(139, 180, 248, 0.2) 50%, transparent 90%);
+      margin: 0.5rem 1rem;
+    }
+
+    /* Non-collapsible group label */
+    .menu-group-label {
+      padding: 0.5rem 1.25rem 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: rgba(139, 180, 248, 0.7);
+    }
+
+    /* Collapsible group header */
+    ion-popover ion-item.group-header {
+      --background: rgba(255, 255, 255, 0.03);
+      font-weight: 500;
+    }
+
+    ion-popover ion-item.group-header .expand-icon {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Submenu items - slightly indented */
+    ion-popover ion-item.submenu-item {
+      margin-left: 1.5rem;
+      font-size: 0.95em;
+    }
+
+    /* Disabled menu items */
+    ion-popover ion-item.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
     }
     
     .popover-header {
@@ -479,6 +574,7 @@ export class AppHeaderComponent implements OnInit {
   @Input() showBurgerMenu = false;
   @Input() burgerMenuTitle = 'Navigation';
   @Input() burgerMenuItems: BurgerMenuItem[] = [];
+  @Input() burgerMenuGroups?: BurgerMenuGroup[];  // New grouped format
   @Input() burgerMenuFooterContent?: TemplateRef<unknown>;
   @Input() showSecondaryToolbar = false;
   @Input() secondaryContent?: TemplateRef<unknown>;
@@ -488,6 +584,18 @@ export class AppHeaderComponent implements OnInit {
   @Output() burgerMenuToggle = new EventEmitter<boolean>();
   
   public isBurgerMenuOpen = false;
+
+  // Computed property for backward compatibility
+  get displayGroups(): BurgerMenuGroup[] {
+    if (this.burgerMenuGroups && this.burgerMenuGroups.length > 0) {
+      return this.burgerMenuGroups;
+    }
+    // Wrap legacy burgerMenuItems in a single group
+    if (this.burgerMenuItems && this.burgerMenuItems.length > 0) {
+      return [{ items: this.burgerMenuItems }];
+    }
+    return [];
+  }
 
   ngOnInit(): void {
     // Initialize header component - version service loads automatically
@@ -515,9 +623,97 @@ export class AppHeaderComponent implements OnInit {
 
   onBurgerMenuWillPresent(): void {
     this.isBurgerMenuOpen = true;
+    // Auto-focus first menu item after popover opens
+    setTimeout(() => this.focusFirstItem(), 100);
   }
 
   onBurgerMenuWillDismiss(): void {
     this.isBurgerMenuOpen = false;
+  }
+
+  toggleGroup(group: BurgerMenuGroup): void {
+    group.isExpanded = !group.isExpanded;
+  }
+
+  onPopoverKeydown(event: KeyboardEvent): void {
+    switch (event.key) {
+      case 'ArrowDown':
+        this.focusNextItem();
+        event.preventDefault();
+        break;
+      case 'ArrowUp':
+        this.focusPreviousItem();
+        event.preventDefault();
+        break;
+      case 'Home':
+        this.focusFirstItem();
+        event.preventDefault();
+        break;
+      case 'End':
+        this.focusLastItem();
+        event.preventDefault();
+        break;
+      case 'Escape':
+        this.burgerMenuPopover?.dismiss();
+        event.preventDefault();
+        break;
+    }
+  }
+
+  private focusNextItem(): void {
+    const items = this.getVisibleMenuItems();
+    const currentIndex = this.getCurrentFocusIndex(items);
+    // Find next non-disabled item
+    for (let i = currentIndex + 1; i < items.length; i++) {
+      if (!items[i].getAttribute('aria-disabled')) {
+        items[i].focus();
+        return;
+      }
+    }
+  }
+
+  private focusPreviousItem(): void {
+    const items = this.getVisibleMenuItems();
+    const currentIndex = this.getCurrentFocusIndex(items);
+    // Find previous non-disabled item
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      if (!items[i].getAttribute('aria-disabled')) {
+        items[i].focus();
+        return;
+      }
+    }
+  }
+
+  private focusFirstItem(): void {
+    const items = this.getVisibleMenuItems();
+    // Find first non-disabled item
+    for (const item of items) {
+      if (!item.getAttribute('aria-disabled')) {
+        item.focus();
+        return;
+      }
+    }
+  }
+
+  private focusLastItem(): void {
+    const items = this.getVisibleMenuItems();
+    // Find last non-disabled item
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (!items[i].getAttribute('aria-disabled')) {
+        items[i].focus();
+        return;
+      }
+    }
+  }
+
+  private getVisibleMenuItems(): HTMLElement[] {
+    const popoverContent = document.querySelector('ion-popover ion-content');
+    if (!popoverContent) return [];
+    return Array.from(popoverContent.querySelectorAll('ion-item[button]')) as HTMLElement[];
+  }
+
+  private getCurrentFocusIndex(items: HTMLElement[]): number {
+    const activeElement = document.activeElement;
+    return items.findIndex(item => item === activeElement || item.contains(activeElement));
   }
 }

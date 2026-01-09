@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { AuthService, User } from './auth.service';
 import { SyncLoggerService } from './sync-logger.service';
 import { PouchDB } from '../../app';
+import { environment } from '../../../environments/environment';
 
 // Minimal static type for the PouchDB constructor when loaded via ESM
 interface PouchDBStatic {
@@ -63,12 +64,36 @@ export class DatabaseService {
   private syncPaused = false;
   private activePauseCount = 0;
 
-  // Bootstrap mode: When true, sync ALL documents including stories
-  // Used when local database is empty and metadata index is missing
-  private bootstrapSyncMode = false;
-
   // Track if sync has been initialized (to prevent premature sync before user choice)
   private syncInitialized = false;
+
+  // Event handler references for proper cleanup
+  private handleOnline = () => this.updateOnlineStatus(true);
+  private handleOffline = () => this.updateOnlineStatus(false);
+
+  // Throttle sync status updates to prevent memory pressure from frequent object creation
+  private syncStatusThrottleTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pendingSyncStatusUpdate: Partial<SyncStatus> | null = null;
+  private readonly SYNC_STATUS_THROTTLE_MS = 500; // Max 2 updates per second
+  private lastSyncStatusTime = 0;
+
+  // Periodic sync restart - restart sync periodically to clear accumulated PouchDB memory
+  // This is a workaround for known PouchDB memory leaks with live: true
+  // See: https://github.com/pouchdb/pouchdb/issues/6502
+  private syncRestartTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly SYNC_RESTART_INTERVAL_MS = 5 * 60 * 1000; // Restart sync every 5 minutes (aggressive for mobile)
+
+  // Memory pressure detection - pause sync when memory is critically high
+  private memoryPressurePaused = false;
+  private memoryCheckTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly MEMORY_CHECK_INTERVAL_MS = 15 * 1000; // Check every 15 seconds
+  private readonly MEMORY_PRESSURE_THRESHOLD = 0.85; // 85% heap usage triggers pause
+
+  // Page visibility sync trigger - restart sync when user returns to app/tab
+  // This is a lightweight alternative to idle detection that doesn't cause memory issues
+  private handleVisibilityChange = () => this.onVisibilityChange();
+  private visibilityDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly VISIBILITY_DEBOUNCE_MS = 1000; // 1 second debounce for rapid tab switches
 
   public syncStatus$: Observable<SyncStatus> = this.syncStatusSubject.asObservable();
 
@@ -78,6 +103,20 @@ export class DatabaseService {
   private isLocalOnlyMode(): boolean {
     return localStorage.getItem('creative-writer-local-only') === 'true';
   }
+
+  // Debug sync pause handler
+  private handleDebugSyncToggle = (event: Event) => {
+    const customEvent = event as CustomEvent<{ paused: boolean }>;
+    if (customEvent.detail.paused) {
+      console.info('[DatabaseService] Debug sync pause activated - stopping sync');
+      this.stopSync();
+    } else {
+      console.info('[DatabaseService] Debug sync pause deactivated - resuming sync');
+      if (this.remoteDb && !this.syncPaused) {
+        this.startSync();
+      }
+    }
+  };
 
   constructor() {
     // Use preloaded PouchDB from app.ts
@@ -92,8 +131,176 @@ export class DatabaseService {
     });
 
     // Setup online/offline detection
-    window.addEventListener('online', () => this.updateOnlineStatus(true));
-    window.addEventListener('offline', () => this.updateOnlineStatus(false));
+    window.addEventListener('online', this.handleOnline);
+    window.addEventListener('offline', this.handleOffline);
+
+    // Setup memory pressure detection
+    this.startMemoryPressureCheck();
+
+    // Listen for debug sync toggle from MobileDebugService
+    window.addEventListener('debug-sync-toggle', this.handleDebugSyncToggle);
+
+    // Setup page visibility sync trigger - restart sync when returning to app
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+  }
+
+  /**
+   * Gracefully clean up sync handler to avoid memory spikes on mobile.
+   * Staggers cleanup operations with delays to allow garbage collection.
+   */
+  private gracefulSyncCleanup(): void {
+    if (!this.syncHandler) {
+      return;
+    }
+
+    const handler = this.syncHandler;
+    this.syncHandler = null;
+
+    // Update sync status first
+    this.updateSyncStatusImmediate({ isSync: false });
+
+    // Use requestIdleCallback if available for smoother cleanup
+    const scheduleCleanup = (callback: () => void, delay: number) => {
+      if ('requestIdleCallback' in window) {
+        (window as Window & { requestIdleCallback: (cb: () => void) => void })
+          .requestIdleCallback(() => setTimeout(callback, delay));
+      } else {
+        setTimeout(callback, delay);
+      }
+    };
+
+    // Cancel sync with a small delay to allow pending operations to complete
+    // PouchDB handles listener cleanup internally when cancel() is called
+    scheduleCleanup(() => {
+      try {
+        handler.cancel();
+      } catch (e) {
+        console.warn('Error canceling sync during graceful cleanup:', e);
+      }
+    }, 100);
+  }
+
+  /**
+   * Start periodic memory pressure checking.
+   * Pauses sync when JS heap usage exceeds threshold to prevent crashes.
+   */
+  private startMemoryPressureCheck(): void {
+    if (this.memoryCheckTimeout) {
+      clearTimeout(this.memoryCheckTimeout);
+    }
+
+    this.memoryCheckTimeout = setTimeout(() => {
+      this.checkMemoryPressure();
+    }, this.MEMORY_CHECK_INTERVAL_MS);
+  }
+
+  /**
+   * Check current memory pressure and pause sync if needed.
+   */
+  private checkMemoryPressure(): void {
+    const memoryInfo = this.getMemoryInfo();
+
+    if (memoryInfo) {
+      const usageRatio = memoryInfo.usedJSHeapSize / memoryInfo.jsHeapSizeLimit;
+
+      if (usageRatio >= this.MEMORY_PRESSURE_THRESHOLD && !this.memoryPressurePaused && this.syncHandler) {
+        console.warn(`[DatabaseService] Memory pressure detected (${(usageRatio * 100).toFixed(1)}%), pausing sync`);
+        this.memoryPressurePaused = true;
+        this.gracefulSyncCleanup();
+      } else if (usageRatio < this.MEMORY_PRESSURE_THRESHOLD * 0.9 && this.memoryPressurePaused) {
+        // Resume when memory drops below 90% of threshold (hysteresis)
+        console.info(`[DatabaseService] Memory pressure relieved (${(usageRatio * 100).toFixed(1)}%), resuming sync`);
+        this.memoryPressurePaused = false;
+        if (this.remoteDb && !this.syncPaused) {
+          this.startSync();
+        }
+      }
+    }
+
+    // Schedule next check
+    this.startMemoryPressureCheck();
+  }
+
+  /**
+   * Get JS heap memory info (Chrome/Edge only).
+   */
+  private getMemoryInfo(): { usedJSHeapSize: number; jsHeapSizeLimit: number } | null {
+    const performance = window.performance as Performance & {
+      memory?: {
+        usedJSHeapSize: number;
+        totalJSHeapSize: number;
+        jsHeapSizeLimit: number;
+      };
+    };
+
+    if (performance.memory) {
+      return {
+        usedJSHeapSize: performance.memory.usedJSHeapSize,
+        jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Clean up memory pressure check resources.
+   */
+  private cleanupMemoryPressureCheck(): void {
+    if (this.memoryCheckTimeout) {
+      clearTimeout(this.memoryCheckTimeout);
+      this.memoryCheckTimeout = null;
+    }
+  }
+
+  /**
+   * Handle page visibility changes.
+   * Triggers sync restart when user returns to the app/tab.
+   *
+   * Unlike the removed idle detection, this does NOT pause sync when hidden
+   * to avoid the graceful cleanup that caused mobile crashes.
+   */
+  private onVisibilityChange(): void {
+    // Only act when page becomes visible (not when hiding)
+    if (document.hidden) {
+      return;
+    }
+
+    // Debounce rapid visibility changes (e.g., quick tab switches)
+    if (this.visibilityDebounceTimeout) {
+      clearTimeout(this.visibilityDebounceTimeout);
+    }
+
+    this.visibilityDebounceTimeout = setTimeout(() => {
+      this.visibilityDebounceTimeout = null;
+
+      // Only restart sync if:
+      // 1. Not already syncing
+      // 2. Not paused (by AI streaming, etc.)
+      // 3. Not in memory pressure state
+      // 4. Have a remote database connection
+      if (!this.syncHandler && !this.syncPaused && !this.memoryPressurePaused && this.remoteDb) {
+        console.info('[DatabaseService] Page visible, starting sync');
+        try {
+          this.startSync();
+        } catch (error) {
+          console.error('[DatabaseService] Failed to start sync on visibility change:', error);
+        }
+      } else if (this.syncHandler) {
+        console.debug('[DatabaseService] Page visible, sync already active');
+      }
+    }, this.VISIBILITY_DEBOUNCE_MS);
+  }
+
+  /**
+   * Clean up visibility change listener and debounce timeout.
+   */
+  private cleanupVisibilityListener(): void {
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    if (this.visibilityDebounceTimeout) {
+      clearTimeout(this.visibilityDebounceTimeout);
+      this.visibilityDebounceTimeout = null;
+    }
   }
 
   private async initializeDatabase(dbName: string): Promise<void> {
@@ -114,7 +321,7 @@ export class DatabaseService {
       }
     }
 
-    this.db = new this.pouchdbCtor(dbName);
+    this.db = new this.pouchdbCtor(dbName, { auto_compaction: true });
 
     // Clean up old mrview databases in background (don't block initialization)
     // This frees up IndexedDB storage without affecting user data
@@ -247,9 +454,12 @@ export class DatabaseService {
   /**
    * Set the active story ID for selective sync.
    * Only the active story and its related documents will be synced.
-   * Set to null to sync all documents.
+   * Set to null to sync all documents (frontpage).
+   *
+   * This method is async to ensure sync operations complete sequentially,
+   * preventing concurrent sync operations that can cause memory pressure on mobile.
    */
-  setActiveStoryId(storyId: string | null): void {
+  async setActiveStoryId(storyId: string | null): Promise<void> {
     const changed = this.activeStoryId !== storyId;
     const previousId = this.activeStoryId;
     this.activeStoryId = storyId;
@@ -259,17 +469,30 @@ export class DatabaseService {
     // If the active story changed and sync is running, restart sync to apply new filter
     if (changed && this.syncHandler) {
       console.info('[DatabaseService] Restarting sync to apply new activeStoryId filter...');
-      this.stopSync().then(() => {
+      try {
+        await this.stopSync();  // WAIT for stop to complete before starting new sync
         console.info('[DatabaseService] Sync stopped, starting with new filter...');
         this.startSync();
         console.info('[DatabaseService] Sync restarted with activeStoryId:', this.activeStoryId);
-      }).catch(err => {
-        console.error('Error restarting sync after story change:', err);
-      });
+      } catch (error) {
+        console.error('[DatabaseService] Error restarting sync:', error);
+        // Attempt to start sync anyway if it's not running
+        if (!this.syncHandler && this.remoteDb && !this.syncPaused) {
+          try {
+            this.startSync();
+          } catch (startError) {
+            console.error('[DatabaseService] Failed to recover sync:', startError);
+          }
+        }
+      }
     } else if (changed && !this.syncHandler && storyId && this.remoteDb) {
       // Sync not running yet - start it now that we have an active story
       console.info('[DatabaseService] Starting sync for newly selected story:', storyId);
-      this.startSync();
+      try {
+        this.startSync();
+      } catch (error) {
+        console.error('[DatabaseService] Failed to start sync for story:', error);
+      }
     }
   }
 
@@ -284,6 +507,9 @@ export class DatabaseService {
    * Force replication of a specific document from remote
    * This is useful when opening a story to ensure it's immediately pulled from remote
    *
+   * IMPORTANT: This method serializes with main sync to prevent concurrent operations.
+   * It stops the main sync, performs the replication, then restarts sync.
+   *
    * @param docId The document ID to replicate
    * @returns Promise that resolves when replication completes
    */
@@ -295,16 +521,39 @@ export class DatabaseService {
 
     console.info(`[DatabaseService] Force replicating document: ${docId}`);
 
+    // SERIALIZE: Stop main sync to prevent concurrent operations
+    const wasRunning = !!this.syncHandler;
+    if (wasRunning) {
+      console.info('[DatabaseService] Pausing main sync for force replication');
+      await this.stopSync();
+    }
+
     try {
       // Do a one-time pull replication for this specific document
-      await this.db.replicate.from(this.remoteDb, {
+      // MEMORY OPTIMIZATION: return_docs: false prevents caching in memory
+      const replicateOptions = {
         doc_ids: [docId],
-        timeout: 10000
-      });
+        timeout: 10000,
+        return_docs: false
+      };
+      await this.db.replicate.from(
+        this.remoteDb,
+        replicateOptions as PouchDB.Replication.ReplicateOptions
+      );
       console.info(`[DatabaseService] ✓ Successfully replicated document: ${docId}`);
     } catch (error) {
       console.error(`[DatabaseService] Failed to replicate document ${docId}:`, error);
       throw error;
+    } finally {
+      // SERIALIZE: Restart main sync after replication completes
+      if (wasRunning && this.remoteDb && !this.syncPaused) {
+        console.info('[DatabaseService] Resuming main sync after force replication');
+        try {
+          this.startSync();
+        } catch (error) {
+          console.error('[DatabaseService] Failed to resume sync after force replication:', error);
+        }
+      }
     }
   }
 
@@ -371,22 +620,27 @@ export class DatabaseService {
   }
 
   private getCouchDBUrl(): string | null {
+    // Get the current database name (user-specific)
+    const dbName = this.db ? this.db.name : 'creative-writer-stories-anonymous';
+
+    // Use environment-configured URL if available
+    if (environment.couchDbBaseUrl) {
+      return `${environment.couchDbBaseUrl}/${dbName}`;
+    }
+
     // Try to determine CouchDB URL based on current location
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
     const port = window.location.port;
-    
-    // Get the current database name (user-specific)
-    const dbName = this.db ? this.db.name : 'creative-writer-stories-anonymous';
-    
+
     // Check if we're running with nginx reverse proxy (through /_db/ path)
     const baseUrl = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
-    
+
     // For development with direct CouchDB access
     if ((hostname === 'localhost' || hostname === '127.0.0.1') && !this.isReverseProxySetup()) {
       return `${protocol}//${hostname}:5984/${dbName}`;
     }
-    
+
     // For production or reverse proxy setup - use /_db/ prefix
     return `${baseUrl}/_db/${dbName}`;
   }
@@ -427,24 +681,17 @@ export class DatabaseService {
       }
 
       // ═══════════════════════════════════════════════════════════════════════
-      // ALWAYS SYNC: Critical system documents
+      // FRONTPAGE ONLY: Metadata index syncs only when no active story
       // ═══════════════════════════════════════════════════════════════════════
 
-      // Story metadata index - lightweight document for story list
+      // Story metadata index - only sync on frontpage (no active story)
+      // In story editor, metadata changes are written locally and sync when returning to frontpage
       if (docId === 'story-metadata-index' || docType === 'story-metadata-index') {
-        return true;
+        return !this.activeStoryId;  // Only sync on frontpage
       }
 
       // Design documents (CouchDB indexes) and local documents
       if (docId.startsWith('_')) {
-        return true;
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // BOOTSTRAP MODE: Sync everything to populate empty database
-      // ═══════════════════════════════════════════════════════════════════════
-      if (this.bootstrapSyncMode) {
-        console.info(`[SyncFilter] ✓ Bootstrap mode: syncing ${docId}`);
         return true;
       }
 
@@ -454,30 +701,12 @@ export class DatabaseService {
 
       // Check if this is a story document (has chapters field)
       if (hasChapters) {
-        if (!this.activeStoryId) {
-          console.debug(`[SyncFilter] Excluding story ${docId} (no active story)`);
-          return false;
-        }
-        if (docId === this.activeStoryId) {
-          console.info(`[SyncFilter] ✓ Syncing active story: ${docId}`);
-          return true;
-        }
-        console.debug(`[SyncFilter] Excluding story ${docId} (not active story ${this.activeStoryId})`);
-        return false;
+        return this.activeStoryId ? docId === this.activeStoryId : false;
       }
 
       // Check if this is a story-specific document (has non-empty storyId field)
       if (storyId && typeof storyId === 'string' && storyId.length > 0) {
-        if (!this.activeStoryId) {
-          console.debug(`[SyncFilter] Excluding ${docType || 'doc'} ${docId} (no active story)`);
-          return false;
-        }
-        if (storyId === this.activeStoryId) {
-          console.info(`[SyncFilter] ✓ Syncing ${docType || 'doc'} for active story: ${docId}`);
-          return true;
-        }
-        console.debug(`[SyncFilter] Excluding ${docType || 'doc'} ${docId} (storyId ${storyId} != active ${this.activeStoryId})`);
-        return false;
+        return this.activeStoryId ? storyId === this.activeStoryId : false;
       }
 
       // ═══════════════════════════════════════════════════════════════════════
@@ -490,16 +719,55 @@ export class DatabaseService {
   private startSync(): void {
     if (!this.remoteDb || !this.db) return;
 
-    const handler = this.db.sync(this.remoteDb, {
+    // Check for debug sync pause (for debugging memory issues)
+    if (localStorage.getItem('debug_sync_paused') === 'true') {
+      console.info('[DatabaseService] Sync blocked by debug pause');
+      return;
+    }
+
+    // SYNC GUARD: Clean up existing handler first to prevent orphaned sync operations
+    // This ensures only ONE sync operation runs at any time
+    if (this.syncHandler) {
+      console.info('[DatabaseService] Cleaning up existing sync handler before starting new one');
+      const handlerToCleanup = this.syncHandler;
+      this.syncHandler = null; // Clear reference immediately to prevent re-entry
+
+      try {
+        // Cancel the sync - PouchDB handles listener cleanup internally
+        handlerToCleanup.cancel();
+      } catch (error) {
+        console.warn('[DatabaseService] Error cleaning up existing sync handler:', error);
+      }
+    }
+
+    // MEMORY OPTIMIZATION options for mobile devices
+    // These are official PouchDB options but missing from @types/pouchdb
+    // See: https://pouchdb.com/api.html#replication
+    const syncOptions = {
       live: true,
       retry: true,
       timeout: 30000,
+      // Prevent PouchDB from caching synced documents in memory
+      // Critical for mobile to prevent browser crashes
+      // See: https://github.com/pouchdb/pouchdb/issues/6502
+      return_docs: false,
+      // Limit batch size to prevent memory spikes (default: 100)
+      // Reduced to 10 for aggressive mobile memory optimization
+      batch_size: 10,
+      // Limit concurrent batches to cap memory usage (default: 10)
+      // Reduced to 1 for aggressive mobile memory optimization
+      batches_limit: 1,
       // SELECTIVE SYNC: Filter to only sync active story and related documents
-      // This significantly reduces memory usage and sync operations on mobile
+      // Note: Filter only works for PULL, not PUSH. Push is handled manually.
       filter: this.getSyncFilter()
-    }) as unknown as PouchSync;
+    };
 
-    this.syncHandler = (handler as unknown as PouchDB.Replication.Sync<Record<string, unknown>>)
+    const handler = this.db.sync(
+      this.remoteDb,
+      syncOptions as PouchDB.Replication.SyncOptions
+    ) as unknown as PouchSync;
+
+    this.syncHandler = handler
     .on('change', (info: unknown) => {
       // Extract document details from change event
       let docsProcessed = 0;
@@ -580,23 +848,128 @@ export class DatabaseService {
         syncProgress: undefined
       });
     });
+
+    // Schedule periodic sync restart to clear accumulated PouchDB memory
+    // This is a workaround for PouchDB memory leaks with live: true
+    this.scheduleSyncRestart();
+  }
+
+  /**
+   * Schedule a periodic sync restart to clear accumulated memory.
+   * PouchDB live sync can accumulate internal state over time, causing memory pressure.
+   */
+  private scheduleSyncRestart(): void {
+    // Clear any existing restart timeout
+    if (this.syncRestartTimeout) {
+      clearTimeout(this.syncRestartTimeout);
+      this.syncRestartTimeout = null;
+    }
+
+    this.syncRestartTimeout = setTimeout(async () => {
+      // Only restart if sync is actually running and not paused
+      if (this.syncHandler && !this.syncPaused) {
+        console.info('[DatabaseService] Periodic sync restart to clear memory');
+
+        try {
+          await this.stopSync();
+          // Small delay to allow garbage collection (best effort)
+          await new Promise(resolve => setTimeout(resolve, 100));
+          // Recheck state after delay - may have changed
+          if (this.remoteDb && !this.syncPaused) {
+            this.startSync(); // startSync() calls scheduleSyncRestart()
+          }
+        } catch (err) {
+          console.warn('[DatabaseService] Error during periodic sync restart:', err);
+          // Reschedule even on error to maintain periodic restarts
+          this.scheduleSyncRestart();
+        }
+      } else {
+        // Sync not running or paused - reschedule for later
+        this.scheduleSyncRestart();
+      }
+    }, this.SYNC_RESTART_INTERVAL_MS);
   }
 
   private updateOnlineStatus(isOnline: boolean): void {
-    this.updateSyncStatus({ isOnline });
+    // Online status changes should be immediate (not throttled)
+    this.updateSyncStatusImmediate({ isOnline });
   }
 
+  /**
+   * Throttled sync status update to prevent memory pressure from rapid updates.
+   * Merges pending updates and emits at most once per SYNC_STATUS_THROTTLE_MS.
+   */
   private updateSyncStatus(updates: Partial<SyncStatus>): void {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - this.lastSyncStatusTime;
+
+    // Merge with any pending updates
+    this.pendingSyncStatusUpdate = {
+      ...this.pendingSyncStatusUpdate,
+      ...updates
+    };
+
+    // If enough time has passed, emit immediately
+    if (timeSinceLastUpdate >= this.SYNC_STATUS_THROTTLE_MS) {
+      this.flushSyncStatusUpdate();
+      return;
+    }
+
+    // Otherwise, schedule a delayed update if not already scheduled
+    if (!this.syncStatusThrottleTimeout) {
+      this.syncStatusThrottleTimeout = setTimeout(() => {
+        this.flushSyncStatusUpdate();
+      }, this.SYNC_STATUS_THROTTLE_MS - timeSinceLastUpdate);
+    }
+  }
+
+  /**
+   * Immediate sync status update (bypasses throttling).
+   * Use for critical state changes like online/offline status.
+   */
+  private updateSyncStatusImmediate(updates: Partial<SyncStatus>): void {
+    // Clear any pending throttled update
+    if (this.syncStatusThrottleTimeout) {
+      clearTimeout(this.syncStatusThrottleTimeout);
+      this.syncStatusThrottleTimeout = null;
+    }
+
+    // Merge pending updates with new updates
+    const mergedUpdates = {
+      ...this.pendingSyncStatusUpdate,
+      ...updates
+    };
+    this.pendingSyncStatusUpdate = null;
+
     const current = this.syncStatusSubject.value;
-    this.syncStatusSubject.next({ ...current, ...updates });
+    this.syncStatusSubject.next({ ...current, ...mergedUpdates });
+    this.lastSyncStatusTime = Date.now();
+  }
+
+  private flushSyncStatusUpdate(): void {
+    if (this.syncStatusThrottleTimeout) {
+      clearTimeout(this.syncStatusThrottleTimeout);
+      this.syncStatusThrottleTimeout = null;
+    }
+
+    if (this.pendingSyncStatusUpdate) {
+      const current = this.syncStatusSubject.value;
+      this.syncStatusSubject.next({ ...current, ...this.pendingSyncStatusUpdate });
+      this.pendingSyncStatusUpdate = null;
+      this.lastSyncStatusTime = Date.now();
+    }
   }
 
   async stopSync(): Promise<void> {
+    // Clear periodic restart timeout
+    if (this.syncRestartTimeout) {
+      clearTimeout(this.syncRestartTimeout);
+      this.syncRestartTimeout = null;
+    }
+
     if (this.syncHandler) {
       try {
-        // Cancel the sync - this also cleans up event listeners internally
-        // Note: We don't call .off() because PouchDB's cancel() handles cleanup
-        // and .off() requires the original function references which we don't store
+        // Cancel the sync - PouchDB handles listener cleanup internally
         this.syncHandler.cancel();
       } catch (error) {
         console.warn('Error canceling sync:', error);
@@ -643,105 +1016,6 @@ export class DatabaseService {
     }
   }
 
-  /**
-   * Enable bootstrap sync mode and trigger a full sync.
-   * Use this when local database is empty and metadata index is missing.
-   * This temporarily allows syncing ALL documents (including stories)
-   * to populate the empty database.
-   *
-   * @returns Promise that resolves when initial sync completes
-   */
-  async enableBootstrapSync(): Promise<{ docsProcessed: number }> {
-    if (!this.remoteDb) {
-      console.warn('[DatabaseService] Cannot enable bootstrap sync: remote database not connected');
-      return { docsProcessed: 0 };
-    }
-
-    console.info('[DatabaseService] Enabling bootstrap sync mode - will sync ALL documents');
-    this.bootstrapSyncMode = true;
-
-    // Restart sync with bootstrap mode enabled
-    await this.stopSync();
-    this.startSync();
-
-    // Wait for sync to complete with improved completion detection
-    return new Promise((resolve) => {
-      let totalDocsProcessed = 0;
-      let syncCompleted = false;
-      let lastActivityTime = Date.now();
-      const timeoutMs = 90000;      // 90s hard timeout
-      const idleThresholdMs = 3000; // 3s of no activity = likely complete
-      let idleChecker: ReturnType<typeof setInterval> | null = null;
-
-      const complete = (docs: number) => {
-        if (syncCompleted) return;
-        syncCompleted = true;
-        if (idleChecker) clearInterval(idleChecker);
-        subscription.unsubscribe();
-
-        // Small delay to ensure IndexedDB writes complete before resolving
-        setTimeout(() => {
-          console.info(`[DatabaseService] Bootstrap sync completed: ${docs} docs processed`);
-          this.disableBootstrapSync();
-          resolve({ docsProcessed: docs });
-        }, 500);
-      };
-
-      // Idle detection: if no activity for 3s after receiving docs, assume complete
-      idleChecker = setInterval(() => {
-        if (totalDocsProcessed > 0 && Date.now() - lastActivityTime > idleThresholdMs && !syncCompleted) {
-          console.info('[DatabaseService] Bootstrap sync idle timeout');
-          complete(totalDocsProcessed);
-        }
-      }, 1000);
-
-      const subscription = this.syncStatus$.subscribe(status => {
-        // Track activity and documents processed
-        if (status.syncProgress?.docsProcessed) {
-          totalDocsProcessed = Math.max(totalDocsProcessed, status.syncProgress.docsProcessed);
-          lastActivityTime = Date.now();
-        }
-
-        // Complete when sync is paused AND we have lastSync set
-        // (now reliable since we only set lastSync on 'paused' event)
-        if (!status.isSync && status.lastSync && totalDocsProcessed > 0) {
-          console.info(`[DatabaseService] Bootstrap sync paused with ${totalDocsProcessed} docs`);
-          complete(totalDocsProcessed);
-        }
-      });
-
-      // Hard timeout fallback
-      setTimeout(() => {
-        if (!syncCompleted) {
-          console.warn('[DatabaseService] Bootstrap sync hard timeout');
-          complete(totalDocsProcessed);
-        }
-      }, timeoutMs);
-    });
-  }
-
-  /**
-   * Disable bootstrap sync mode and restart with selective sync
-   */
-  private disableBootstrapSync(): void {
-    console.info('[DatabaseService] Disabling bootstrap sync mode');
-    this.bootstrapSyncMode = false;
-
-    // Restart sync with normal selective filtering
-    this.stopSync().then(() => {
-      this.startSync();
-    }).catch(err => {
-      console.warn('[DatabaseService] Error restarting sync after bootstrap:', err);
-    });
-  }
-
-  /**
-   * Check if bootstrap sync mode is currently enabled
-   */
-  isBootstrapSyncEnabled(): boolean {
-    return this.bootstrapSyncMode;
-  }
-
   async forcePush(): Promise<{ docsProcessed: number }> {
     return await this.runManualReplication('push');
   }
@@ -750,12 +1024,75 @@ export class DatabaseService {
     return await this.runManualReplication('pull');
   }
 
+  /**
+   * Push specific documents by their IDs to the remote database.
+   * More reliable than forcePush() with filters for known document IDs.
+   */
+  async pushDocuments(docIds: string[]): Promise<{ docsProcessed: number }> {
+    if (!this.remoteDb || !this.db) {
+      console.debug('[DatabaseService] pushDocuments: Remote database not connected');
+      return { docsProcessed: 0 };
+    }
+
+    if (docIds.length === 0) {
+      return { docsProcessed: 0 };
+    }
+
+    console.info(`[DatabaseService] Pushing ${docIds.length} document(s): ${docIds.join(', ')}`);
+
+    try {
+      // MEMORY OPTIMIZATION: return_docs: false prevents caching in memory
+      const replicateOptions = {
+        doc_ids: docIds,
+        return_docs: false
+      };
+      const result = await this.db.replicate.to(
+        this.remoteDb,
+        replicateOptions as PouchDB.Replication.ReplicateOptions
+      );
+
+      const docsWritten = (result as { docs_written?: number }).docs_written || 0;
+      console.info(`[DatabaseService] Push complete: ${docsWritten} docs written`);
+
+      // Update sync status to show successful sync
+      if (docsWritten > 0) {
+        this.updateSyncStatus({
+          lastSync: new Date(),
+          error: undefined
+        });
+      }
+
+      return { docsProcessed: docsWritten };
+    } catch (err) {
+      console.error('[DatabaseService] pushDocuments failed:', err);
+      throw err;
+    }
+  }
+
   async compact(): Promise<void> {
     if (!this.db) return;
     await this.db.compact();
   }
 
   async destroy(): Promise<void> {
+    // Remove window event listeners
+    window.removeEventListener('online', this.handleOnline);
+    window.removeEventListener('offline', this.handleOffline);
+    window.removeEventListener('debug-sync-toggle', this.handleDebugSyncToggle);
+
+    // Clean up memory pressure detection
+    this.cleanupMemoryPressureCheck();
+
+    // Clean up visibility change listener
+    this.cleanupVisibilityListener();
+
+    // Clean up sync status throttle timeout
+    if (this.syncStatusThrottleTimeout) {
+      clearTimeout(this.syncStatusThrottleTimeout);
+      this.syncStatusThrottleTimeout = null;
+    }
+    this.pendingSyncStatusUpdate = null;
+
     await this.stopSync();
     if (!this.db) return;
     await this.db.destroy();
@@ -805,9 +1142,16 @@ export class DatabaseService {
       const replicationPromise = (async () => {
         // If no active story, only sync story-metadata-index (server-side efficient)
         // If active story, use the client-side filter for selective sync
-        const replicationOptions = this.activeStoryId
-          ? { filter: this.getSyncFilter() }
-          : { doc_ids: ['story-metadata-index'] };
+        // MEMORY OPTIMIZATION: Add return_docs: false and batch limits
+        const baseOptions = {
+          return_docs: false,
+          batch_size: 10,
+          batches_limit: 1
+        };
+        const replicationOptions = (this.activeStoryId
+          ? { ...baseOptions, filter: this.getSyncFilter() }
+          : { ...baseOptions, doc_ids: ['story-metadata-index'] }
+        ) as PouchDB.Replication.ReplicateOptions;
 
         console.info(`[Sync] Force ${direction} with ${this.activeStoryId ? 'filter (active story: ' + this.activeStoryId + ')' : 'doc_ids (metadata-index only)'}`);
 

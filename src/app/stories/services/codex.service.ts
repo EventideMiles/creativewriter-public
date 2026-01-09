@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
-import { Codex, CodexCategory, CodexEntry, DEFAULT_CODEX_CATEGORIES } from '../models/codex.interface';
+import { Codex, CodexCategory, CodexEntry, DEFAULT_CODEX_CATEGORIES, PortraitGalleryItem } from '../models/codex.interface';
 import { DatabaseService } from '../../core/services/database.service';
 
 @Injectable({
@@ -14,7 +14,7 @@ export class CodexService {
   private codexSubject = new BehaviorSubject<Map<string, Codex>>(new Map());
   private db: PouchDB.Database | null = null;
   private isInitialized = false;
-  
+
   codex$ = this.codexSubject.asObservable();
 
   constructor() {
@@ -146,11 +146,11 @@ export class CodexService {
           };
           
           await this.db!.put(updatedDoc);
-          
+
           // Update local map and notify subscribers
           this.codexMap.set(codex.storyId, cleanedCodex);
           this.codexSubject.next(new Map(this.codexMap));
-          
+
           break; // Success, exit retry loop
           
         } catch (error: unknown) {
@@ -209,15 +209,74 @@ export class CodexService {
         ...cat,
         createdAt: new Date(cat.createdAt),
         updatedAt: new Date(cat.updatedAt),
-        entries: cat.entries.map((entry: CodexEntry & { createdAt: string | Date; updatedAt: string | Date }) => ({
-          ...entry,
-          createdAt: new Date(entry.createdAt),
-          updatedAt: new Date(entry.updatedAt),
-          // Deduplicate tags when deserializing from database
-          tags: entry.tags ? [...new Set(entry.tags)] : []
-        }))
+        entries: cat.entries.map((entry: CodexEntry & { createdAt: string | Date; updatedAt: string | Date }) =>
+          this.migrateEntryPortraitToGallery({
+            ...entry,
+            createdAt: new Date(entry.createdAt),
+            updatedAt: new Date(entry.updatedAt),
+            // Deduplicate tags when deserializing from database
+            tags: entry.tags ? [...new Set(entry.tags)] : [],
+            // Deserialize portrait gallery dates if present
+            portraitGallery: entry.portraitGallery?.map((p: PortraitGalleryItem & { createdAt: string | Date }) => ({
+              ...p,
+              createdAt: new Date(p.createdAt)
+            }))
+          })
+        )
       }))
     };
+  }
+
+  /**
+   * Migrate existing portraitBase64 to portrait gallery format
+   */
+  private migrateEntryPortraitToGallery(entry: CodexEntry): CodexEntry {
+    // Skip if already has a gallery (already migrated)
+    if (entry.portraitGallery !== undefined) {
+      return entry;
+    }
+
+    // Check if there's an existing portrait to migrate
+    if (entry.portraitBase64) {
+      const migratedItem: PortraitGalleryItem = {
+        id: uuidv4(),
+        base64: entry.portraitBase64,
+        createdAt: entry.updatedAt,
+        source: 'uploaded' // Assume uploaded since we can't tell the original source
+      };
+
+      return {
+        ...entry,
+        portraitGallery: [migratedItem],
+        activePortraitId: migratedItem.id
+      };
+    }
+
+    // No portrait to migrate, initialize empty gallery
+    return {
+      ...entry,
+      portraitGallery: [],
+      activePortraitId: undefined
+    };
+  }
+
+  /**
+   * Get the active portrait base64 for an entry
+   */
+  getActivePortrait(entry: CodexEntry): string | null {
+    if (!entry.portraitGallery || entry.portraitGallery.length === 0) {
+      // Fallback to legacy field
+      return entry.portraitBase64 || null;
+    }
+
+    const activeId = entry.activePortraitId;
+    const activePortrait = entry.portraitGallery.find(p => p.id === activeId);
+
+    // Return active portrait, or first in gallery, or legacy fallback
+    return activePortrait?.base64
+      || entry.portraitGallery[0]?.base64
+      || entry.portraitBase64
+      || null;
   }
 
   // Create or get codex for a story
@@ -268,6 +327,15 @@ export class CodexService {
   // Get codex by story ID
   getCodex(storyId: string): Codex | undefined {
     return this.codexMap.get(storyId);
+  }
+
+  /**
+   * Set the in-memory cache for a codex.
+   * Used by import functionality to update the cache after direct database insertion.
+   */
+  setCodexCache(storyId: string, codex: Codex): void {
+    this.codexMap.set(storyId, codex);
+    this.codexSubject.next(new Map(this.codexMap));
   }
 
   // Add category
@@ -666,7 +734,7 @@ export class CodexService {
         categories: updatedCategories,
         updatedAt: new Date()
       };
-      
+
       await this.saveToDatabase(updatedCodex);
     }
   }

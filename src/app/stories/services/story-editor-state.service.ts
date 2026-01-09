@@ -18,6 +18,10 @@ export interface EditorState {
   wordCount: number;
   lastUserActivityTime: number;
   isStreamingActive: boolean;
+  /** Cached word count for the active scene (used for incremental updates) */
+  activeSceneWordCount: number;
+  /** Timestamp of last successful save (used to prevent reload immediately after save) */
+  lastSaveTime: number;
 }
 
 export interface SaveOptions {
@@ -51,7 +55,9 @@ export class StoryEditorStateService {
     isSaving: false,
     wordCount: 0,
     lastUserActivityTime: Date.now(),
-    isStreamingActive: false
+    isStreamingActive: false,
+    activeSceneWordCount: 0,
+    lastSaveTime: 0
   });
 
   // Derived observables
@@ -99,6 +105,13 @@ export class StoryEditorStateService {
   private pendingSave = false;
   private currentSavePromise: Promise<void> | null = null;
 
+  // Word count throttling - recalculate at most every 3 seconds during active editing
+  private wordCountRecalcTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly WORD_COUNT_THROTTLE_MS = 3000;
+
+  // Reload protection - don't reload within this time after a save completes
+  private readonly MIN_TIME_AFTER_SAVE_MS = 7000;
+
   /**
    * Load a story by ID
    */
@@ -110,7 +123,8 @@ export class StoryEditorStateService {
     }
 
     // Set active story for selective sync
-    this.databaseService.setActiveStoryId(story.id);
+    // NOTE: Await ensures sync operations complete sequentially (no concurrent operations)
+    await this.databaseService.setActiveStoryId(story.id);
 
     // Initialize prompt manager with current story
     await this.promptManager.setCurrentStory(story.id);
@@ -141,8 +155,11 @@ export class StoryEditorStateService {
       }
     }
 
-    // Calculate word count
+    // Calculate word counts
     const wordCount = this.storyStatsService.calculateTotalStoryWordCount(story);
+    const activeSceneWordCount = activeScene
+      ? this.storyStatsService.calculateSceneWordCount(activeScene)
+      : 0;
 
     // Update state
     this.updateState({
@@ -151,6 +168,7 @@ export class StoryEditorStateService {
       activeSceneId,
       activeScene,
       wordCount,
+      activeSceneWordCount,
       hasUnsavedChanges: false
     });
   }
@@ -171,10 +189,14 @@ export class StoryEditorStateService {
       throw new Error(`Scene not found: ${chapterId}/${sceneId}`);
     }
 
+    // Calculate the new scene's word count
+    const activeSceneWordCount = this.storyStatsService.calculateSceneWordCount(scene);
+
     this.updateState({
       activeChapterId: chapterId,
       activeSceneId: sceneId,
-      activeScene: scene
+      activeScene: scene,
+      activeSceneWordCount
     });
   }
 
@@ -191,16 +213,40 @@ export class StoryEditorStateService {
     // Update the scene content
     state.activeScene.content = content;
 
-    // Recalculate word count
-    const wordCount = state.story
-      ? this.storyStatsService.calculateTotalStoryWordCount(state.story)
-      : 0;
-
+    // Update state immediately (without word count recalc for performance)
     this.updateState({
       activeScene: { ...state.activeScene },
-      hasUnsavedChanges: true,
-      wordCount
+      hasUnsavedChanges: true
     });
+
+    // Schedule throttled word count recalculation
+    this.scheduleWordCountRecalc();
+  }
+
+  /**
+   * Schedule a throttled word count recalculation
+   * Only recalculates at most every WORD_COUNT_THROTTLE_MS milliseconds
+   */
+  private scheduleWordCountRecalc(): void {
+    // If already scheduled, don't schedule again (throttle behavior)
+    if (this.wordCountRecalcTimeout) {
+      return;
+    }
+
+    this.wordCountRecalcTimeout = setTimeout(() => {
+      this.wordCountRecalcTimeout = null;
+      this.recalculateWordCount();
+    }, this.WORD_COUNT_THROTTLE_MS);
+  }
+
+  /**
+   * Cancel any pending word count recalculation
+   */
+  cancelPendingWordCountRecalc(): void {
+    if (this.wordCountRecalcTimeout) {
+      clearTimeout(this.wordCountRecalcTimeout);
+      this.wordCountRecalcTimeout = null;
+    }
   }
 
   /**
@@ -316,7 +362,7 @@ export class StoryEditorStateService {
         }
       }
 
-      this.updateState({ hasUnsavedChanges: false });
+      this.updateState({ hasUnsavedChanges: false, lastSaveTime: Date.now() });
 
       // Refresh prompt manager unless skipped
       const finalState = this.stateSubject.value;
@@ -413,8 +459,11 @@ export class StoryEditorStateService {
         }
       }
 
-      // Calculate word count
+      // Calculate word counts
       const wordCount = this.storyStatsService.calculateTotalStoryWordCount(updatedStory);
+      const activeSceneWordCount = newActiveScene
+        ? this.storyStatsService.calculateSceneWordCount(newActiveScene)
+        : 0;
 
       // Update state
       this.updateState({
@@ -422,7 +471,8 @@ export class StoryEditorStateService {
         activeChapterId: newActiveChapterId,
         activeSceneId: newActiveSceneId,
         activeScene: newActiveScene,
-        wordCount
+        wordCount,
+        activeSceneWordCount
       });
 
       // Refresh prompt manager
@@ -437,7 +487,7 @@ export class StoryEditorStateService {
   }
 
   /**
-   * Check if reload should be allowed (no recent activity, no unsaved changes)
+   * Check if reload should be allowed (no recent activity, no unsaved changes, not recently saved)
    */
   shouldAllowReload(minInactivityMs = 5000): boolean {
     const state = this.stateSubject.value;
@@ -446,13 +496,44 @@ export class StoryEditorStateService {
       return false;
     }
 
+    // Don't reload immediately after a save - sync events from our own save shouldn't trigger reload
+    const timeSinceLastSave = Date.now() - state.lastSaveTime;
+    if (state.lastSaveTime > 0 && timeSinceLastSave < this.MIN_TIME_AFTER_SAVE_MS) {
+      return false;
+    }
+
     return this.getTimeSinceLastActivity() > minInactivityMs;
   }
 
   /**
-   * Recalculate word count from current story
+   * Recalculate word count incrementally (only active scene, update total by delta)
+   * This is much more efficient than recalculating the entire story on every change
    */
   recalculateWordCount(): void {
+    const state = this.stateSubject.value;
+
+    if (!state.story || !state.activeScene) {
+      return;
+    }
+
+    // Calculate only the active scene's word count
+    const newActiveSceneWordCount = this.storyStatsService.calculateSceneWordCount(state.activeScene);
+
+    // Calculate the delta and update total word count incrementally
+    const delta = newActiveSceneWordCount - state.activeSceneWordCount;
+    const newTotalWordCount = Math.max(0, state.wordCount + delta);
+
+    this.updateState({
+      wordCount: newTotalWordCount,
+      activeSceneWordCount: newActiveSceneWordCount
+    });
+  }
+
+  /**
+   * Force full story word count recalculation
+   * Use sparingly - only on save, story load, or scene switch
+   */
+  recalculateFullWordCount(): void {
     const state = this.stateSubject.value;
 
     if (!state.story) {
@@ -460,8 +541,11 @@ export class StoryEditorStateService {
     }
 
     const wordCount = this.storyStatsService.calculateTotalStoryWordCount(state.story);
+    const activeSceneWordCount = state.activeScene
+      ? this.storyStatsService.calculateSceneWordCount(state.activeScene)
+      : 0;
 
-    this.updateState({ wordCount });
+    this.updateState({ wordCount, activeSceneWordCount });
   }
 
   /**

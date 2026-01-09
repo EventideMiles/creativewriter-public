@@ -16,14 +16,16 @@ import { StoryService } from '../../services/story.service';
 import { StoryMetadata } from '../../models/story-metadata.interface';
 import { StoryMetadataIndexService } from '../../services/story-metadata-index.service';
 import { StoryLanguage } from '../../../ui/components/language-selection-dialog/language-selection-dialog.component';
-import { NarrativePerspective } from '../../models/story.interface';
+import { NarrativePerspective, StoryTense } from '../../models/story.interface';
 import { SyncStatusComponent } from '../../../ui/components/sync-status.component';
+import { GenerationStatusComponent } from '../../../ui/components/generation-status.component';
 import { LoginComponent } from '../../../ui/components/login.component';
 import { AuthService, User } from '../../../core/services/auth.service';
 import { AppHeaderComponent, BurgerMenuItem, HeaderAction } from '../../../ui/components/app-header.component';
 import { HeaderNavigationService } from '../../../shared/services/header-navigation.service';
 import { VersionService } from '../../../core/services/version.service';
 import { DatabaseService, SyncStatus } from '../../../core/services/database.service';
+import { DialogService } from '../../../core/services/dialog.service';
 
 /**
  * Unified loading state for story list
@@ -45,7 +47,7 @@ export enum LoadingState {
     IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonChip, IonIcon, IonButton,
     IonContent, IonLabel, IonSpinner,
     CdkDropList, CdkDrag,
-    SyncStatusComponent, LoginComponent, AppHeaderComponent
+    SyncStatusComponent, GenerationStatusComponent, LoginComponent, AppHeaderComponent
   ],
   templateUrl: './story-list.component.html',
   styleUrls: ['./story-list.component.scss'],
@@ -62,6 +64,7 @@ export class StoryListComponent implements OnInit, OnDestroy {
   private actionSheetCtrl = inject(ActionSheetController);
   private toastCtrl = inject(ToastController);
   private databaseService = inject(DatabaseService);
+  private dialogService = inject(DialogService);
   private destroy$ = new Subject<void>();
   versionService = inject(VersionService);
   private lastSyncTime: Date | undefined;
@@ -110,8 +113,11 @@ export class StoryListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Clear active story for selective sync - when at story list, sync all stories
-    this.databaseService.setActiveStoryId(null);
+    // Clear active story for selective sync - when at story list, sync metadata-index
+    // NOTE: Fire-and-forget with error logging (no need to await in ngOnInit)
+    this.databaseService.setActiveStoryId(null).catch(err => {
+      console.error('[StoryList] Failed to clear active story ID:', err);
+    });
 
     // Subscribe to user changes FIRST (before initial load)
     // This prevents duplicate loads on initialization
@@ -195,8 +201,14 @@ export class StoryListComponent implements OnInit, OnDestroy {
     });
   }
 
-  logout(): void {
-    if (confirm('Do you really want to sign out? Local changes will be preserved.')) {
+  async logout(): Promise<void> {
+    const confirmed = await this.dialogService.confirm({
+      header: 'Sign Out',
+      message: 'Do you really want to sign out? Local changes will be preserved.',
+      confirmText: 'Sign Out',
+      cancelText: 'Cancel'
+    });
+    if (confirmed) {
       this.authService.logout();
     }
   }
@@ -444,22 +456,22 @@ export class StoryListComponent implements OnInit, OnDestroy {
         {
           text: 'Third Person Limited (Recommended)',
           data: { pov: 'third-person-limited' },
-          handler: () => this.createStoryWithSettings(language as StoryLanguage, 'third-person-limited')
+          handler: () => this.handlePovSelection(language as StoryLanguage, 'third-person-limited')
         },
         {
           text: 'First Person',
           data: { pov: 'first-person' },
-          handler: () => this.createStoryWithSettings(language as StoryLanguage, 'first-person')
+          handler: () => this.handlePovSelection(language as StoryLanguage, 'first-person')
         },
         {
           text: 'Third Person Omniscient',
           data: { pov: 'third-person-omniscient' },
-          handler: () => this.createStoryWithSettings(language as StoryLanguage, 'third-person-omniscient')
+          handler: () => this.handlePovSelection(language as StoryLanguage, 'third-person-omniscient')
         },
         {
           text: 'Second Person',
           data: { pov: 'second-person' },
-          handler: () => this.createStoryWithSettings(language as StoryLanguage, 'second-person')
+          handler: () => this.handlePovSelection(language as StoryLanguage, 'second-person')
         },
         {
           text: 'Cancel',
@@ -471,8 +483,35 @@ export class StoryListComponent implements OnInit, OnDestroy {
     await povSheet.present();
   }
 
-  private async createStoryWithSettings(language: StoryLanguage, pov: NarrativePerspective): Promise<void> {
-    const newStory = await this.storyService.createStory(language, pov);
+  private async handlePovSelection(language: StoryLanguage, pov: NarrativePerspective): Promise<void> {
+    // Show tense selection action sheet
+    const tenseSheet = await this.actionSheetCtrl.create({
+      header: 'Select Tense',
+      subHeader: 'Choose the grammatical tense for your story. This can be changed later in story settings.',
+      cssClass: 'tense-selection-action-sheet',
+      buttons: [
+        {
+          text: 'Past Tense (Recommended)',
+          data: { tense: 'past' },
+          handler: () => this.createStoryWithSettings(language, pov, 'past')
+        },
+        {
+          text: 'Present Tense',
+          data: { tense: 'present' },
+          handler: () => this.createStoryWithSettings(language, pov, 'present')
+        },
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        }
+      ]
+    });
+
+    await tenseSheet.present();
+  }
+
+  private async createStoryWithSettings(language: StoryLanguage, pov: NarrativePerspective, tense: StoryTense): Promise<void> {
+    const newStory = await this.storyService.createStory(language, pov, tense);
     this.router.navigate(['/stories/editor', newStory.id]);
   }
 
@@ -500,7 +539,12 @@ export class StoryListComponent implements OnInit, OnDestroy {
 
   async deleteStory(event: Event, storyId: string): Promise<void> {
     event.stopPropagation();
-    if (confirm('Do you really want to delete this story?')) {
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Delete Story',
+      message: 'Do you really want to delete this story? This action cannot be undone.',
+      confirmText: 'Delete'
+    });
+    if (confirmed) {
       await this.storyService.deleteStory(storyId);
       await this.loadStories();
       this.cdr.markForCheck();

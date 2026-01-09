@@ -91,6 +91,18 @@ export class SettingsService {
               ...parsed.premium?.cachedStatus
             }
           },
+          portraitModel: {
+            ...DEFAULT_SETTINGS.portraitModel,
+            ...parsed.portraitModel
+          },
+          falAi: {
+            ...DEFAULT_SETTINGS.falAi,
+            ...parsed.falAi
+          },
+          imageGeneration: {
+            ...DEFAULT_SETTINGS.imageGeneration,
+            ...parsed.imageGeneration
+          },
           favoriteModelLists,
           favoriteModels: [...favoriteModelLists.beatInput],
           updatedAt: new Date(parsed.updatedAt || new Date())
@@ -183,7 +195,37 @@ export class SettingsService {
       },
       updatedAt: new Date()
     };
-    
+
+    this.saveSettings(updatedSettings);
+    this.settingsSubject.next(updatedSettings);
+  }
+
+  updateFalAiSettings(settings: Partial<Settings['falAi']>): void {
+    const currentSettings = this.settingsSubject.value;
+    const updatedSettings = {
+      ...currentSettings,
+      falAi: {
+        ...currentSettings.falAi,
+        ...settings
+      },
+      updatedAt: new Date()
+    };
+
+    this.saveSettings(updatedSettings);
+    this.settingsSubject.next(updatedSettings);
+  }
+
+  updateImageGenerationSettings(settings: Partial<Settings['imageGeneration']>): void {
+    const currentSettings = this.settingsSubject.value;
+    const updatedSettings = {
+      ...currentSettings,
+      imageGeneration: {
+        ...currentSettings.imageGeneration,
+        ...settings
+      },
+      updatedAt: new Date()
+    };
+
     this.saveSettings(updatedSettings);
     this.settingsSubject.next(updatedSettings);
   }

@@ -9,12 +9,8 @@ export class BeatAIModalService {
   content = '';
   
   private closeSubject = new Subject<void>();
-  private generateSubject = new Subject<void>();
-  private copySubject = new Subject<void>();
-  
+
   close$ = this.closeSubject.asObservable();
-  generate$ = this.generateSubject.asObservable();
-  copy$ = this.copySubject.asObservable();
   
   show(content: string) {
     this.content = content;
@@ -26,16 +22,5 @@ export class BeatAIModalService {
       this.isVisible = false;
       this.closeSubject.next();
     }
-  }
-  
-  onGenerate() {
-    if (this.isVisible) {
-      this.isVisible = false;
-      this.generateSubject.next();
-    }
-  }
-  
-  onCopy() {
-    this.copySubject.next();
   }
 }

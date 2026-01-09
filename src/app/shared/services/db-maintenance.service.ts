@@ -54,6 +54,13 @@ export interface IntegrityIssue {
   severity: 'low' | 'medium' | 'high';
 }
 
+export interface RemoteScanProgress {
+  phase: 'fetching-images' | 'fetching-stories' | 'analyzing-content' | 'comparing' | 'complete';
+  current: number;
+  total: number;
+  message: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -140,11 +147,137 @@ export class DbMaintenanceService {
       }
 
       this.updateProgress('orphaned-scan', 100, `${orphanedImages.length} orphaned images found`);
-      
+
       return orphanedImages;
     } catch (error) {
       console.error('Error finding orphaned images:', error);
       this.updateProgress('orphaned-scan', 0, 'Error scanning orphaned images');
+      throw error;
+    }
+  }
+
+  /**
+   * Finds orphaned images by scanning the REMOTE CouchDB database directly.
+   * This ensures all stories are checked, not just locally synced ones.
+   *
+   * @param progressCallback Optional callback for progress updates
+   * @returns Promise<OrphanedImage[]> List of orphaned images found
+   * @throws Error if remote database is not connected
+   */
+  async findOrphanedImagesFromRemote(
+    progressCallback?: (progress: RemoteScanProgress) => void
+  ): Promise<OrphanedImage[]> {
+    const updateProgress = (phase: RemoteScanProgress['phase'], current: number, total: number, message: string) => {
+      if (progressCallback) {
+        progressCallback({ phase, current, total, message });
+      }
+    };
+
+    try {
+      // Get remote database
+      const remoteDb = this.databaseService.getRemoteDatabase();
+      if (!remoteDb) {
+        throw new Error('Remote database not connected. Please enable sync in Settings.');
+      }
+
+      // Phase 1: Fetch all images from remote
+      updateProgress('fetching-images', 0, 100, 'Loading images from remote database...');
+
+      const imageResult = await remoteDb.find({
+        selector: { type: 'image' }
+      });
+
+      const allImages = imageResult.docs as (StoredImage & { _id: string; _rev: string })[];
+      updateProgress('fetching-images', 100, 100, `${allImages.length} images found`);
+
+      if (allImages.length === 0) {
+        updateProgress('complete', 100, 100, 'No images found in database');
+        return [];
+      }
+
+      // Phase 2: Fetch all stories from remote
+      updateProgress('fetching-stories', 0, 100, 'Loading stories from remote database...');
+
+      const allDocsResult = await remoteDb.allDocs({ include_docs: true });
+
+      // Filter to get story documents (have chapters field and not starting with _)
+      interface StoryDoc {
+        _id: string;
+        chapters?: {
+          scenes?: {
+            content?: string;
+          }[];
+        }[];
+      }
+
+      const allStories = allDocsResult.rows
+        .filter(row => {
+          if (!row.doc || row.id.startsWith('_')) return false;
+          const doc = row.doc as StoryDoc;
+          return doc.chapters && Array.isArray(doc.chapters);
+        })
+        .map(row => row.doc as StoryDoc);
+
+      updateProgress('fetching-stories', 100, 100, `${allStories.length} stories found`);
+
+      // Phase 3: Extract all base64 image data from story content
+      updateProgress('analyzing-content', 0, allStories.length, 'Analyzing story content...');
+
+      const usedImageData = new Set<string>();
+      let processedStories = 0;
+
+      for (const story of allStories) {
+        if (story.chapters) {
+          for (const chapter of story.chapters) {
+            if (chapter.scenes) {
+              for (const scene of chapter.scenes) {
+                if (scene.content) {
+                  const base64Matches = scene.content.match(/<img[^>]*src="data:image\/[^;]+;base64,([^"]+)"/gi);
+                  if (base64Matches) {
+                    base64Matches.forEach(match => {
+                      const base64Data = match.match(/base64,([^"]+)/)?.[1];
+                      if (base64Data) {
+                        usedImageData.add(base64Data);
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+        processedStories++;
+        updateProgress('analyzing-content', processedStories, allStories.length,
+          `Processing story ${processedStories}/${allStories.length}`);
+      }
+
+      // Phase 4: Compare stored images against used images
+      updateProgress('comparing', 0, allImages.length, 'Identifying orphaned images...');
+
+      const orphanedImages: OrphanedImage[] = [];
+      let processedImages = 0;
+
+      for (const image of allImages) {
+        if (!usedImageData.has(image.base64Data)) {
+          orphanedImages.push({
+            id: image.id,
+            name: image.name,
+            size: image.size,
+            createdAt: image.createdAt,
+            base64Data: image.base64Data,
+            mimeType: image.mimeType
+          });
+        }
+        processedImages++;
+        updateProgress('comparing', processedImages, allImages.length,
+          `Analyzing image ${processedImages}/${allImages.length}`);
+      }
+
+      updateProgress('complete', 100, 100, `${orphanedImages.length} orphaned images found`);
+
+      return orphanedImages;
+    } catch (error) {
+      console.error('Error finding orphaned images from remote:', error);
       throw error;
     }
   }
@@ -231,6 +364,425 @@ export class DbMaintenanceService {
   }
 
   /**
+   * Deletes orphaned images directly from the REMOTE CouchDB database.
+   * Changes will automatically sync to local database.
+   *
+   * @param imageIds Array of image IDs (without the 'image_' prefix) to delete
+   * @param progressCallback Optional callback for progress updates
+   * @returns Promise<number> Count of successfully deleted images
+   * @throws Error if remote database is not connected
+   */
+  async deleteOrphanedImagesFromRemote(
+    imageIds: string[],
+    progressCallback?: (progress: { current: number; total: number }) => void
+  ): Promise<number> {
+    // Get remote database
+    const remoteDb = this.databaseService.getRemoteDatabase();
+    if (!remoteDb) {
+      throw new Error('Remote database not connected. Please enable sync in Settings.');
+    }
+
+    let deletedCount = 0;
+
+    for (let i = 0; i < imageIds.length; i++) {
+      try {
+        // Get the document from remote (image IDs are stored with 'image_' prefix in _id)
+        const docId = imageIds[i].startsWith('image_') ? imageIds[i] : `image_${imageIds[i]}`;
+        const doc = await remoteDb.get(docId) as { _id: string; _rev: string };
+
+        // Delete from remote
+        await remoteDb.remove(doc._id, doc._rev);
+        deletedCount++;
+
+        if (progressCallback) {
+          progressCallback({ current: i + 1, total: imageIds.length });
+        }
+      } catch (error) {
+        console.error(`Failed to delete image ${imageIds[i]} from remote:`, error);
+        // Continue with remaining images
+      }
+    }
+
+    return deletedCount;
+  }
+
+  /**
+   * Finds duplicate images by scanning the REMOTE CouchDB database directly.
+   *
+   * @param progressCallback Optional callback for progress updates
+   * @returns Promise<DuplicateImage[]> List of duplicate image groups found
+   * @throws Error if remote database is not connected
+   */
+  async findDuplicateImagesFromRemote(
+    progressCallback?: (progress: RemoteScanProgress) => void
+  ): Promise<DuplicateImage[]> {
+    const updateProgress = (phase: RemoteScanProgress['phase'], current: number, total: number, message: string) => {
+      if (progressCallback) {
+        progressCallback({ phase, current, total, message });
+      }
+    };
+
+    try {
+      const remoteDb = this.databaseService.getRemoteDatabase();
+      if (!remoteDb) {
+        throw new Error('Remote database not connected. Please enable sync in Settings.');
+      }
+
+      // Phase 1: Fetch all images from remote
+      updateProgress('fetching-images', 0, 100, 'Loading images from remote database...');
+
+      const imageResult = await remoteDb.find({
+        selector: { type: 'image' }
+      });
+
+      const allImages = imageResult.docs as (StoredImage & { _id: string; _rev: string })[];
+      updateProgress('fetching-images', 100, 100, `${allImages.length} images found`);
+
+      if (allImages.length === 0) {
+        updateProgress('complete', 100, 100, 'No images found in database');
+        return [];
+      }
+
+      // Phase 2: Group images by base64 content
+      updateProgress('analyzing-content', 0, allImages.length, 'Analyzing image content...');
+
+      const duplicates: DuplicateImage[] = [];
+      const base64Map = new Map<string, (StoredImage & { _id: string; _rev: string })[]>();
+
+      for (let i = 0; i < allImages.length; i++) {
+        const image = allImages[i];
+        const existing = base64Map.get(image.base64Data) || [];
+        existing.push(image);
+        base64Map.set(image.base64Data, existing);
+        updateProgress('analyzing-content', i + 1, allImages.length, `Processing image ${i + 1}/${allImages.length}`);
+      }
+
+      // Phase 3: Identify duplicates
+      updateProgress('comparing', 0, base64Map.size, 'Identifying duplicates...');
+
+      let processed = 0;
+      for (const [, images] of base64Map) {
+        if (images.length > 1) {
+          const [original, ...duplicateImages] = images.sort((a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+
+          duplicates.push({
+            originalId: original.id,
+            duplicateIds: duplicateImages.map(img => img.id),
+            name: original.name,
+            size: original.size,
+            base64Data: original.base64Data
+          });
+        }
+        processed++;
+        updateProgress('comparing', processed, base64Map.size, `Comparing ${processed}/${base64Map.size}`);
+      }
+
+      updateProgress('complete', 100, 100, `${duplicates.length} duplicate groups found`);
+
+      return duplicates;
+    } catch (error) {
+      console.error('Error finding duplicate images from remote:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deletes duplicate images directly from the REMOTE CouchDB database.
+   *
+   * @param duplicates Array of DuplicateImage objects to process
+   * @param progressCallback Optional callback for progress updates
+   * @returns Promise<number> Count of successfully deleted images
+   * @throws Error if remote database is not connected
+   */
+  async deleteDuplicateImagesFromRemote(
+    duplicates: DuplicateImage[],
+    progressCallback?: (progress: { current: number; total: number }) => void
+  ): Promise<number> {
+    const remoteDb = this.databaseService.getRemoteDatabase();
+    if (!remoteDb) {
+      throw new Error('Remote database not connected. Please enable sync in Settings.');
+    }
+
+    let deletedCount = 0;
+    const totalToDelete = duplicates.reduce((sum, dup) => sum + dup.duplicateIds.length, 0);
+    let processed = 0;
+
+    for (const duplicate of duplicates) {
+      for (const duplicateId of duplicate.duplicateIds) {
+        try {
+          const docId = duplicateId.startsWith('image_') ? duplicateId : `image_${duplicateId}`;
+          const doc = await remoteDb.get(docId) as { _id: string; _rev: string };
+          await remoteDb.remove(doc._id, doc._rev);
+          deletedCount++;
+        } catch (error) {
+          console.error(`Failed to delete duplicate image ${duplicateId} from remote:`, error);
+        }
+        processed++;
+        if (progressCallback) {
+          progressCallback({ current: processed, total: totalToDelete });
+        }
+      }
+    }
+
+    return deletedCount;
+  }
+
+  /**
+   * Checks story integrity by scanning the REMOTE CouchDB database directly.
+   *
+   * @param progressCallback Optional callback for progress updates
+   * @returns Promise<IntegrityIssue[]> List of integrity issues found
+   * @throws Error if remote database is not connected
+   */
+  async checkStoryIntegrityFromRemote(
+    progressCallback?: (progress: RemoteScanProgress) => void
+  ): Promise<IntegrityIssue[]> {
+    const updateProgress = (phase: RemoteScanProgress['phase'], current: number, total: number, message: string) => {
+      if (progressCallback) {
+        progressCallback({ phase, current, total, message });
+      }
+    };
+
+    try {
+      const remoteDb = this.databaseService.getRemoteDatabase();
+      if (!remoteDb) {
+        throw new Error('Remote database not connected. Please enable sync in Settings.');
+      }
+
+      // Phase 1: Fetch all stories from remote
+      updateProgress('fetching-stories', 0, 100, 'Loading stories from remote database...');
+
+      const allDocsResult = await remoteDb.allDocs({ include_docs: true });
+
+      interface StoryDoc {
+        _id: string;
+        id?: string;
+        title?: string;
+        createdAt?: string;
+        updatedAt?: string;
+        chapters?: {
+          title?: string;
+          scenes?: unknown[];
+        }[];
+      }
+
+      const allStories = allDocsResult.rows
+        .filter(row => {
+          if (!row.doc || row.id.startsWith('_')) return false;
+          const doc = row.doc as StoryDoc;
+          return doc.chapters && Array.isArray(doc.chapters);
+        })
+        .map(row => row.doc as StoryDoc);
+
+      updateProgress('fetching-stories', 100, 100, `${allStories.length} stories found`);
+
+      // Phase 2: Check each story for integrity issues
+      updateProgress('analyzing-content', 0, allStories.length, 'Checking story integrity...');
+
+      const issues: IntegrityIssue[] = [];
+      let processedCount = 0;
+
+      for (const story of allStories) {
+        // Check for missing chapters
+        if (!story.chapters || story.chapters.length === 0) {
+          issues.push({
+            type: 'missing_chapters',
+            storyId: story.id || story._id,
+            storyTitle: story.title || 'Untitled Story',
+            description: 'Story has no chapters',
+            severity: 'high'
+          });
+        } else {
+          // Check each chapter for missing scenes
+          for (const chapter of story.chapters) {
+            if (!chapter.scenes || chapter.scenes.length === 0) {
+              issues.push({
+                type: 'missing_scenes',
+                storyId: story.id || story._id,
+                storyTitle: story.title || 'Untitled Story',
+                description: `Chapter "${chapter.title || 'Untitled'}" has no scenes`,
+                severity: 'medium'
+              });
+            }
+          }
+        }
+
+        // Check for corrupt data (basic validation)
+        if (!story._id || !story.createdAt || !story.updatedAt) {
+          issues.push({
+            type: 'corrupt_data',
+            storyId: story.id || story._id || 'unknown',
+            storyTitle: story.title || 'Untitled Story',
+            description: 'Story has missing or corrupt metadata',
+            severity: 'high'
+          });
+        }
+
+        processedCount++;
+        updateProgress('analyzing-content', processedCount, allStories.length,
+          `Checking story ${processedCount}/${allStories.length}`);
+      }
+
+      updateProgress('complete', 100, 100, `${issues.length} integrity issues found`);
+
+      return issues;
+    } catch (error) {
+      console.error('Error checking story integrity from remote:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets database statistics from the REMOTE CouchDB database directly.
+   *
+   * @param progressCallback Optional callback for progress updates
+   * @returns Promise<DatabaseStats> Database statistics
+   * @throws Error if remote database is not connected
+   */
+  async getDatabaseStatsFromRemote(
+    progressCallback?: (progress: RemoteScanProgress) => void
+  ): Promise<DatabaseStats> {
+    const updateProgress = (phase: RemoteScanProgress['phase'], current: number, total: number, message: string) => {
+      if (progressCallback) {
+        progressCallback({ phase, current, total, message });
+      }
+    };
+
+    try {
+      const remoteDb = this.databaseService.getRemoteDatabase();
+      if (!remoteDb) {
+        throw new Error('Remote database not connected. Please enable sync in Settings.');
+      }
+
+      // Phase 1: Fetch all documents from remote
+      updateProgress('fetching-images', 0, 100, 'Loading database contents...');
+
+      const allDocsResult = await remoteDb.allDocs({ include_docs: true });
+
+      // Categorize documents
+      const images: (StoredImage & { _id: string })[] = [];
+      const videos: { size: number }[] = [];
+      interface StoryDoc {
+        chapters?: {
+          scenes?: { content?: string }[];
+        }[];
+      }
+      const stories: StoryDoc[] = [];
+
+      for (const row of allDocsResult.rows) {
+        if (!row.doc || row.id.startsWith('_')) continue;
+
+        const doc = row.doc as { type?: string; chapters?: unknown[]; size?: number };
+
+        if (doc.type === 'image') {
+          images.push(row.doc as StoredImage & { _id: string });
+        } else if (doc.type === 'video') {
+          videos.push({ size: doc.size || 0 });
+        } else if (doc.chapters && Array.isArray(doc.chapters)) {
+          stories.push(row.doc as StoryDoc);
+        }
+      }
+
+      updateProgress('fetching-images', 100, 100, `Found ${images.length} images, ${stories.length} stories`);
+
+      // Phase 2: Find orphaned images
+      updateProgress('analyzing-content', 0, stories.length, 'Analyzing content for orphaned images...');
+
+      const usedImageData = new Set<string>();
+      let processedStories = 0;
+
+      for (const story of stories) {
+        if (story.chapters) {
+          for (const chapter of story.chapters) {
+            if (chapter.scenes) {
+              for (const scene of chapter.scenes) {
+                if (scene.content) {
+                  const base64Matches = scene.content.match(/<img[^>]*src="data:image\/[^;]+;base64,([^"]+)"/gi);
+                  if (base64Matches) {
+                    base64Matches.forEach(match => {
+                      const base64Data = match.match(/base64,([^"]+)/)?.[1];
+                      if (base64Data) {
+                        usedImageData.add(base64Data);
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+        processedStories++;
+        updateProgress('analyzing-content', processedStories, stories.length,
+          `Processing story ${processedStories}/${stories.length}`);
+      }
+
+      // Phase 3: Calculate statistics
+      updateProgress('comparing', 0, 100, 'Calculating statistics...');
+
+      let orphanedImageCount = 0;
+      let orphanedImageSize = 0;
+      let embeddedImageCount = 0;
+      let embeddedImageSize = 0;
+
+      // Count orphaned images
+      for (const image of images) {
+        if (!usedImageData.has(image.base64Data)) {
+          orphanedImageCount++;
+          orphanedImageSize += image.size;
+        }
+      }
+
+      // Count embedded images
+      for (const story of stories) {
+        if (story.chapters) {
+          for (const chapter of story.chapters) {
+            if (chapter.scenes) {
+              for (const scene of chapter.scenes) {
+                if (scene.content) {
+                  const base64Regex = /<img[^>]*src="data:image\/([^;]+);base64,([^"]+)"/gi;
+                  let match;
+                  while ((match = base64Regex.exec(scene.content)) !== null) {
+                    embeddedImageCount++;
+                    embeddedImageSize += Math.round(match[2].length * 0.75);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const totalImages = images.length + embeddedImageCount;
+      const standaloneImageSize = images.reduce((sum, img) => sum + img.size, 0);
+      const totalImageSize = standaloneImageSize + embeddedImageSize;
+      const totalVideos = videos.length;
+      const totalVideoSize = videos.reduce((sum, vid) => sum + vid.size, 0);
+      const avgStorySize = 50000;
+      const databaseSizeEstimate = totalImageSize + totalVideoSize + (stories.length * avgStorySize);
+
+      updateProgress('complete', 100, 100, 'Statistics calculated');
+
+      return {
+        totalImages,
+        totalVideos,
+        totalStories: stories.length,
+        orphanedImages: orphanedImageCount,
+        orphanedVideos: 0, // Would need separate video analysis
+        totalImageSize,
+        totalVideoSize,
+        orphanedImageSize,
+        orphanedVideoSize: 0,
+        databaseSizeEstimate
+      };
+    } catch (error) {
+      console.error('Error getting database stats from remote:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Deletes orphaned videos by their IDs
    */
   async deleteOrphanedVideos(videoIds: string[]): Promise<number> {
@@ -254,32 +806,72 @@ export class DbMaintenanceService {
   }
 
   /**
+   * Safely gets storage estimate with feature detection
+   * Returns { usage: 0, quota: 0 } if Storage API is not available
+   */
+  private async getStorageEstimate(): Promise<{ usage: number; quota: number }> {
+    if ('storage' in navigator && 'estimate' in navigator.storage) {
+      try {
+        const estimate = await navigator.storage.estimate();
+        return {
+          usage: estimate.usage || 0,
+          quota: estimate.quota || 0
+        };
+      } catch {
+        return { usage: 0, quota: 0 };
+      }
+    }
+    return { usage: 0, quota: 0 };
+  }
+
+  /**
    * Compacts the PouchDB database to reduce size
+   * Returns actual bytes freed using navigator.storage.estimate()
    */
   async compactDatabase(): Promise<{ sizeBefore: number; sizeAfter: number; saved: number }> {
-    this.updateProgress('compact', 0, 'Analyzing database size...');
-    
+    this.updateProgress('compact', 0, 'Analyzing storage usage...');
+
     try {
       const db = await this.databaseService.getDatabase();
-      
-      // Get size before compaction (estimate)
-      const infoBefore = await db.info();
-      const sizeBefore = infoBefore.doc_count;
 
-      this.updateProgress('compact', 30, 'Compressing database...');
-      
-      // Compact database
+      // Get actual storage size before compaction
+      const storageBefore = await this.getStorageEstimate();
+      const sizeBefore = storageBefore.usage;
+
+      if (sizeBefore > 0) {
+        this.updateProgress('compact', 10, `Current usage: ${this.formatBytes(sizeBefore)}`);
+      }
+
+      this.updateProgress('compact', 20, 'Compacting database...');
+
+      // Compact database to remove deleted document revisions
       await db.compact();
 
-      this.updateProgress('compact', 80, 'Analyzing new database size...');
-      
-      // Get size after compaction
-      const infoAfter = await db.info();
-      const sizeAfter = infoAfter.doc_count;
+      // Try to clean up orphaned view data, but don't fail if it crashes
+      // (can be memory-intensive on large databases)
+      try {
+        this.updateProgress('compact', 50, 'Cleaning up orphaned views...');
+        await db.viewCleanup();
+      } catch (viewCleanupError) {
+        console.warn('viewCleanup failed (may be too memory-intensive):', viewCleanupError);
+        this.updateProgress('compact', 60, 'View cleanup skipped (database too large)');
+      }
+
+      this.updateProgress('compact', 80, 'Measuring storage freed...');
+
+      // Get actual storage size after compaction
+      const storageAfter = await this.getStorageEstimate();
+      const sizeAfter = storageAfter.usage;
       const saved = sizeBefore - sizeAfter;
 
-      this.updateProgress('compact', 100, `Compression complete. ${saved} documents removed`);
-      
+      const message = sizeBefore > 0 && sizeAfter > 0
+        ? (saved > 0
+            ? `Freed ${this.formatBytes(saved)} (${this.formatBytes(sizeBefore)} → ${this.formatBytes(sizeAfter)})`
+            : `Storage unchanged at ${this.formatBytes(sizeAfter)}`)
+        : 'Compaction complete';
+
+      this.updateProgress('compact', 100, message);
+
       return {
         sizeBefore,
         sizeAfter,
@@ -290,6 +882,131 @@ export class DbMaintenanceService {
       this.updateProgress('compact', 0, 'Error compacting database');
       throw error;
     }
+  }
+
+  /**
+   * Aggressively cleans storage by deleting all PouchDB index databases.
+   * This is safe because indexes will be recreated automatically when needed.
+   * Much more memory-efficient than compact() for very large databases.
+   */
+  async deepClean(): Promise<{ sizeBefore: number; sizeAfter: number; saved: number; deletedDatabases: number }> {
+    this.updateProgress('rebuild', 0, 'Starting deep clean...');
+
+    try {
+      // Get storage before
+      const storageBefore = await this.getStorageEstimate();
+      const sizeBefore = storageBefore.usage;
+
+      if (sizeBefore > 0) {
+        this.updateProgress('rebuild', 5, `Current usage: ${this.formatBytes(sizeBefore)}`);
+      }
+
+      let deletedCount = 0;
+
+      // Step 1: Delete all mrview (index) databases from IndexedDB
+      // These can be huge and are safely recreatable
+      this.updateProgress('rebuild', 10, 'Finding index databases to clean...');
+
+      if ('indexedDB' in window) {
+        try {
+          const databases = await indexedDB.databases();
+          const mrviewDbs = databases.filter(db =>
+            db.name && db.name.includes('-mrview-')
+          );
+
+          this.updateProgress('rebuild', 15, `Found ${mrviewDbs.length} index databases to delete`);
+
+          for (let i = 0; i < mrviewDbs.length; i++) {
+            const dbName = mrviewDbs[i].name;
+            if (dbName) {
+              try {
+                await new Promise<void>((resolve, reject) => {
+                  const request = indexedDB.deleteDatabase(dbName);
+                  request.onsuccess = () => resolve();
+                  request.onerror = () => reject(request.error);
+                  request.onblocked = () => {
+                    console.warn(`Database ${dbName} is blocked, skipping`);
+                    resolve();
+                  };
+                });
+                deletedCount++;
+              } catch (e) {
+                console.warn(`Failed to delete ${dbName}:`, e);
+              }
+            }
+
+            // Progress from 15% to 60%
+            const progress = 15 + Math.floor((i / mrviewDbs.length) * 45);
+            this.updateProgress('rebuild', progress, `Deleted ${i + 1} / ${mrviewDbs.length} index databases`);
+
+            // Small delay to prevent blocking
+            if (i % 5 === 0) {
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+          }
+        } catch (e) {
+          console.warn('indexedDB.databases() not supported or failed:', e);
+        }
+      }
+
+      // Step 2: Try compact on the main database (may fail on mobile, that's ok)
+      this.updateProgress('rebuild', 65, 'Attempting database compaction...');
+      try {
+        const db = await this.databaseService.getDatabase();
+        await db.compact();
+        this.updateProgress('rebuild', 85, 'Compaction complete');
+      } catch (compactError) {
+        console.warn('Compact failed (expected on mobile with large DB):', compactError);
+        this.updateProgress('rebuild', 85, 'Compaction skipped (too large for mobile)');
+      }
+
+      // Wait for IndexedDB to settle
+      this.updateProgress('rebuild', 90, 'Finalizing...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Measure final size
+      const storageAfter = await this.getStorageEstimate();
+      const sizeAfter = storageAfter.usage;
+      const saved = sizeBefore - sizeAfter;
+
+      const message = sizeBefore > 0 && sizeAfter > 0
+        ? (saved > 0
+            ? `Freed ${this.formatBytes(saved)} (${this.formatBytes(sizeBefore)} → ${this.formatBytes(sizeAfter)})`
+            : `Storage: ${this.formatBytes(sizeAfter)} (deleted ${deletedCount} index DBs)`)
+        : `Deleted ${deletedCount} index databases`;
+
+      this.updateProgress('rebuild', 100, message);
+
+      return {
+        sizeBefore,
+        sizeAfter,
+        saved,
+        deletedDatabases: deletedCount
+      };
+    } catch (error) {
+      console.error('Error during deep clean:', error);
+      this.updateProgress('rebuild', 0, 'Error during deep clean');
+      throw error;
+    }
+  }
+
+  /**
+   * Gets current storage usage information
+   */
+  async getStorageUsage(): Promise<{ used: number; quota: number; percentage: number; formatted: string }> {
+    const estimate = await this.getStorageEstimate();
+    const used = estimate.usage;
+    const quota = estimate.quota;
+    const percentage = quota > 0 ? (used / quota) * 100 : 0;
+
+    return {
+      used,
+      quota,
+      percentage,
+      formatted: quota > 0
+        ? `${this.formatBytes(used)} / ${this.formatBytes(quota)} (${percentage.toFixed(1)}%)`
+        : 'Storage API not available'
+    };
   }
 
   /**

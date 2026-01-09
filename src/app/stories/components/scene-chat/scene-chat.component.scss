@@ -110,6 +110,17 @@ ion-content::part(scroll) {
   white-space: pre-wrap;
 }
 
+.message-text.streaming::after {
+  content: '|';
+  animation: cursor-blink 1s infinite;
+  opacity: 0.7;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 0.7; }
+  51%, 100% { opacity: 0; }
+}
+
 .message-time {
   font-size: 0.75rem;
   opacity: 0.7;
@@ -214,6 +225,13 @@ ion-content::part(scroll) {
 }
 
 .send-button {
+  --padding-start: 8px;
+  --padding-end: 8px;
+  margin: 0;
+}
+
+.stop-button {
+  --color: var(--ion-color-danger);
   --padding-start: 8px;
   --padding-end: 8px;
   margin: 0;

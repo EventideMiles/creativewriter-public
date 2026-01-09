@@ -4,8 +4,6 @@
   <app-beat-ai-preview-modal
     [isVisible]="modalService.isVisible"
     [content]="modalService.content"
-    (closeModal)="modalService.close()"
-    (generateContent)="modalService.onGenerate()"
-    (copyContent)="modalService.onCopy()">
+    (closeModal)="modalService.close()">
   </app-beat-ai-preview-modal>
 </ion-app>

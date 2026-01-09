@@ -8,18 +8,22 @@ import {
   IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel,
   IonSearchbar, IonList, IonChip, IonTextarea, IonInput, IonButton, IonIcon,
   IonModal, IonGrid, IonRow, IonCol, IonText, IonNote, IonButtons, IonToolbar, IonTitle, IonHeader, IonFooter,
-  IonSelect, IonSelectOption, IonToggle, ModalController
+  IonSelect, IonSelectOption, IonToggle, IonSpinner, ModalController, ToastController
 } from '@ionic/angular/standalone';
 import { AppHeaderComponent, HeaderAction } from '../../../ui/components/app-header.component';
 import { addIcons } from 'ionicons';
 import {
   arrowBack, add, ellipsisVertical, create, trash, save, close,
   search, person, bookmark, pricetag, star, swapHorizontal, helpCircle,
-  checkmarkDone, informationCircle
+  checkmarkDone, informationCircle, sparkles, cloudUpload, imageOutline, personOutline,
+  checkmarkCircle, closeCircle, imagesOutline
 } from 'ionicons/icons';
 import { CodexService } from '../../services/codex.service';
-import { Codex, CodexCategory, CodexEntry, STORY_ROLES, CustomField, StoryRole } from '../../models/codex.interface';
+import { Codex, CodexCategory, CodexEntry, STORY_ROLES, CustomField, StoryRole, PortraitGalleryItem } from '../../models/codex.interface';
+import { v4 as uuidv4 } from 'uuid';
 import { CodexTransferModalComponent } from '../codex-transfer-modal/codex-transfer-modal.component';
+import { PortraitService } from '../../../shared/services/portrait.service';
+import { DialogService } from '../../../core/services/dialog.service';
 
 @Component({
   selector: 'app-codex',
@@ -29,7 +33,7 @@ import { CodexTransferModalComponent } from '../codex-transfer-modal/codex-trans
     IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonItem, IonLabel,
     IonSearchbar, IonList, IonChip, IonTextarea, IonInput, IonButton, IonIcon,
     IonModal, IonGrid, IonRow, IonCol, IonText, IonNote, IonButtons, IonToolbar, IonTitle, IonHeader, IonFooter,
-    IonSelect, IonSelectOption, IonToggle
+    IonSelect, IonSelectOption, IonToggle, IonSpinner
   ],
   templateUrl: './codex.component.html',
   styleUrls: ['./codex.component.scss'],
@@ -40,7 +44,10 @@ export class CodexComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private codexService = inject(CodexService);
   private modalController = inject(ModalController);
+  private toastController = inject(ToastController);
   private cdr = inject(ChangeDetectorRef);
+  portraitService = inject(PortraitService);
+  private dialogService = inject(DialogService);
   private subscriptions = new Subscription();
 
   storyId = signal<string>('');
@@ -54,6 +61,10 @@ export class CodexComponent implements OnInit, OnDestroy {
   // Modals
   showAddCategoryModal = signal<boolean>(false);
   showHelpCard = signal<boolean>(true);
+
+  // Portrait generation state
+  isGeneratingPortrait = signal<boolean>(false);
+  uploadingImage = signal<boolean>(false);
 
   // Form data
   newCategory = { title: '', icon: '', description: '' };
@@ -73,7 +84,8 @@ export class CodexComponent implements OnInit, OnDestroy {
     addIcons({
       arrowBack, add, ellipsisVertical, create, trash, save, close,
       search, person, bookmark, pricetag, star, swapHorizontal, helpCircle,
-      checkmarkDone, informationCircle
+      checkmarkDone, informationCircle, sparkles, cloudUpload, imageOutline, personOutline,
+      checkmarkCircle, closeCircle, imagesOutline
     });
     this.initializeHeaderActions();
   }
@@ -132,7 +144,9 @@ export class CodexComponent implements OnInit, OnDestroy {
       tags: entry.tags ? [...entry.tags] : [],
       storyRole: (entry.metadata?.['storyRole'] as StoryRole) || '',
       customFields: entry.metadata?.['customFields'] && Array.isArray(entry.metadata['customFields']) ? [...entry.metadata['customFields']] : [],
-      alwaysInclude: entry.alwaysInclude || false
+      alwaysInclude: entry.alwaysInclude || false,
+      portraitGallery: entry.portraitGallery ? [...entry.portraitGallery] : [],
+      activePortraitId: entry.activePortraitId
     };
     // Clear tag input - tags are already in editingEntry.tags
     this.tagInput = '';
@@ -167,7 +181,12 @@ export class CodexComponent implements OnInit, OnDestroy {
     const storyId = this.storyId();
     if (!storyId) return;
 
-    if (confirm('Delete category and all entries?')) {
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Delete Category',
+      message: 'Delete category and all entries? This action cannot be undone.',
+      confirmText: 'Delete'
+    });
+    if (confirmed) {
       try {
         await this.codexService.deleteCategory(storyId, categoryId);
         if (this.selectedCategoryId() === categoryId) {
@@ -265,7 +284,12 @@ export class CodexComponent implements OnInit, OnDestroy {
     const entry = this.selectedEntry();
     if (!storyId || !entry) return;
 
-    if (confirm('Delete entry?')) {
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Delete Entry',
+      message: 'Delete this entry? This action cannot be undone.',
+      confirmText: 'Delete'
+    });
+    if (confirmed) {
       try {
         await this.codexService.deleteEntry(storyId, entry.categoryId, entry.id);
         this.closeEntryModal();
@@ -513,5 +537,330 @@ export class CodexComponent implements OnInit, OnDestroy {
         }
       })
     );
+  }
+
+  // Portrait methods
+
+  /**
+   * Get the portrait source URL for display in entry cards
+   */
+  getPortraitSrc(entry: CodexEntry): string | null {
+    const activePortrait = this.codexService.getActivePortrait(entry);
+    if (activePortrait) {
+      return `data:image/jpeg;base64,${activePortrait}`;
+    }
+    if (entry.imageUrl) {
+      return entry.imageUrl;
+    }
+    return null;
+  }
+
+  /**
+   * Get the active portrait base64 for the editing entry
+   */
+  getActivePortraitBase64(): string | null {
+    if (!this.editingEntry.portraitGallery || this.editingEntry.portraitGallery.length === 0) {
+      return this.editingEntry.portraitBase64 || null;
+    }
+
+    const activeId = this.editingEntry.activePortraitId;
+    const activePortrait = this.editingEntry.portraitGallery.find(p => p.id === activeId);
+    return activePortrait?.base64 || this.editingEntry.portraitGallery[0]?.base64 || null;
+  }
+
+  /**
+   * Check if gallery is full (5 portraits max)
+   */
+  isGalleryFull(): boolean {
+    return (this.editingEntry.portraitGallery?.length || 0) >= 5;
+  }
+
+  /**
+   * Check if portrait generation is available
+   */
+  canGeneratePortrait(): boolean {
+    return this.isCharacterEntry() && this.portraitService.isOpenRouterConfigured();
+  }
+
+  /**
+   * Select a portrait as active
+   */
+  async selectPortrait(portraitId: string): Promise<void> {
+    const entry = this.selectedEntry();
+    if (!entry) return;
+
+    this.editingEntry.activePortraitId = portraitId;
+
+    // Also update legacy portraitBase64 for backwards compatibility
+    const selectedPortrait = this.editingEntry.portraitGallery?.find(p => p.id === portraitId);
+    if (selectedPortrait) {
+      this.editingEntry.portraitBase64 = selectedPortrait.base64;
+    }
+
+    // Save immediately
+    await this.codexService.updateEntry(
+      this.storyId(),
+      entry.categoryId,
+      entry.id,
+      {
+        activePortraitId: portraitId,
+        portraitBase64: selectedPortrait?.base64
+      }
+    );
+
+    this.cdr.markForCheck();
+    await this.showToast('Portrait selected.', 'success');
+  }
+
+  /**
+   * Remove a specific portrait from the gallery
+   */
+  async removeGalleryPortrait(portraitId: string): Promise<void> {
+    const entry = this.selectedEntry();
+    if (!entry || !this.editingEntry.portraitGallery) return;
+
+    // Remove from gallery
+    this.editingEntry.portraitGallery = this.editingEntry.portraitGallery.filter(
+      p => p.id !== portraitId
+    );
+
+    // If we removed the active portrait, select a new one
+    if (this.editingEntry.activePortraitId === portraitId) {
+      const newActive = this.editingEntry.portraitGallery[0];
+      this.editingEntry.activePortraitId = newActive?.id;
+      this.editingEntry.portraitBase64 = newActive?.base64;
+    }
+
+    // Save
+    await this.codexService.updateEntry(
+      this.storyId(),
+      entry.categoryId,
+      entry.id,
+      {
+        portraitGallery: this.editingEntry.portraitGallery,
+        activePortraitId: this.editingEntry.activePortraitId,
+        portraitBase64: this.editingEntry.portraitBase64
+      }
+    );
+
+    await this.showToast('Portrait removed from gallery.', 'success');
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Add a portrait to the gallery
+   */
+  private addToGallery(base64: string, source: 'generated' | 'uploaded'): void {
+    // Initialize gallery if needed
+    if (!this.editingEntry.portraitGallery) {
+      this.editingEntry.portraitGallery = [];
+    }
+
+    // Enforce 5-item limit (remove oldest)
+    if (this.editingEntry.portraitGallery.length >= 5) {
+      this.editingEntry.portraitGallery.shift();
+    }
+
+    // Create new gallery item
+    const newPortrait: PortraitGalleryItem = {
+      id: uuidv4(),
+      base64,
+      createdAt: new Date(),
+      source
+    };
+
+    // Add to gallery and set as active
+    this.editingEntry.portraitGallery.push(newPortrait);
+    this.editingEntry.activePortraitId = newPortrait.id;
+    this.editingEntry.portraitBase64 = base64;
+  }
+
+  /**
+   * Generate portrait for the current character entry
+   */
+  async generatePortrait() {
+    const entry = this.selectedEntry();
+    if (!entry) return;
+
+    // Check OpenRouter configuration
+    if (!this.portraitService.isOpenRouterConfigured()) {
+      await this.showToast('OpenRouter is required for portrait generation. Configure it in Settings.', 'warning');
+      return;
+    }
+
+    // Check premium access
+    const hasAccess = await this.portraitService.checkPremiumAccess();
+    if (!hasAccess) return;
+
+    this.isGeneratingPortrait.set(true);
+    this.cdr.markForCheck();
+
+    try {
+      const customFields = this.getCustomFields(entry);
+      const physicalAppearance = customFields.find(f =>
+        f.name.toLowerCase().includes('physical') || f.name.toLowerCase().includes('appearance')
+      )?.value;
+      const backstory = customFields.find(f =>
+        f.name.toLowerCase().includes('backstory') || f.name.toLowerCase().includes('history')
+      )?.value;
+      const personality = customFields.find(f =>
+        f.name.toLowerCase().includes('personality') || f.name.toLowerCase().includes('traits')
+      )?.value;
+
+      const imageBase64 = await this.portraitService.generatePortrait({
+        title: entry.title,
+        content: entry.content,
+        physicalAppearance,
+        backstory,
+        personality
+      });
+
+      // Add to gallery
+      this.addToGallery(imageBase64, 'generated');
+
+      // Update entry with gallery
+      await this.codexService.updateEntry(
+        this.storyId(),
+        entry.categoryId,
+        entry.id,
+        {
+          portraitGallery: this.editingEntry.portraitGallery,
+          activePortraitId: this.editingEntry.activePortraitId,
+          portraitBase64: imageBase64
+        }
+      );
+
+      await this.showToast('Portrait generated and added to gallery!', 'success');
+    } catch (error) {
+      console.error('Portrait generation failed:', error);
+      await this.showToast(
+        error instanceof Error ? error.message : 'Portrait generation failed',
+        'danger'
+      );
+    } finally {
+      this.isGeneratingPortrait.set(false);
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Handle portrait upload
+   */
+  async uploadPortrait(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+    const entry = this.selectedEntry();
+    if (!entry) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      await this.showToast('Please select a valid image file.', 'warning');
+      return;
+    }
+
+    // Validate file size (max 5MB before compression)
+    if (file.size > 5 * 1024 * 1024) {
+      await this.showToast('Image is too large. Maximum size is 5MB.', 'warning');
+      return;
+    }
+
+    this.uploadingImage.set(true);
+    this.cdr.markForCheck();
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const base64 = e.target?.result as string;
+
+          // Compress to max 50kb
+          const compressed = await this.portraitService.compressImage(base64, 50);
+
+          // Add to gallery
+          this.addToGallery(compressed, 'uploaded');
+
+          // Update entry with gallery
+          await this.codexService.updateEntry(
+            this.storyId(),
+            entry.categoryId,
+            entry.id,
+            {
+              portraitGallery: this.editingEntry.portraitGallery,
+              activePortraitId: this.editingEntry.activePortraitId,
+              portraitBase64: compressed
+            }
+          );
+
+          await this.showToast('Image uploaded and added to gallery!', 'success');
+        } catch (error) {
+          console.error('Image processing failed:', error);
+          await this.showToast('Failed to process image.', 'danger');
+        } finally {
+          this.uploadingImage.set(false);
+          this.cdr.markForCheck();
+        }
+      };
+      reader.onerror = async () => {
+        await this.showToast('Failed to read image file.', 'danger');
+        this.uploadingImage.set(false);
+        this.cdr.markForCheck();
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      this.uploadingImage.set(false);
+      this.cdr.markForCheck();
+    }
+
+    // Clear input for re-upload of same file
+    input.value = '';
+  }
+
+  /**
+   * Remove all portraits from entry (clear gallery)
+   */
+  async removePortrait() {
+    const entry = this.selectedEntry();
+    if (!entry) return;
+
+    try {
+      await this.codexService.updateEntry(
+        this.storyId(),
+        entry.categoryId,
+        entry.id,
+        {
+          portraitGallery: [],
+          activePortraitId: undefined,
+          portraitBase64: undefined,
+          imageUrl: undefined
+        }
+      );
+
+      this.editingEntry.portraitGallery = [];
+      this.editingEntry.activePortraitId = undefined;
+      this.editingEntry.portraitBase64 = undefined;
+      this.editingEntry.imageUrl = undefined;
+      this.cdr.markForCheck();
+
+      await this.showToast('All portraits removed.', 'success');
+    } catch (error) {
+      console.error('Failed to remove portraits:', error);
+      await this.showToast('Failed to remove portraits.', 'danger');
+    }
+  }
+
+  /**
+   * Show toast notification
+   */
+  private async showToast(message: string, color: 'success' | 'warning' | 'danger') {
+    const toast = await this.toastController.create({
+      message,
+      duration: 3000,
+      color,
+      position: 'bottom'
+    });
+    await toast.present();
   }
 }

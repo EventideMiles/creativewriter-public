@@ -7,21 +7,47 @@ export interface FavoriteModelLists {
   characterChat: string[];
 }
 
+export type PortraitModel = 'flux' | 'seedream';
+
+export interface PortraitModelSettings {
+  selectedModel: PortraitModel;
+}
+
+// Image generation provider type
+export type ImageGenerationProvider = 'openrouter' | 'fal' | 'replicate';
+
+// fal.ai settings
+export interface FalAiSettings {
+  apiKey: string;
+  enabled: boolean;
+}
+
+// Image generation settings
+export interface ImageGenerationSettings {
+  lastUsedModel: string;
+  defaultAspectRatio: string;
+  preferredProvider: ImageGenerationProvider;
+}
+
 export interface Settings {
   openRouter: OpenRouterSettings;
   replicate: ReplicateSettings;
+  falAi: FalAiSettings;
   googleGemini: GoogleGeminiSettings;
   ollama: OllamaSettings;
   claude: ClaudeSettings;
   openAICompatible: OpenAICompatibleSettings;
   sceneTitleGeneration: SceneTitleGenerationSettings;
   sceneSummaryGeneration: SceneSummaryGenerationSettings;
+  stagingNotesGeneration: StagingNotesGenerationSettings;
   sceneGenerationFromOutline: SceneGenerationFromOutlineSettings;
+  imageGeneration: ImageGenerationSettings;
   selectedModel: string; // Global selected model (format: "provider:model_id")
   favoriteModels: string[]; // Legacy list of favorite model IDs for quick access (mirrors favoriteModelLists.beatInput)
   favoriteModelLists: FavoriteModelLists; // Structured favorite model lists by feature
   appearance: AppearanceSettings;
   premium: PremiumSettings; // Premium subscription settings
+  portraitModel: PortraitModelSettings; // Portrait generation model settings
   updatedAt: Date;
 }
 
@@ -42,6 +68,7 @@ export interface PremiumSettings {
 export interface AppearanceSettings {
   textColor: string; // Hex color code for text in editor and beat AI
   backgroundImage: string; // Background image filename or 'none' for no background
+  directSpeechColor: string | null; // Hex color code for direct speech (dialogue in quotes), or null to derive from textColor
 }
 
 export interface OpenRouterSettings {
@@ -121,6 +148,14 @@ export interface SceneSummaryGenerationSettings {
   selectedModel: string;
 }
 
+export interface StagingNotesGenerationSettings {
+  temperature: number;
+  customInstruction: string;
+  customPrompt: string;
+  useCustomPrompt: boolean;
+  selectedModel: string;
+}
+
 export interface SceneGenerationFromOutlineSettings {
   wordCount: number; // default target length
   temperature: number;
@@ -145,6 +180,10 @@ export const DEFAULT_SETTINGS: Settings = {
     apiKey: '',
     model: '',
     version: '',
+    enabled: false
+  },
+  falAi: {
+    apiKey: '',
     enabled: false
   },
   googleGemini: {
@@ -203,6 +242,13 @@ export const DEFAULT_SETTINGS: Settings = {
     useCustomPrompt: false,
     selectedModel: ''
   },
+  stagingNotesGeneration: {
+    temperature: 0.5,
+    customInstruction: '',
+    customPrompt: '',
+    useCustomPrompt: false,
+    selectedModel: ''
+  },
   sceneGenerationFromOutline: {
     wordCount: 600,
     temperature: 0.7,
@@ -214,9 +260,15 @@ export const DEFAULT_SETTINGS: Settings = {
     customPrompt: '<messages>\n<message role="system">{systemMessage}</message>\n<message role="user">You are writing a complete scene for a story.\n\n<story_title>{storyTitle}</story_title>\n\n<glossary>\n{codexEntries}\n</glossary>\n\n<story_context>\n{storySoFar}\n</story_context>\n\n<scene_outline>\n{sceneOutline}\n</scene_outline>\n\n<instructions>\nWrite a complete, coherent scene based strictly on the outline. Aim for about {wordCount} words.\n{languageInstruction}{customInstruction}\nDo not include meta comments or headings. Output only the scene prose.\n</instructions>\n</message>\n</messages>',
     selectedModel: ''
   },
+  imageGeneration: {
+    lastUsedModel: '',
+    defaultAspectRatio: '1:1',
+    preferredProvider: 'openrouter'
+  },
   appearance: {
     textColor: '#e0e0e0', // Default light gray color for dark theme
-    backgroundImage: 'none' // No background image by default
+    backgroundImage: 'none', // No background image by default
+    directSpeechColor: null // Derive from textColor by default
   },
   premium: {
     email: '',
@@ -224,6 +276,9 @@ export const DEFAULT_SETTINGS: Settings = {
     cachedStatus: {
       active: false
     }
+  },
+  portraitModel: {
+    selectedModel: 'flux'
   },
   selectedModel: '',
   favoriteModels: [],

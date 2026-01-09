@@ -19,13 +19,11 @@ import { AIProviderValidationService } from '../../core/services/ai-provider-val
 import { ModelSelectorComponent } from '../../shared/components/model-selector/model-selector.component';
 import { ModelOption } from '../../core/models/model.interface';
 import { Story, Scene, Chapter, StorySettings, DEFAULT_STORY_SETTINGS } from '../../stories/models/story.interface';
-import { OpenRouterIconComponent } from '../icons/openrouter-icon.component';
-import { ClaudeIconComponent } from '../icons/claude-icon.component';
-import { ReplicateIconComponent } from '../icons/replicate-icon.component';
-import { OllamaIconComponent } from '../icons/ollama-icon.component';
+import { ProviderIconComponent } from '../../shared/components/provider-icon/provider-icon.component';
 import { Observable, of, from } from 'rxjs';
 import { switchMap, take } from 'rxjs/operators';
 import { PremiumRewriteService } from '../../shared/services/premium-rewrite.service';
+import { SurroundingContext } from '../../shared/services/prosemirror-editor.interfaces';
 
 export interface AIRewriteResult {
   originalText: string;
@@ -50,7 +48,7 @@ interface SceneContext {
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonItem, IonLabel, IonTextarea, IonIcon, IonChip, IonSpinner,
     IonModal, IonList, IonCheckbox, IonItemDivider, IonSearchbar,
-    ModelSelectorComponent, OpenRouterIconComponent, ClaudeIconComponent, ReplicateIconComponent, OllamaIconComponent
+    ModelSelectorComponent, ProviderIconComponent
   ],
   template: `
     <ion-header>
@@ -125,11 +123,16 @@ interface SceneContext {
             (click)="selectFavoriteModel(model)"
             [color]="selectedModel === model.id ? 'primary' : 'medium'"
             class="favorite-chip">
-            <app-openrouter-icon *ngIf="model.provider === 'openrouter'" size="14" color="#6467f2" class="favorite-provider-icon openrouter"></app-openrouter-icon>
-            <app-claude-icon *ngIf="model.provider === 'claude'" size="14" color="#C15F3C" class="favorite-provider-icon claude"></app-claude-icon>
-            <app-replicate-icon *ngIf="model.provider === 'replicate'" size="14" color="#9c27b0" class="favorite-provider-icon replicate"></app-replicate-icon>
-            <app-ollama-icon *ngIf="model.provider === 'ollama'" size="14" color="#ff9800" class="favorite-provider-icon ollama"></app-ollama-icon>
-            <ion-icon *ngIf="isGenericProvider(model.provider)" [name]="getProviderIcon(model.provider)" class="favorite-provider-icon" [class.gemini]="model.provider === 'gemini'"></ion-icon>
+            <app-provider-icon
+              [provider]="model.provider"
+              [size]="14"
+              class="favorite-provider-icon"
+              [class.openrouter]="model.provider === 'openrouter'"
+              [class.claude]="model.provider === 'claude'"
+              [class.replicate]="model.provider === 'replicate'"
+              [class.ollama]="model.provider === 'ollama'"
+              [class.gemini]="model.provider === 'gemini'">
+            </app-provider-icon>
             <span class="favorite-chip-label">{{ getShortModelName(model.label) }}</span>
           </ion-chip>
         </div>
@@ -450,6 +453,7 @@ interface SceneContext {
 })
 export class AIRewriteModalComponent implements OnInit, OnDestroy {
   @Input() selectedText = '';
+  @Input() surroundingContext?: SurroundingContext;
   @Input() storyId = '';
   @Input() currentChapterId = '';
   @Input() currentSceneId = '';
@@ -564,14 +568,52 @@ export class AIRewriteModalComponent implements OnInit, OnDestroy {
         contextText += `Scene Context:\n${sceneContext}\n\n`;
       }
 
+      // Build surrounding context section
+      let surroundingSection = '';
+      if (this.surroundingContext) {
+        surroundingSection = `
+<text-before>
+${this.surroundingContext.beforeText}
+</text-before>
+
+<text-to-rewrite>
+${this.selectedText}
+</text-to-rewrite>
+
+<text-after>
+${this.surroundingContext.afterText}
+</text-after>
+
+`;
+      }
+
       // Build the rewrite prompt with context
-      const basePrompt = contextText 
-        ? `${contextText}Based on the above context, rewrite the following text: "${this.selectedText}"`
-        : `Rewrite the following text: "${this.selectedText}"`;
-      
+      let basePrompt: string;
+      if (surroundingSection) {
+        basePrompt = `${contextText}You are rewriting a passage of creative writing.
+
+The following shows the text structure:
+- <text-before>: The text that comes IMMEDIATELY BEFORE the passage to rewrite
+- <text-to-rewrite>: The passage you must rewrite
+- <text-after>: The text that comes IMMEDIATELY AFTER the passage to rewrite
+
+${surroundingSection}Rewrite ONLY the text within <text-to-rewrite> tags.`;
+      } else if (contextText) {
+        basePrompt = `${contextText}Based on the above context, rewrite the following text: "${this.selectedText}"`;
+      } else {
+        basePrompt = `Rewrite the following text: "${this.selectedText}"`;
+      }
+
+      const instructions = this.surroundingContext
+        ? `\n\nCRITICAL INSTRUCTIONS:
+1. Return ONLY the rewritten text - no explanations, preamble, or alternatives
+2. The rewritten text MUST flow naturally from <text-before> and lead smoothly into <text-after>
+3. Maintain consistent tense, perspective, and style with the surrounding text`
+        : `\n\nIMPORTANT: Return ONLY the rewritten text. Do not include any explanations, introductory phrases, multiple versions, or any other text. Just the rewritten content itself.`;
+
       const fullPrompt = this.customPrompt
-        ? `${basePrompt}\n\nAdditional instruction: ${this.customPrompt}\n\nPlease ensure that the rewritten text fits the style and context of the story.\n\nIMPORTANT: Return ONLY the rewritten text. Do not include any explanations, introductory phrases, multiple versions, or any other text. Just the rewritten content itself.`
-        : `${basePrompt}\n\nPlease ensure that the rewritten text fits the style and context of the story.\n\nIMPORTANT: Return ONLY the rewritten text. Do not include any explanations, introductory phrases, multiple versions, or any other text. Just the rewritten content itself.`;
+        ? `${basePrompt}\n\nAdditional instruction: ${this.customPrompt}${instructions}`
+        : `${basePrompt}${instructions}`;
 
       // Generate a unique beat ID for this rewrite request
       const beatId = `rewrite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -645,22 +687,9 @@ export class AIRewriteModalComponent implements OnInit, OnDestroy {
       if (this.story) {
         this.ensureStoryFavoriteStructure();
       }
-      if (this.story && this.currentChapterId && this.currentSceneId) {
-        // Load current scene as default context
-        const chapter = this.story.chapters.find(c => c.id === this.currentChapterId);
-        const scene = chapter?.scenes.find(s => s.id === this.currentSceneId);
-        
-        if (chapter && scene) {
-          this.selectedScenes.push({
-            chapterId: chapter.id,
-            sceneId: scene.id,
-            chapterTitle: `C${chapter.chapterNumber || chapter.order}:${chapter.title}`,
-            sceneTitle: `C${chapter.chapterNumber || chapter.order}S${scene.sceneNumber || scene.order}:${scene.title}`,
-            content: this.extractFullTextFromScene(scene),
-            selected: true
-          });
-        }
-      }
+      // Note: Current scene is NOT auto-added to selectedScenes anymore.
+      // The surroundingContext (before/after text) provides immediate context.
+      // Users can manually add scenes via the scene selector if needed.
       this.updateFavoriteModels();
     } catch (error) {
       console.error('Error loading story for context:', error);
@@ -742,21 +771,6 @@ export class AIRewriteModalComponent implements OnInit, OnDestroy {
     const globalSettings = this.settingsService.getSettings();
     const globalFavorites = globalSettings.favoriteModelLists?.rewrite ?? [];
     return Array.isArray(globalFavorites) ? [...globalFavorites] : [];
-  }
-
-  isGenericProvider(provider: string): boolean {
-    return !['openrouter', 'claude', 'replicate', 'ollama'].includes(provider);
-  }
-
-  getProviderIcon(provider: string): string {
-    switch (provider) {
-      case 'gemini':
-        return 'logo-google';
-      case 'grok':
-        return 'sparkles-outline';
-      default:
-        return 'globe-outline';
-    }
   }
 
   getShortModelName(label: string): string {

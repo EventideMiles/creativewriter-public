@@ -337,10 +337,19 @@ export class OpenAICompatibleApiService {
 
                 try {
                   const parsed = JSON.parse(data);
-                  if (parsed.choices?.[0]?.delta?.content) {
-                    const newText = parsed.choices[0].delta.content;
-                    accumulatedContent += newText;
-                    observer.next(newText);
+                  const delta = parsed.choices?.[0]?.delta;
+                  if (delta) {
+                    // Filter out thinking/reasoning content from thinking models
+                    // DeepSeek R1 uses reasoning_content, Kimi K2 uses thinking field
+                    if (delta.reasoning_content || delta.thinking) {
+                      // Skip thinking content - only emit actual output
+                      continue;
+                    }
+                    // Only emit actual content
+                    if (delta.content) {
+                      accumulatedContent += delta.content;
+                      observer.next(delta.content);
+                    }
                   }
                 } catch {
                   // Ignore parsing errors for incomplete JSON

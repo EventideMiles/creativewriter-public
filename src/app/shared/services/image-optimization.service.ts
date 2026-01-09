@@ -1,5 +1,14 @@
 import { Injectable } from '@angular/core';
 
+/**
+ * Convert a PNG filename to WebP format for better performance.
+ * Stored filenames remain as .png for backward compatibility.
+ * Case-insensitive and only replaces at end of string.
+ */
+export function convertToWebP(filename: string): string {
+  return filename.replace(/\.png$/i, '.webp');
+}
+
 export interface OptimizedImageSource {
   src: string;
   format: 'webp' | 'png' | 'jpeg';

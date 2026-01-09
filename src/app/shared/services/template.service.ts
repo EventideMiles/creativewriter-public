@@ -61,7 +61,6 @@ export class TemplateService {
       sceneFullText: string;
       wordCount: string;
       prompt: string;
-      writingStyle: string;
     }
   ): string {
     return this.processTemplate(beatGenerationTemplate, placeholders);

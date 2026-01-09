@@ -24,10 +24,42 @@ export class BeatHistoryService {
   private historyCache: Map<string, { history: BeatVersionHistory; loadedAt: Date }>;
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_VERSIONS_PER_BEAT = 10;
+  private readonly MAX_CACHE_SIZE = 20; // Limit cache size to prevent memory growth
   private isInitialized = false;
 
   constructor() {
     this.historyCache = new Map();
+  }
+
+  /**
+   * Clean up stale cache entries to prevent memory growth
+   */
+  private cleanupCache(): void {
+    const now = Date.now();
+    const entriesToDelete: string[] = [];
+
+    // Find stale entries
+    for (const [beatId, cached] of this.historyCache.entries()) {
+      if (now - cached.loadedAt.getTime() > this.CACHE_TTL) {
+        entriesToDelete.push(beatId);
+      }
+    }
+
+    // Delete stale entries
+    for (const beatId of entriesToDelete) {
+      this.historyCache.delete(beatId);
+    }
+
+    // If still over max size, remove oldest entries
+    if (this.historyCache.size > this.MAX_CACHE_SIZE) {
+      const entries = Array.from(this.historyCache.entries())
+        .sort((a, b) => a[1].loadedAt.getTime() - b[1].loadedAt.getTime());
+
+      const toRemove = entries.slice(0, this.historyCache.size - this.MAX_CACHE_SIZE);
+      for (const [beatId] of toRemove) {
+        this.historyCache.delete(beatId);
+      }
+    }
   }
 
   /**
@@ -67,6 +99,30 @@ export class BeatHistoryService {
   }
 
   /**
+   * Deserialize date strings to Date objects for a single version
+   * PouchDB stores dates as ISO strings, this converts them back to Date objects
+   */
+  private deserializeVersionDates(version: BeatVersion): BeatVersion {
+    return {
+      ...version,
+      generatedAt: new Date(version.generatedAt)
+    };
+  }
+
+  /**
+   * Deserialize date strings to Date objects for an entire history document
+   * PouchDB stores dates as ISO strings, this converts them back to Date objects
+   */
+  private deserializeHistoryDates(history: BeatVersionHistory): BeatVersionHistory {
+    return {
+      ...history,
+      createdAt: new Date(history.createdAt),
+      updatedAt: new Date(history.updatedAt),
+      versions: history.versions.map(v => this.deserializeVersionDates(v))
+    };
+  }
+
+  /**
    * Save a new version to beat history
    *
    * @param beatId - ID of the beat
@@ -92,13 +148,7 @@ export class BeatHistoryService {
         const existingDoc = await this.historyDb.get<BeatVersionHistory>(docId);
 
         // Convert date strings to Date objects (PouchDB stores dates as strings)
-        history = {
-          ...existingDoc,
-          versions: existingDoc.versions.map(v => ({
-            ...v,
-            generatedAt: new Date(v.generatedAt)
-          }))
-        };
+        history = this.deserializeHistoryDates(existingDoc);
 
         // Only mark all existing versions as not current if new version will be current
         if (versionData.isCurrent !== false) {
@@ -165,6 +215,9 @@ export class BeatHistoryService {
   async getHistory(beatId: string): Promise<BeatVersionHistory | null> {
     await this.ensureInitialized();
 
+    // Clean up stale cache entries periodically
+    this.cleanupCache();
+
     // Check cache first
     const cached = this.historyCache.get(beatId);
     if (cached && Date.now() - cached.loadedAt.getTime() < this.CACHE_TTL) {
@@ -177,15 +230,7 @@ export class BeatHistoryService {
       const rawHistory = await this.historyDb.get<BeatVersionHistory>(docId);
 
       // Convert date strings to Date objects
-      const history: BeatVersionHistory = {
-        ...rawHistory,
-        createdAt: new Date(rawHistory.createdAt),
-        updatedAt: new Date(rawHistory.updatedAt),
-        versions: rawHistory.versions.map(v => ({
-          ...v,
-          generatedAt: new Date(v.generatedAt)
-        }))
-      };
+      const history = this.deserializeHistoryDates(rawHistory);
 
       // Update cache
       this.historyCache.set(beatId, {
@@ -237,7 +282,10 @@ export class BeatHistoryService {
     const docId = `history-${beatId}`;
 
     try {
-      const history = await this.historyDb.get<BeatVersionHistory>(docId);
+      const rawHistory = await this.historyDb.get<BeatVersionHistory>(docId);
+
+      // Convert date strings to Date objects
+      const history = this.deserializeHistoryDates(rawHistory);
 
       // Mark all versions as not current
       history.versions.forEach(v => v.isCurrent = false);
@@ -252,10 +300,14 @@ export class BeatHistoryService {
       history.updatedAt = new Date();
 
       // Save to database
-      await this.historyDb.put(history);
+      const result = await this.historyDb.put(history);
 
-      // Clear cache to force reload
-      this.historyCache.delete(beatId);
+      // Update cache in place instead of invalidating (avoids unnecessary DB read)
+      history._rev = result.rev;
+      this.historyCache.set(beatId, {
+        history,
+        loadedAt: new Date()
+      });
     } catch (error) {
       console.error(`[BeatHistoryService] Failed to set current version for beat ${beatId}:`, error);
       throw error;
@@ -307,13 +359,7 @@ export class BeatHistoryService {
       }
 
       // Convert date strings to Date objects (PouchDB stores dates as strings)
-      const history: BeatVersionHistory = {
-        ...rawHistory,
-        versions: rawHistory.versions.map(v => ({
-          ...v,
-          generatedAt: new Date(v.generatedAt)
-        }))
-      };
+      const history = this.deserializeHistoryDates(rawHistory);
 
       // Sort by generation date (newest first) and keep only keepCount versions
       history.versions = history.versions
@@ -323,10 +369,14 @@ export class BeatHistoryService {
       history.updatedAt = new Date();
 
       // Save to database
-      await this.historyDb.put(history);
+      const result = await this.historyDb.put(history);
 
-      // Clear cache
-      this.historyCache.delete(beatId);
+      // Update cache in place instead of invalidating (avoids unnecessary DB read)
+      history._rev = result.rev;
+      this.historyCache.set(beatId, {
+        history,
+        loadedAt: new Date()
+      });
     } catch (error) {
       if ((error as {status?: number}).status === 404) {
         return; // No history to prune
@@ -351,8 +401,18 @@ export class BeatHistoryService {
         include_docs: true
       });
 
+      // Filter for beat history documents - check both type field AND id prefix
+      // Also verify required fields exist to prevent false positives
       const storyHistories = result.rows
-        .filter(row => row.doc?.type === 'beat-history' && row.doc?.storyId === storyId)
+        .filter(row => {
+          if (!row.doc) return false;
+          // Design documents start with _design/
+          if (row.id.startsWith('_design/')) return false;
+          // Check for explicit type OR id pattern with required fields
+          const hasRequiredFields = row.doc.beatId && row.doc.storyId && Array.isArray(row.doc.versions);
+          const isHistoryDoc = row.doc.type === 'beat-history' || (row.id.startsWith('history-') && hasRequiredFields);
+          return isHistoryDoc && row.doc.storyId === storyId;
+        })
         .map(row => row.doc!);
 
       // Delete each history document
@@ -388,9 +448,20 @@ export class BeatHistoryService {
         include_docs: true
       });
 
+      // Filter for beat history documents - check both type field AND id prefix
+      // Also verify required fields exist to prevent false positives
       const historyDocs = result.rows
-        .filter(row => row.doc?.type === 'beat-history')
+        .filter(row => {
+          if (!row.doc) return false;
+          // Design documents start with _design/
+          if (row.id.startsWith('_design/')) return false;
+          // Check for explicit type OR id pattern with required fields
+          const hasRequiredFields = row.doc.beatId && row.doc.storyId && Array.isArray(row.doc.versions);
+          return row.doc.type === 'beat-history' || (row.id.startsWith('history-') && hasRequiredFields);
+        })
         .map(row => row.doc!);
+
+      console.info(`[BeatHistoryService] Deleting ${historyDocs.length} beat histories`);
 
       // Delete each document
       const deletePromises = historyDocs.map(doc =>
@@ -422,18 +493,29 @@ export class BeatHistoryService {
         include_docs: true
       });
 
+      // Filter for beat history documents - check both type field AND id prefix
+      // Also verify required fields exist to prevent false positives
       const historyDocs = result.rows
-        .filter(row => row.doc?.type === 'beat-history')
+        .filter(row => {
+          if (!row.doc) return false;
+          // Design documents start with _design/
+          if (row.id.startsWith('_design/')) return false;
+          // Check for explicit type OR id pattern with required fields
+          const hasRequiredFields = row.doc.beatId && row.doc.storyId && Array.isArray(row.doc.versions);
+          return row.doc.type === 'beat-history' || (row.id.startsWith('history-') && hasRequiredFields);
+        })
         .map(row => row.doc!);
 
       let totalVersions = 0;
       let totalSize = 0;
 
-      historyDocs.forEach(doc => {
+      for (const doc of historyDocs) {
         totalVersions += doc.versions.length;
         // Estimate size (rough approximation)
         totalSize += JSON.stringify(doc).length;
-      });
+      }
+
+      console.info(`[BeatHistoryService] Stats: ${historyDocs.length} histories, ${totalVersions} versions, ~${Math.round(totalSize / 1024)}KB`);
 
       return {
         totalHistories: historyDocs.length,
@@ -442,6 +524,36 @@ export class BeatHistoryService {
       };
     } catch (error) {
       console.error('[BeatHistoryService] Failed to get history stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get raw database info for debugging
+   * Returns all document IDs and their types
+   */
+  async getDebugInfo(): Promise<{ total: number; documents: { id: string; type?: string; versionsCount?: number }[] }> {
+    await this.ensureInitialized();
+
+    try {
+      const result = await this.historyDb.allDocs<BeatVersionHistory>({
+        include_docs: true
+      });
+
+      const documents = result.rows
+        .filter(row => !row.id.startsWith('_design/'))
+        .map(row => ({
+          id: row.id,
+          type: row.doc?.type,
+          versionsCount: Array.isArray(row.doc?.versions) ? row.doc.versions.length : 0
+        }));
+
+      return {
+        total: documents.length,
+        documents
+      };
+    } catch (error) {
+      console.error('[BeatHistoryService] Failed to get debug info:', error);
       throw error;
     }
   }

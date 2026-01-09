@@ -267,7 +267,11 @@ export class SubscriptionService {
 
   /**
    * Initiate portal verification flow
-   * Returns the Stripe Customer Portal URL
+   * Returns the Stripe Customer Portal login_page URL
+   *
+   * SECURITY: The login_page requires users to verify their email via Stripe's OTP.
+   * After verification, the billing_portal.session.created webhook fires,
+   * and we can claim the verification via /api/auth/claim-verification.
    */
   async initiatePortalVerification(email: string): Promise<string> {
     const currentUrl = window.location.origin + '/settings?tab=premium';
@@ -284,11 +288,74 @@ export class SubscriptionService {
   }
 
   /**
+   * Claim portal verification after returning from Stripe
+   *
+   * Called after user returns from Stripe portal. Checks if they completed
+   * Stripe's email OTP verification and claims the auth token if they did.
+   *
+   * @returns true if verification was successfully claimed, false if not yet verified
+   */
+  async claimPortalVerification(email: string): Promise<boolean> {
+    const url = `${this.API_URL}/auth/claim-verification?email=${encodeURIComponent(email.trim().toLowerCase())}`;
+
+    this.isVerifying$.next(true);
+
+    try {
+      const response = await fetch(url);
+
+      if (response.status === 401) {
+        // Not yet verified - this is expected if webhook hasn't fired yet
+        return false;
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Verification claim failed');
+      }
+
+      const data: SubscriptionStatus = await response.json();
+      const settings = this.settingsService.getSettings();
+
+      this.settingsService.updateSettings({
+        premium: {
+          ...settings.premium,
+          email: email.trim().toLowerCase(),
+          authToken: data.authToken,
+          authTokenCreatedAt: Date.now(),
+          cachedStatus: {
+            active: data.active,
+            plan: data.plan,
+            expiresAt: data.expiresAt,
+            lastVerified: Date.now()
+          }
+        }
+      });
+
+      this.isPremium$.next(data.active);
+      return true;
+
+    } finally {
+      this.isVerifying$.next(false);
+    }
+  }
+
+  /**
    * Exchange verification code for auth token
    * Called after user returns from Stripe Customer Portal
+   *
+   * SECURITY: The email parameter is required for the new secure flow.
+   * The user must have verified their email via Stripe's login page
+   * before the exchange will succeed.
    */
-  async exchangeVerificationCode(code: string): Promise<boolean> {
-    const url = `${this.API_URL}/auth/exchange?code=${encodeURIComponent(code)}`;
+  async exchangeVerificationCode(code: string, email?: string): Promise<boolean> {
+    const settings = this.settingsService.getSettings();
+    const verificationEmail = (email || settings.premium?.email)?.trim().toLowerCase();
+
+    if (!verificationEmail) {
+      throw new Error('Email is required for verification');
+    }
+
+    const url = `${this.API_URL}/auth/exchange?code=${encodeURIComponent(code)}&email=${encodeURIComponent(verificationEmail)}`;
 
     this.isVerifying$.next(true);
 
@@ -301,11 +368,10 @@ export class SubscriptionService {
 
       const data: SubscriptionStatus = await response.json();
 
-      const settings = this.settingsService.getSettings();
       this.settingsService.updateSettings({
         premium: {
           ...settings.premium,
-          email: settings.premium?.email || '',
+          email: verificationEmail,
           authToken: data.authToken,
           authTokenCreatedAt: Date.now(),
           cachedStatus: {

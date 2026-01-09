@@ -21,36 +21,16 @@
                  appendTo="body">
         <ng-template ng-option-tmp let-item="item">
           <div class="model-option-inline">
-            <app-openrouter-icon 
-              *ngIf="item.provider === 'openrouter'"
-              size="16" 
-              color="#6467f2" 
-              class="provider-icon-inline openrouter">
-            </app-openrouter-icon>
-            <app-claude-icon 
-              *ngIf="item.provider === 'claude'"
-              size="16" 
-              color="#C15F3C" 
-              class="provider-icon-inline claude">
-            </app-claude-icon>
-            <app-replicate-icon 
-              *ngIf="item.provider === 'replicate'"
-              size="16" 
-              color="#9c27b0" 
-              class="provider-icon-inline replicate">
-            </app-replicate-icon>
-            <app-ollama-icon 
-              *ngIf="item.provider === 'ollama'"
-              size="16" 
-              color="#ff9800" 
-              class="provider-icon-inline ollama">
-            </app-ollama-icon>
-            <ion-icon 
-              *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude' && item.provider !== 'replicate' && item.provider !== 'ollama'"
-              [name]="getProviderIcon(item.provider)" 
-              class="provider-icon-inline" 
+            <app-provider-icon
+              [provider]="item.provider"
+              [size]="16"
+              class="provider-icon-inline"
+              [class.openrouter]="item.provider === 'openrouter'"
+              [class.claude]="item.provider === 'claude'"
+              [class.replicate]="item.provider === 'replicate'"
+              [class.ollama]="item.provider === 'ollama'"
               [class.gemini]="item.provider === 'gemini'">
-            </ion-icon>
+            </app-provider-icon>
             <span class="model-label">{{ item.label }}</span>
           </div>
         </ng-template>
@@ -138,11 +118,16 @@
           </ion-avatar>
         </div>
         <div class="message-content">
-          <div class="message-text typing-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
+          <div class="message-text streaming" *ngIf="streamingContent; else typingIndicator"
+               [innerHTML]="formatMessage(streamingContent)">
           </div>
+          <ng-template #typingIndicator>
+            <div class="message-text typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </ng-template>
         </div>
       </div>
     </div>
@@ -170,9 +155,18 @@
         (ionBlur)="onInputBlur()"
         class="message-input">
       </ion-textarea>
-      <ion-button 
-        (click)="sendMessage()" 
-        [disabled]="!currentMessage.trim() || isGenerating"
+      <ion-button
+        *ngIf="isGenerating"
+        (click)="stopGeneration()"
+        fill="clear"
+        color="danger"
+        class="stop-button">
+        <ion-icon name="stop-circle" slot="icon-only"></ion-icon>
+      </ion-button>
+      <ion-button
+        *ngIf="!isGenerating"
+        (click)="sendMessage()"
+        [disabled]="!currentMessage.trim()"
         fill="clear"
         class="send-button">
         <ion-icon [name]="isEditing ? 'create-outline' : 'send-outline'" slot="icon-only"></ion-icon>

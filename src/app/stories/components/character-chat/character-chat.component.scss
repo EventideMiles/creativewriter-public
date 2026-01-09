@@ -372,6 +372,27 @@
   }
 }
 
+.stop-button {
+  --color: var(--ion-color-danger);
+  --padding-start: 8px;
+  --padding-end: 8px;
+}
+
+// Streaming text cursor
+.message-text.streaming {
+  &::after {
+    content: '|';
+    animation: cursor-blink 1s infinite;
+    opacity: 0.7;
+    margin-left: 1px;
+  }
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 0.7; }
+  51%, 100% { opacity: 0; }
+}
+
 // Model selection
 .model-selection-container {
   display: flex;

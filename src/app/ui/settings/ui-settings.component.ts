@@ -1,85 +1,47 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { 
-  IonCard, IonCardHeader, IonCardTitle, IonCardContent
+import {
+  IonAccordion, IonAccordionGroup, IonBadge,
+  IonIcon, IonItem, IonLabel
 } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { textOutline, imageOutline, chatbubbleOutline, colorWandOutline, colorPaletteOutline } from 'ionicons/icons';
 import { Settings } from '../../core/models/settings.interface';
 import { ColorPickerComponent } from '../components/color-picker.component';
 import { BackgroundSelectorComponent } from '../components/background-selector.component';
 import { BackgroundUploadComponent } from '../components/background-upload.component';
 import { BackgroundService } from '../../shared/services/background.service';
-import { CustomBackground } from '../../shared/services/synced-custom-background.service';
+import { CustomBackground, SyncedCustomBackgroundService } from '../../shared/services/synced-custom-background.service';
 
 @Component({
   selector: 'app-ui-settings',
   standalone: true,
   imports: [
     CommonModule, FormsModule,
-    IonCard, IonCardHeader, IonCardTitle, IonCardContent,
+    IonAccordion, IonAccordionGroup, IonBadge,
+    IonIcon, IonItem, IonLabel,
     ColorPickerComponent, BackgroundSelectorComponent, BackgroundUploadComponent
   ],
-  template: `
-    <ion-card>
-      <ion-card-header>
-        <ion-card-title>Appearance</ion-card-title>
-      </ion-card-header>
-      <ion-card-content>
-        <div class="appearance-section">
-          <h3>Text Color</h3>
-          <p class="appearance-description">
-            This color is used for text in the story editor and Beat AI input.
-          </p>
-          <app-color-picker 
-            [color]="settings.appearance.textColor"
-            (colorChange)="onTextColorChange($event)">
-          </app-color-picker>
-        </div>
-        
-        <div class="appearance-section">
-          <app-background-selector 
-            [selectedBackgroundImage]="settings.appearance.backgroundImage"
-            (backgroundImageChange)="onBackgroundImageChange($event)">
-          </app-background-selector>
-        </div>
-        
-        <div class="appearance-section">
-          <app-background-upload
-            (backgroundUploaded)="onBackgroundUploaded($event)">
-          </app-background-upload>
-        </div>
-      </ion-card-content>
-    </ion-card>
-  `,
-  styles: [`
-    :host {
-      display: block;
-    }
-
-    .appearance-section {
-      padding: 0.5rem 0;
-    }
-
-    .appearance-section h3 {
-      color: #f8f9fa;
-      font-size: 1.1rem;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-    }
-
-    .appearance-description {
-      color: #adb5bd;
-      font-size: 0.9rem;
-      margin-bottom: 1rem;
-      line-height: 1.4;
-    }
-  `]
+  templateUrl: './ui-settings.component.html',
+  styleUrls: ['./ui-settings.component.scss']
 })
-export class UiSettingsComponent {
+export class UiSettingsComponent implements OnInit {
   private backgroundService = inject(BackgroundService);
+  private customBackgroundService = inject(SyncedCustomBackgroundService);
+
+  constructor() {
+    addIcons({ textOutline, imageOutline, chatbubbleOutline, colorWandOutline, colorPaletteOutline });
+  }
 
   @Input() settings!: Settings;
   @Output() settingsChange = new EventEmitter<void>();
+
+  ngOnInit(): void {
+    // Pull custom backgrounds from remote when entering appearance tab
+    // Fire-and-forget - UI will update reactively when backgrounds load
+    this.customBackgroundService.pullBackgroundsFromRemote();
+  }
 
   onTextColorChange(color: string): void {
     // Update local settings first to track changes
@@ -87,11 +49,68 @@ export class UiSettingsComponent {
     this.settingsChange.emit();
   }
 
+  onDirectSpeechColorChange(color: string): void {
+    // Update local settings - set to the custom color
+    this.settings.appearance.directSpeechColor = color;
+    this.settingsChange.emit();
+  }
+
+  resetDirectSpeechColorToAuto(): void {
+    // Reset to null to derive from text color automatically
+    this.settings.appearance.directSpeechColor = null;
+    this.settingsChange.emit();
+  }
+
+  /**
+   * Get the effective direct speech color (custom or derived from text color)
+   */
+  getEffectiveDirectSpeechColor(): string {
+    if (this.settings.appearance.directSpeechColor) {
+      return this.settings.appearance.directSpeechColor;
+    }
+    // Derive from text color with a slight purple shift
+    return this.deriveDirectSpeechColor(this.settings.appearance.textColor);
+  }
+
+  /**
+   * Check if using automatic (derived) color
+   */
+  isUsingAutomaticColor(): boolean {
+    return this.settings.appearance.directSpeechColor === null;
+  }
+
+  /**
+   * Derive a direct speech color from the text color by shifting it toward purple/violet.
+   * Creates a subtle but noticeable difference for dialogue highlighting.
+   */
+  private deriveDirectSpeechColor(textColor: string): string {
+    // Validate hex color format
+    if (!textColor || !textColor.match(/^#[0-9a-fA-F]{6}$/)) {
+      return '#7c3aed'; // Return fallback purple for invalid input
+    }
+
+    // Parse hex color
+    const hex = textColor.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    // Shift toward purple: reduce green, increase blue slightly
+    // This creates a subtle purple/violet tint
+    const newR = Math.min(255, Math.round(r * 0.85 + 40)); // Add some red for warmth
+    const newG = Math.max(0, Math.round(g * 0.7)); // Reduce green
+    const newB = Math.min(255, Math.round(b * 0.85 + 60)); // Add more blue
+
+    // Convert back to hex
+    const toHex = (n: number) => n.toString(16).padStart(2, '0');
+    return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
+  }
+
   onBackgroundImageChange(backgroundImage: string): void {
     // Update local settings first to track changes
     this.settings.appearance.backgroundImage = backgroundImage;
     this.settingsChange.emit();
-    
+
     // Set preview background for immediate visual feedback
     this.backgroundService.setPreviewBackground(backgroundImage);
   }
@@ -100,5 +119,29 @@ export class UiSettingsComponent {
     // Automatically select the newly uploaded background
     const customId = `custom:${customBackground._id}`;
     this.onBackgroundImageChange(customId);
+  }
+
+  /**
+   * Returns a friendly label for the currently selected background
+   */
+  getBackgroundLabel(): string {
+    const bg = this.settings.appearance.backgroundImage;
+
+    if (!bg || bg === 'none') {
+      return 'None';
+    }
+
+    if (bg.startsWith('custom:')) {
+      return 'Custom';
+    }
+
+    // Extract filename from path and format it
+    const filename = bg.split('/').pop()?.replace(/\.[^.]+$/, '') || bg;
+
+    // Convert kebab-case to Title Case
+    return filename
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 }

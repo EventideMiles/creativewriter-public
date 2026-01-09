@@ -11,11 +11,11 @@
               (click)="selectQuickPick(qp)"
               [title]="qp.label">
         <span class="quick-pick-content">
-          <app-openrouter-icon *ngIf="qp.provider === 'openrouter'" size="14" color="#6467f2"></app-openrouter-icon>
-          <app-claude-icon *ngIf="qp.provider === 'claude'" size="14" color="#C15F3C"></app-claude-icon>
-          <app-replicate-icon *ngIf="qp.provider === 'replicate'" size="14" color="#9c27b0"></app-replicate-icon>
-          <app-ollama-icon *ngIf="qp.provider === 'ollama'" size="14" color="#ff9800"></app-ollama-icon>
-          <ion-icon *ngIf="qp.provider === 'gemini'" name="logo-google" class="gemini-icon"></ion-icon>
+          <app-provider-icon
+            [provider]="qp.provider"
+            [size]="14"
+            [class.gemini]="qp.provider === 'gemini'">
+          </app-provider-icon>
           <span class="quick-pick-label">{{ qp.label }}</span>
         </span>
       </button>
@@ -35,19 +35,31 @@
     (ngModelChange)="onModelChange($event)">
     <ng-template ng-label-tmp let-item="item">
       <div class="model-option-inline">
-        <app-openrouter-icon *ngIf="item.provider === 'openrouter'" size="16" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
-        <app-claude-icon *ngIf="item.provider === 'claude'" size="16" color="#C15F3C" class="provider-icon-inline claude"></app-claude-icon>
-        <app-replicate-icon *ngIf="item.provider === 'replicate'" size="16" color="#9c27b0" class="provider-icon-inline replicate"></app-replicate-icon>
-        <app-ollama-icon *ngIf="item.provider === 'ollama'" size="16" color="#ff9800" class="provider-icon-inline ollama"></app-ollama-icon>
+        <app-provider-icon
+          [provider]="item.provider"
+          [size]="16"
+          class="provider-icon-inline"
+          [class.openrouter]="item.provider === 'openrouter'"
+          [class.claude]="item.provider === 'claude'"
+          [class.replicate]="item.provider === 'replicate'"
+          [class.ollama]="item.provider === 'ollama'"
+          [class.gemini]="item.provider === 'gemini'">
+        </app-provider-icon>
         <span class="model-label">{{ item.label }}</span>
       </div>
     </ng-template>
     <ng-template ng-option-tmp let-item="item">
       <div class="model-option-inline">
-        <app-openrouter-icon *ngIf="item.provider === 'openrouter'" size="16" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
-        <app-claude-icon *ngIf="item.provider === 'claude'" size="16" color="#C15F3C" class="provider-icon-inline claude"></app-claude-icon>
-        <app-replicate-icon *ngIf="item.provider === 'replicate'" size="16" color="#9c27b0" class="provider-icon-inline replicate"></app-replicate-icon>
-        <app-ollama-icon *ngIf="item.provider === 'ollama'" size="16" color="#ff9800" class="provider-icon-inline ollama"></app-ollama-icon>
+        <app-provider-icon
+          [provider]="item.provider"
+          [size]="16"
+          class="provider-icon-inline"
+          [class.openrouter]="item.provider === 'openrouter'"
+          [class.claude]="item.provider === 'claude'"
+          [class.replicate]="item.provider === 'replicate'"
+          [class.ollama]="item.provider === 'ollama'"
+          [class.gemini]="item.provider === 'gemini'">
+        </app-provider-icon>
         <span class="model-label">{{ item.label }}</span>
       </div>
     </ng-template>

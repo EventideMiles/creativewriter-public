@@ -18,11 +18,13 @@
 
 <instructions>
 {pointOfView}
+<tense>{tense}</tense>
 Write approximately {wordCount} words that continue this story.
-{writingStyle}
 
 Task: {prompt}
 </instructions>
+
+{rules}
 
 Continue the story now with {wordCount} words:</message>
 </messages>

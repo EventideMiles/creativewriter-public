@@ -1,12 +1,11 @@
 import { Component, Input, ChangeDetectionStrategy, inject } from '@angular/core';
-import { ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonContent, IonItem, IonLabel, IonTextarea, IonIcon,
-  IonRange, IonToggle, IonFooter, IonSpinner,
-  ToastController, AlertController
+  IonRange, IonToggle, IonFooter,
+  ToastController
 } from '@ionic/angular/standalone';
 import { ModalController } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -15,7 +14,6 @@ import { ModelSelectorComponent } from '../../../shared/components/model-selecto
 import { SettingsService } from '../../../core/services/settings.service';
 import { StoryService } from '../../services/story.service';
 import { SceneGenerationService } from '../../../shared/services/scene-generation.service';
-import { Subject } from 'rxjs';
 
 @Component({
   selector: 'app-scene-create-from-outline',
@@ -25,7 +23,6 @@ import { Subject } from 'rxjs';
     IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
     IonContent, IonItem, IonLabel, IonTextarea, IonIcon,
     IonRange, IonToggle, IonFooter,
-    IonSpinner,
     ModelSelectorComponent
   ],
   templateUrl: './scene-create-from-outline.component.html',
@@ -35,12 +32,9 @@ import { Subject } from 'rxjs';
 export class SceneCreateFromOutlineComponent {
   private modalCtrl = inject(ModalController);
   private toastCtrl = inject(ToastController);
-  private alertCtrl = inject(AlertController);
   private settingsService = inject(SettingsService);
   private storyService = inject(StoryService);
   private sceneGenService = inject(SceneGenerationService);
-  private cdr = inject(ChangeDetectorRef);
-  private zone = inject(NgZone);
 
   @Input() storyId!: string;
   @Input() chapterId!: string;
@@ -52,13 +46,7 @@ export class SceneCreateFromOutlineComponent {
   useFullStoryContext = false; // false => summaries
   includeCodex = false;
   temperature = 0.7;
-  generating = false;
   error: string | null = null;
-  // Progress + cancel
-  progressWords = 0;
-  progressSegments = 0;
-  private cancel$ = new Subject<void>();
-  cancelRequested = false;
 
   constructor() {
     addIcons({ closeOutline, sparklesOutline, sendOutline });
@@ -83,15 +71,12 @@ export class SceneCreateFromOutlineComponent {
       return;
     }
 
-    this.generating = true;
-    this.progressWords = 0;
-    this.progressSegments = 0;
     try {
       // 1) Create placeholder scene first to obtain sceneId/order
       const newScene = await this.storyService.addScene(this.storyId, this.chapterId);
 
-      // 2) Generate content from outline
-      const result = await this.sceneGenService.generateFromOutline({
+      // 2) Start generation in background (don't await)
+      this.sceneGenService.generateFromOutline({
         storyId: this.storyId,
         chapterId: this.chapterId,
         sceneId: newScene.id,
@@ -102,92 +87,57 @@ export class SceneCreateFromOutlineComponent {
         useFullStoryContext: this.useFullStoryContext,
         includeCodex: this.includeCodex,
         temperature: this.temperature
-      }, {
-        cancel$: this.cancel$,
-        onProgress: ({ words, segments }) => {
-          // Ensure UI updates under OnPush by running inside Angular zone
-          this.zone.run(() => {
-            this.progressWords = words;
-            this.progressSegments = segments;
-            this.cdr.markForCheck();
-          });
+      }).then(async () => {
+        // Generation completed successfully
+        const toast = await this.toastCtrl.create({
+          message: 'Scene generated successfully!',
+          duration: 4000,
+          color: 'success',
+          position: 'bottom',
+          buttons: [{ text: 'Dismiss', role: 'cancel' }]
+        });
+        await toast.present();
+      }).catch(async (error) => {
+        // Generation failed
+        const message = error instanceof Error ? error.message : 'Generation failed';
+        const toast = await this.toastCtrl.create({
+          message: `Scene generation failed: ${message}`,
+          duration: 5000,
+          color: 'danger',
+          position: 'bottom',
+          buttons: [{ text: 'Dismiss', role: 'cancel' }]
+        });
+        await toast.present();
+
+        // Delete the placeholder scene on error
+        try {
+          await this.storyService.deleteScene(this.storyId, this.chapterId, newScene.id);
+        } catch (deleteErr) {
+          console.warn('Failed to delete placeholder scene after error:', deleteErr);
         }
       });
 
-      if (result.canceled) {
-        // Ask whether to keep or discard partial content
-        const alert = await this.alertCtrl.create({
-          header: 'Generation canceled',
-          message: `Keep partial content? (Segments: ${this.progressSegments}, Words: ${this.progressWords})`,
-          buttons: [
-            {
-              text: 'Discard',
-              role: 'cancel',
-              handler: async () => {
-                // Delete the placeholder scene
-                try {
-                  await this.storyService.deleteScene(this.storyId, this.chapterId, newScene.id);
-                } catch (err) {
-                  console.warn('Failed to delete placeholder scene after cancel:', err);
-                }
-                const toast = await this.toastCtrl.create({
-                  message: 'Partial content discarded',
-                  duration: 2000,
-                  color: 'medium',
-                  position: 'bottom'
-                });
-                await toast.present();
-                this.modalCtrl.dismiss();
-              }
-            },
-            {
-              text: 'Keep',
-              handler: async () => {
-                await this.storyService.updateScene(this.storyId, this.chapterId, newScene.id, { content: result.content });
-                const toast = await this.toastCtrl.create({
-                  message: `Kept partial content (Seg: ${this.progressSegments}, Words: ${this.progressWords})`,
-                  duration: 2000,
-                  color: 'success',
-                  position: 'bottom'
-                });
-                await toast.present();
-                this.modalCtrl.dismiss({ createdSceneId: newScene.id, chapterId: this.chapterId });
-              }
-            }
-          ]
-        });
-        await alert.present();
-      } else {
-        // Completed normally: save content and show toast
-        await this.storyService.updateScene(this.storyId, this.chapterId, newScene.id, {
-          content: result.content
-        });
-        const toast = await this.toastCtrl.create({
-          message: `Scene generated (Seg: ${this.progressSegments}, Words: ${this.progressWords})`,
-          duration: 2000,
-          color: 'success',
-          position: 'bottom'
-        });
-        await toast.present();
-        this.modalCtrl.dismiss({ createdSceneId: newScene.id, chapterId: this.chapterId });
-      }
+      // 3) Close modal immediately
+      await this.modalCtrl.dismiss({ createdSceneId: newScene.id, chapterId: this.chapterId });
+
+      // 4) Show "started" toast
+      const toast = await this.toastCtrl.create({
+        message: 'Scene generation started...',
+        duration: 3000,
+        color: 'primary',
+        position: 'bottom'
+      });
+      await toast.present();
+
     } catch (e: unknown) {
-      console.error('Failed to generate scene from outline:', e);
+      console.error('Failed to start scene generation:', e);
       const message = typeof e === 'object' && e && 'message' in e ? String((e as { message?: unknown }).message) : undefined;
-      this.error = message || 'Failed to generate scene.';
-    } finally {
-      this.generating = false;
+      this.error = message || 'Failed to start generation.';
     }
   }
 
   dismiss(): void {
     this.modalCtrl.dismiss();
-  }
-
-  cancel(): void {
-    if (!this.generating || this.cancelRequested) return;
-    this.cancelRequested = true;
-    this.cancel$.next();
   }
 
   // Language is derived in the service from story settings

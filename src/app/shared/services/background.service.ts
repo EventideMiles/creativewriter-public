@@ -1,6 +1,7 @@
 import { Injectable, signal, computed, effect, inject } from '@angular/core';
 import { SettingsService } from '../../core/services/settings.service';
 import { SyncedCustomBackgroundService } from './synced-custom-background.service';
+import { convertToWebP } from './image-optimization.service';
 
 @Injectable({
   providedIn: 'root'
@@ -45,9 +46,10 @@ export class BackgroundService {
       }
     }
     
-    // Handle standard backgrounds
+    // Handle standard backgrounds - use WebP for better performance
+    const webpImage = convertToWebP(image);
     return {
-      backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('assets/backgrounds/${image}')`,
+      backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('assets/backgrounds/${webpImage}')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center center',
       backgroundRepeat: 'no-repeat',

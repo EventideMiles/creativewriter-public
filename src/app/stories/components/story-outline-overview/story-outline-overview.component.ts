@@ -1,27 +1,25 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, computed, signal, ViewChild } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, OnDestroy, inject, computed, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
-  IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
-  IonButton, IonIcon, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-  IonTextarea, IonInput,
-  IonBadge, IonSkeletonText, IonNote, IonSpinner, IonFab, IonFabButton
+  IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem,
+  IonButton, IonIcon, IonList, IonSkeletonText,
+  ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBack, openOutline, clipboardOutline, copyOutline, refreshOutline, createOutline, saveOutline, closeOutline, flashOutline, sparklesOutline, timeOutline } from 'ionicons/icons';
+import { arrowBack, copyOutline } from 'ionicons/icons';
 import { Story, Chapter } from '../../models/story.interface';
 import { StoryService } from '../../services/story.service';
 import { AppHeaderComponent, HeaderAction, BurgerMenuItem } from '../../../ui/components/app-header.component';
 import { ModelSelectorComponent } from '../../../shared/components/model-selector/model-selector.component';
-import { SettingsService } from '../../../core/services/settings.service';
-import { OpenRouterApiService } from '../../../core/services/openrouter-api.service';
-import { GoogleGeminiApiService } from '../../../core/services/google-gemini-api.service';
 import { PromptManagerService } from '../../../shared/services/prompt-manager.service';
-import { PromptTemplateService } from '../../../shared/services/prompt-template.service';
 import { StoryStatsService } from '../../services/story-stats.service';
-import { CodexContextService } from '../../../shared/services/codex-context.service';
-import { AIProviderValidationService } from '../../../core/services/ai-provider-validation.service';
+import { SceneAIGenerationService } from '../../../shared/services/scene-ai-generation.service';
+import { DialogService } from '../../../core/services/dialog.service';
+import { SceneCardComponent, SceneUpdateEvent, SceneAIGenerateEvent, SceneNavigateEvent } from '../scene-card/scene-card.component';
+import { ChapterHeaderComponent, ChapterTitleUpdateEvent } from '../chapter-header/chapter-header.component';
+import { SettingsService } from '../../../core/services/settings.service';
 
 @Component({
   selector: 'app-story-outline-overview',
@@ -29,30 +27,31 @@ import { AIProviderValidationService } from '../../../core/services/ai-provider-
   imports: [
     CommonModule, FormsModule,
     AppHeaderComponent, ModelSelectorComponent,
-    IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem, IonLabel,
-    IonButton, IonIcon, IonList, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-    IonTextarea, IonInput,
-    IonBadge, IonSkeletonText, IonNote, IonSpinner, IonFab, IonFabButton
+    SceneCardComponent, ChapterHeaderComponent,
+    IonContent, IonSearchbar, IonAccordion, IonAccordionGroup, IonItem,
+    IonButton, IonIcon, IonList, IonSkeletonText
   ],
   templateUrl: './story-outline-overview.component.html',
   styleUrls: ['./story-outline-overview.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class StoryOutlineOverviewComponent implements OnInit {
+export class StoryOutlineOverviewComponent implements OnInit, OnDestroy {
   @ViewChild(IonContent) content!: IonContent;
   @ViewChild('searchbar') querySearchbar?: IonSearchbar;
+
+  // Cleanup tracking for memory leak prevention
+  private activeTimeouts: ReturnType<typeof setTimeout>[] = [];
+  private currentStoryId: string | null = null;
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private storyService = inject(StoryService);
-  private settingsService = inject(SettingsService);
-  private openRouterApi = inject(OpenRouterApiService);
-  private geminiApi = inject(GoogleGeminiApiService);
   private promptManager = inject(PromptManagerService);
-  private promptTemplateService = inject(PromptTemplateService);
   private storyStats = inject(StoryStatsService);
-  private codexContextService = inject(CodexContextService);
-  private aiProviderValidation = inject(AIProviderValidationService);
+  private sceneAIService = inject(SceneAIGenerationService);
+  private toastController = inject(ToastController);
+  private dialogService = inject(DialogService);
+  private settingsService = inject(SettingsService);
 
   // Header config
   leftActions: HeaderAction[] = [];
@@ -63,6 +62,10 @@ export class StoryOutlineOverviewComponent implements OnInit {
   story = signal<Story | null>(null);
   query = signal('');
   selectedModel = '';
+
+  get sceneSummaryFavorites(): string[] {
+    return this.settingsService.getSettings().favoriteModelLists?.sceneSummary || [];
+  }
 
   // UI state
   loading = signal<boolean>(true);
@@ -126,19 +129,27 @@ export class StoryOutlineOverviewComponent implements OnInit {
     return counts;
   });
 
-  // UI state
-  toolbarVisible = signal<boolean>(false);
-
   constructor() {
-    addIcons({ arrowBack, openOutline, clipboardOutline, copyOutline, refreshOutline, createOutline, saveOutline, closeOutline, flashOutline, sparklesOutline, timeOutline });
+    addIcons({ arrowBack, copyOutline });
   }
 
-  toggleToolbar(): void {
-    const next = !this.toolbarVisible();
-    this.toolbarVisible.set(next);
-    if (next) {
-      setTimeout(() => this.querySearchbar?.setFocus(), 200);
-    }
+  ngOnDestroy(): void {
+    // Clear all pending timeouts
+    this.activeTimeouts.forEach(t => clearTimeout(t));
+    this.activeTimeouts = [];
+    this.wordCountCache.clear();
+  }
+
+  /**
+   * Defers resetting isUpdatingStory to after Angular's change detection completes.
+   * Uses double requestAnimationFrame to ensure the accordion has stabilized.
+   */
+  private deferResetUpdatingState(): void {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.isUpdatingStory = false;
+      });
+    });
   }
 
   getSceneWordCount(sceneId: string): number {
@@ -166,6 +177,12 @@ export class StoryOutlineOverviewComponent implements OnInit {
   private async loadStory(id: string, chapterId: string | null = null, sceneId: string | null = null) {
     this.loading.set(true);
     try {
+      // Clear word count cache when switching stories
+      if (this.currentStoryId !== id) {
+        this.wordCountCache.clear();
+        this.currentStoryId = id;
+      }
+
       const s = await this.storyService.getStory(id);
       if (!s) {
         console.warn(`Story with id ${id} not found`);
@@ -178,7 +195,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
         this.expanded.set(new Set([chapterId]));
         // Schedule scroll to scene after view is ready and accordion expanded
         if (sceneId) {
-          setTimeout(() => this.scrollToScene(sceneId), 600);
+          const timeout = setTimeout(() => this.scrollToScene(sceneId), 600);
+          this.activeTimeouts.push(timeout);
         }
       } else {
         // Expand chapters by default for quick overview
@@ -192,7 +210,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
       }
     } catch (error) {
       console.error('Failed to load story:', error);
-      alert('Failed to load story. Please try again.');
+      this.dialogService.showError({ header: 'Load Error', message: 'Failed to load story. Please try again.' });
       this.router.navigate(['/']);
     } finally {
       this.loading.set(false);
@@ -209,16 +227,8 @@ export class StoryOutlineOverviewComponent implements OnInit {
         showOnMobile: true
       }
     ];
-    this.rightActions = [
-      {
-        icon: 'copy-outline',
-        label: 'Copy All',
-        action: () => this.copyAllSummaries(),
-        tooltip: 'Copy all summaries to clipboard',
-        showOnDesktop: true,
-        showOnMobile: false
-      }
-    ];
+    // Right actions moved to tools bar for better discoverability
+    this.rightActions = [];
   }
 
   goBackToEditor(storyId: string): void {
@@ -244,7 +254,7 @@ export class StoryOutlineOverviewComponent implements OnInit {
     this.expanded.set(new Set(values));
   }
 
-  copyAllSummaries(): void {
+  async copyAllSummaries(): Promise<void> {
     const s = this.story();
     if (!s) return;
     const lines: string[] = [];
@@ -259,602 +269,178 @@ export class StoryOutlineOverviewComponent implements OnInit {
       }
     }
     const text = lines.join('\n');
-    navigator.clipboard?.writeText(text).catch(() => {
-      // ignore clipboard errors in non-secure contexts
-    });
+    try {
+      await navigator.clipboard?.writeText(text);
+      this.showToast('Summaries copied to clipboard', 'success');
+    } catch {
+      this.showToast('Failed to copy to clipboard', 'danger');
+    }
   }
 
-  // Inline summary editing state
-  editingSummaries: Record<string, string> = {};
-  private savingSet = new Set<string>();
-  private isUpdatingStory = false; // Flag to prevent accordion state changes during updates
+  // Saving state
+  private savingScenes = new Set<string>();
+  private savingChapters = new Set<string>();
+  private isUpdatingStory = false;
 
-  isEditing(sceneId: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this.editingSummaries, sceneId);
-  }
+  // AI generation state (delegated to service)
+  isGeneratingSummary(sceneId: string): boolean { return this.sceneAIService.isGeneratingSummary(sceneId); }
+  isGeneratingTitle(sceneId: string): boolean { return this.sceneAIService.isGeneratingTitle(sceneId); }
+  isSavingScene(sceneId: string): boolean { return this.savingScenes.has(sceneId); }
+  isSavingChapter(chapterId: string): boolean { return this.savingChapters.has(chapterId); }
 
-  startEdit(sceneId: string, current: string | undefined): void {
-    this.editingSummaries = { ...this.editingSummaries, [sceneId]: current || '' };
-  }
-
-  cancelEdit(sceneId: string): void {
-    const rest = { ...this.editingSummaries };
-    delete rest[sceneId];
-    this.editingSummaries = rest;
-  }
-
-  onEditSummaryChange(sceneId: string, value: string): void {
-    this.editingSummaries = { ...this.editingSummaries, [sceneId]: value };
-  }
-
-  saving(sceneId: string): boolean {
-    return this.savingSet.has(sceneId);
-  }
-
-  async saveSceneSummary(chapterId: string, sceneId: string): Promise<void> {
+  // --- Scene Card Event Handlers ---
+  async onSceneUpdate(event: SceneUpdateEvent): Promise<void> {
     const s = this.story();
     if (!s) return;
-    const summary = this.editingSummaries[sceneId] ?? '';
-    this.savingSet.add(sceneId);
-    // Preserve expanded state during update - set flag BEFORE any updates
+
+    this.savingScenes.add(event.sceneId);
     this.isUpdatingStory = true;
+
     try {
-      await this.storyService.updateScene(s.id, chapterId, sceneId, { summary });
-      // Update local story signal immutably to avoid full reload
+      const update = event.field === 'title'
+        ? { title: event.value }
+        : { summary: event.value };
+
+      await this.storyService.updateScene(s.id, event.chapterId, event.sceneId, update);
+
       const updatedChapters = s.chapters.map(ch => {
-        if (ch.id !== chapterId) return ch;
+        if (ch.id !== event.chapterId) return ch;
         return {
           ...ch,
           updatedAt: new Date(),
-          scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, summary, updatedAt: new Date() } : sc)
+          scenes: ch.scenes.map(sc => sc.id === event.sceneId
+            ? { ...sc, ...update, updatedAt: new Date() }
+            : sc
+          )
         };
       });
       this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
-      this.cancelEdit(sceneId);
-      // Use requestAnimationFrame to reset flag after rendering cycle completes
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.isUpdatingStory = false;
-        });
-      });
+      this.deferResetUpdatingState();
     } catch (e) {
-      console.error('Failed to save scene summary', e);
+      console.error(`Failed to save scene ${event.field}`, e);
       this.isUpdatingStory = false;
+      this.showToast(`Failed to save scene ${event.field}. Please try again.`, 'danger');
     } finally {
-      this.savingSet.delete(sceneId);
+      this.savingScenes.delete(event.sceneId);
     }
   }
 
-  onSummaryKeydown(event: KeyboardEvent, chapterId: string, sceneId: string): void {
-    if ((event.key === 'Enter' || event.key === 'NumpadEnter') && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      this.saveSceneSummary(chapterId, sceneId);
+  async onSceneAIGenerate(event: SceneAIGenerateEvent): Promise<void> {
+    if (event.type === 'summary') {
+      await this.generateSceneSummary(event.chapterId, event.sceneId);
+    } else {
+      await this.generateSceneTitle(event.chapterId, event.sceneId);
     }
   }
 
-  // AI generation states
-  private generatingSummary = signal<Set<string>>(new Set());
-  private generatingTitle = signal<Set<string>>(new Set());
-
-  isGeneratingSummary(sceneId: string): boolean { return this.generatingSummary().has(sceneId); }
-  isGeneratingTitle(sceneId: string): boolean { return this.generatingTitle().has(sceneId); }
-
-  // Inline title editing state
-  editingTitles: Record<string, string> = {};
-  private savingTitleSet = new Set<string>();
-
-  isEditingTitle(sceneId: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this.editingTitles, sceneId);
+  onSceneNavigate(event: SceneNavigateEvent): void {
+    this.openInEditor(event.chapterId, event.sceneId);
   }
 
-  startEditTitle(sceneId: string, current: string | undefined): void {
-    this.editingTitles = { ...this.editingTitles, [sceneId]: current || '' };
-  }
-
-  cancelEditTitle(sceneId: string): void {
-    const rest = { ...this.editingTitles };
-    delete rest[sceneId];
-    this.editingTitles = rest;
-  }
-
-  onEditTitleChange(sceneId: string, value: string): void {
-    this.editingTitles = { ...this.editingTitles, [sceneId]: value };
-  }
-
-  savingTitle(sceneId: string): boolean {
-    return this.savingTitleSet.has(sceneId);
-  }
-
-  async saveSceneTitle(chapterId: string, sceneId: string): Promise<void> {
-    const s = this.story();
-    if (!s) return;
-    const title = (this.editingTitles[sceneId] ?? '').trim();
-    if (!title) return; // avoid empty titles
-    this.savingTitleSet.add(sceneId);
-    // Preserve expanded state during update - set flag BEFORE any updates
-    this.isUpdatingStory = true;
-    try {
-      await this.storyService.updateScene(s.id, chapterId, sceneId, { title });
-      const updatedChapters = s.chapters.map(ch => {
-        if (ch.id !== chapterId) return ch;
-        return {
-          ...ch,
-          updatedAt: new Date(),
-          scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, title, updatedAt: new Date() } : sc)
-        };
-      });
-      this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
-      this.cancelEditTitle(sceneId);
-      // Use requestAnimationFrame to reset flag after rendering cycle completes
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.isUpdatingStory = false;
-        });
-      });
-    } catch (e) {
-      console.error('Failed to save scene title', e);
-      this.isUpdatingStory = false;
-    } finally {
-      this.savingTitleSet.delete(sceneId);
-    }
-  }
-
-  // --- AI Generation (reuse logic from StoryStructureComponent) ---
-  async generateSceneSummary(chapterId: string, sceneId: string): Promise<void> {
+  // --- AI Generation (delegated to SceneAIGenerationService) ---
+  private async generateSceneSummary(chapterId: string, sceneId: string): Promise<void> {
     const s = this.story();
     if (!s) return;
     const chapter = s.chapters.find(c => c.id === chapterId);
     const scene = chapter?.scenes.find(sc => sc.id === sceneId);
     if (!scene || !scene.content?.trim()) return;
 
-    const settings = this.settingsService.getSettings();
-    const modelToUse = settings.sceneSummaryGeneration.selectedModel || this.selectedModel || settings.selectedModel;
-    if (!modelToUse) { alert('No AI model configured.'); return; }
-
-    if (!this.aiProviderValidation.hasAnyProviderConfigured(settings)) {
-      alert(this.aiProviderValidation.getNoProviderConfiguredMessage());
-      return;
-    }
-
-    // Check individual provider availability for API routing
-    const openRouterAvailable = this.aiProviderValidation.isProviderAvailable('openrouter', settings);
-    const geminiAvailable = this.aiProviderValidation.isProviderAvailable('gemini', settings);
-
-    this.generatingSummary.update(set => new Set(set).add(sceneId));
-    const timeoutId = setTimeout(() => {
-      if (this.generatingSummary().has(sceneId)) {
-        this.generatingSummary.update(set => {
-          const newSet = new Set(set);
-          newSet.delete(sceneId);
-          return newSet;
-        });
-        alert('Summary generation is taking too long. Please try again.');
-      }
-    }, 30000);
-
-    // Clean content and build prompt
-    let sceneContent = this.removeEmbeddedImages(scene.content);
-    sceneContent = this.promptManager.extractPlainTextFromHtml(sceneContent);
     const sceneWordCount = this.getSceneWordCount(sceneId) || this.storyStats.calculateSceneWordCount(scene);
-    const minimumSummaryWords = this.calculateSummaryMinimumWords(sceneWordCount);
-    const wordCountInstruction = `Aim for around ${minimumSummaryWords} words.`;
-    const maxContentLength = 200000;
-    let truncated = false;
-    if (sceneContent.length > maxContentLength) { sceneContent = sceneContent.slice(0, maxContentLength); truncated = true; }
-
     const storyLanguage = s.settings?.language || 'en';
-    const languageInstruction = (() => {
-      switch (storyLanguage) {
-        case 'de': return 'Antworte auf Deutsch.';
-        case 'fr': return 'Réponds en français.';
-        case 'es': return 'Responde en español.';
-        case 'en': return 'Respond in English.';
-        default: return 'Write the summary in the same language as the scene content.';
-      }
-    })();
 
-    const truncatedNote = truncated ? '\n\n[Note: Content was truncated as it was too long]' : '';
-    const customInstructionRaw = settings.sceneSummaryGeneration.customInstruction ?? '';
-    const customInstructionPresent = customInstructionRaw.trim().length > 0;
-    const additionalInstructionsXml = customInstructionPresent
-      ? `      <customInstruction>${this.escapeXml(customInstructionRaw)}</customInstruction>`
-      : '';
-    const codexPromptContext = [scene.title || '', customInstructionRaw.trim()].filter(Boolean).join('\n');
+    const result = await this.sceneAIService.generateSceneSummary({
+      storyId: s.id,
+      sceneId,
+      sceneTitle: scene.title || 'Untitled',
+      sceneContent: scene.content,
+      sceneWordCount,
+      storyLanguage,
+      model: this.selectedModel || undefined
+    });
 
-    let codexEntriesRaw = '';
-    try {
-      const codexContext = await this.codexContextService.buildCodexXml(
-        s.id,
-        sceneContent,
-        codexPromptContext
+    if (result.entriesDropped && result.entriesDropped > 0) {
+      const included = (result.totalEntries || 0) - result.entriesDropped;
+      this.showToast(
+        `Codex limited: ${included} of ${result.totalEntries} entries included (token budget)`,
+        'warning'
       );
-      codexEntriesRaw = codexContext.xml;
-    } catch (error) {
-      console.error('Failed to build codex context for scene summary', error);
     }
 
-    const codexEntriesForTemplate = codexEntriesRaw
-      ? this.indentXmlBlock(codexEntriesRaw, '      ')
-      : '      <codex />';
-    const codexEntriesForCustomPrompt = codexEntriesRaw || '<codex />';
-    const languageInstructionXml = `<languageRequirement>${this.escapeXml(languageInstruction)}</languageRequirement>`;
-    const lengthRequirementXml = `<lengthRequirement>${this.escapeXml(wordCountInstruction)}</lengthRequirement>`;
-    const redundancyNote = 'Do not repeat information already captured in the codex context.';
-
-    let prompt: string;
-    if (settings.sceneSummaryGeneration.useCustomPrompt) {
-      prompt = settings.sceneSummaryGeneration.customPrompt
-        .replace(/{sceneTitle}/g, scene.title || 'Untitled')
-        .replace(/{sceneContent}/g, sceneContent + truncatedNote)
-        .replace(/{customInstruction}/g, customInstructionRaw)
-        .replace(/{customInstructionXml}/g, additionalInstructionsXml.trim())
-        .replace(/{languageInstructionXml}/g, languageInstructionXml)
-        .replace(/{languageInstruction}/g, languageInstruction)
-        .replace(/{summaryWordCount}/g, minimumSummaryWords.toString())
-        .replace(/{lengthRequirement}/g, wordCountInstruction)
-        .replace(/{codexEntries}/g, codexEntriesForCustomPrompt);
-      if (!prompt.includes(languageInstruction)) prompt += `\n\n${languageInstruction}`;
-      if (!prompt.includes(redundancyNote)) prompt += `\n\n${redundancyNote}`;
-      if (!prompt.includes(wordCountInstruction)) prompt += `\n\n${wordCountInstruction}`;
-    } else {
-      try {
-        const template = await this.promptTemplateService.getSceneSummaryTemplate();
-        prompt = template
-          .replace(/\{sceneTitle\}/g, this.escapeXml(scene.title || 'Untitled'))
-          .replace(/\{sceneContent\}/g, sceneContent)
-          .replace(/\{truncatedNote\}/g, truncatedNote)
-          .replace(/\{codexEntries\}/g, codexEntriesForTemplate)
-          .replace(/\{languageInstruction\}/g, languageInstructionXml)
-          .replace(/\{lengthRequirement\}/g, lengthRequirementXml)
-          .replace(/\{additionalInstructions\}/g, additionalInstructionsXml);
-        prompt = prompt.replace(/\{summaryWordCount\}/g, minimumSummaryWords.toString());
-      } catch (error) {
-        console.error('Failed to load default scene summary template', error);
-        clearTimeout(timeoutId);
-        this.generatingSummary.update(set => {
-          const newSet = new Set(set);
-          newSet.delete(sceneId);
-          return newSet;
-        });
-        alert('Failed to load the scene summary prompt template. Please try again later or configure a custom prompt.');
-        return;
-      }
+    if (!result.success) {
+      this.dialogService.showError({ header: 'Generation Error', message: result.error || 'Failed to generate summary.' });
+      return;
     }
 
-    let provider: string | null = null; let actualModelId: string | null = null;
-    const [prov, ...parts] = modelToUse.split(':'); provider = prov; actualModelId = parts.join(':');
-    const useGemini = (provider === 'gemini' && geminiAvailable) || (provider !== 'gemini' && provider !== 'openrouter' && geminiAvailable && !openRouterAvailable);
-    const useOpenRouter = (provider === 'openrouter' && openRouterAvailable) || (provider !== 'gemini' && provider !== 'openrouter' && openRouterAvailable);
-    if (provider !== 'gemini' && provider !== 'openrouter') actualModelId = modelToUse;
-
-    const finalize = async (summary: string) => {
-      if (!summary) return;
-      if (summary && !summary.match(/[.!?]$/)) summary += '.';
-      // Update local signal story immutably and persist
-      const current = this.story(); if (!current) return;
-      // Preserve expanded state during update - set flag BEFORE any updates
+    if (result.text) {
       this.isUpdatingStory = true;
-      const updatedChapters = current.chapters.map(ch => ch.id === chapterId ? {
+      const updatedChapters = s.chapters.map(ch => ch.id === chapterId ? {
         ...ch,
-        scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, summary, summaryGeneratedAt: new Date(), updatedAt: new Date() } : sc),
+        scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, summary: result.text, summaryGeneratedAt: new Date(), updatedAt: new Date() } : sc),
         updatedAt: new Date()
       } : ch);
-      this.story.set({ ...current, chapters: updatedChapters, updatedAt: new Date() });
-      await this.storyService.updateScene(current.id, chapterId, sceneId, { summary, summaryGeneratedAt: new Date() });
+      this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
+      await this.storyService.updateScene(s.id, chapterId, sceneId, { summary: result.text, summaryGeneratedAt: new Date() });
       this.promptManager.refresh();
-      clearTimeout(timeoutId);
-      this.generatingSummary.update(set => {
-        const newSet = new Set(set);
-        newSet.delete(sceneId);
-        return newSet;
-      });
-      // Use requestAnimationFrame to reset flag after rendering cycle completes
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.isUpdatingStory = false;
-        });
-      });
-    };
-
-    if (useGemini) {
-      this.geminiApi.generateText(prompt, { model: actualModelId!, maxTokens: 3000, temperature: settings.sceneSummaryGeneration.temperature })
-        .subscribe({
-          next: async (response) => {
-            const cand = response.candidates?.[0];
-            const text = cand?.content?.parts?.[0]?.text?.trim() || '';
-            await finalize(text);
-          },
-          error: (error) => {
-            console.error('Error generating scene summary:', error);
-            clearTimeout(timeoutId);
-            this.generatingSummary.update(set => {
-              const newSet = new Set(set);
-              newSet.delete(sceneId);
-              return newSet;
-            });
-            alert(this.describeGeminiError(error));
-          }
-        });
-    } else if (useOpenRouter) {
-      this.openRouterApi.generateText(prompt, { model: actualModelId!, maxTokens: 3000, temperature: settings.sceneSummaryGeneration.temperature })
-        .subscribe({
-          next: async (response) => {
-            const choice = response.choices?.[0];
-            let text = choice?.message?.content?.trim() || '';
-            if (choice?.finish_reason === 'length') text += ' [Summary was truncated due to token limit]';
-            await finalize(text);
-          },
-          error: (error) => {
-            console.error('Error generating scene summary:', error);
-            clearTimeout(timeoutId);
-            this.generatingSummary.update(set => {
-              const newSet = new Set(set);
-              newSet.delete(sceneId);
-              return newSet;
-            });
-            alert(this.describeOpenRouterError(error));
-          }
-        });
+      this.deferResetUpdatingState();
     }
   }
 
-  generateSceneTitle(chapterId: string, sceneId: string): void {
+  private async generateSceneTitle(chapterId: string, sceneId: string): Promise<void> {
     const s = this.story();
     if (!s) return;
     const chapter = s.chapters.find(c => c.id === chapterId);
     const scene = chapter?.scenes.find(sc => sc.id === sceneId);
     if (!scene || !scene.content?.trim()) return;
 
-    const settings = this.settingsService.getSettings();
-    const titleSettings = settings.sceneTitleGeneration;
-    const modelToUse = titleSettings.selectedModel || this.selectedModel || settings.selectedModel;
-    if (!modelToUse) { alert('No AI model configured.'); return; }
+    const result = await this.sceneAIService.generateSceneTitle({
+      storyId: s.id,
+      sceneId,
+      sceneContent: scene.content,
+      model: this.selectedModel || undefined
+    });
 
-    if (!this.aiProviderValidation.hasAnyProviderConfigured(settings)) {
-      alert(this.aiProviderValidation.getNoProviderConfiguredMessage());
+    if (!result.success) {
+      this.dialogService.showError({ header: 'Generation Error', message: result.error || 'Failed to generate title.' });
       return;
     }
 
-    // Check individual provider availability for API routing
-    const openRouterAvailable = this.aiProviderValidation.isProviderAvailable('openrouter', settings);
-    const geminiAvailable = this.aiProviderValidation.isProviderAvailable('gemini', settings);
-
-    this.generatingTitle.update(set => new Set(set).add(sceneId));
-    const timeoutId = setTimeout(() => {
-      if (this.generatingTitle().has(sceneId)) {
-        this.generatingTitle.update(set => {
-          const newSet = new Set(set);
-          newSet.delete(sceneId);
-          return newSet;
-        });
-        alert('Title generation is taking too long. Please try again.');
-      }
-    }, 30000);
-
-    let sceneContent = this.removeEmbeddedImages(scene.content);
-    sceneContent = this.promptManager.extractPlainTextFromHtml(sceneContent);
-    const maxContentLength = 50000;
-    if (sceneContent.length > maxContentLength) sceneContent = sceneContent.slice(0, maxContentLength);
-
-    let styleInstruction = '';
-    switch (titleSettings.style) {
-      case 'descriptive': styleInstruction = 'The title should be descriptive and atmospheric.'; break;
-      case 'action': styleInstruction = 'The title should be action-packed and dynamic.'; break;
-      case 'emotional': styleInstruction = 'The title should reflect the emotional mood of the scene.'; break;
-      case 'concise': default: styleInstruction = 'The title should be concise and impactful.'; break;
-    }
-    const languageInstruction = titleSettings.language === 'english' ? 'Respond in English.' : 'Respond in German.';
-    const genreInstruction = titleSettings.includeGenre ? 'Consider the genre of the story when choosing the title.' : '';
-    const customInstruction = titleSettings.customInstruction ? `\n${titleSettings.customInstruction}` : '';
-
-    let prompt: string;
-    if (titleSettings.useCustomPrompt && titleSettings.customPrompt) {
-      prompt = titleSettings.customPrompt
-        .replace('{maxWords}', titleSettings.maxWords.toString())
-        .replace('{styleInstruction}', styleInstruction)
-        .replace('{genreInstruction}', genreInstruction)
-        .replace('{languageInstruction}', languageInstruction)
-        .replace('{customInstruction}', customInstruction)
-        .replace('{sceneContent}', sceneContent);
-    } else {
-      prompt = `Create a title for the following scene. The title should be up to ${titleSettings.maxWords} words \n` +
-        `${styleInstruction}\n${genreInstruction}\n${languageInstruction}${customInstruction}\n\nScene content (only this one scene):\n${sceneContent}\n\nRespond only with the title, without further explanations or quotation marks.`;
-    }
-
-    let provider: string | null = null; let actualModelId: string | null = null;
-    const [prov, ...parts] = modelToUse.split(':'); provider = prov; actualModelId = parts.join(':');
-    const useGemini = (provider === 'gemini' && geminiAvailable) || (provider !== 'gemini' && provider !== 'openrouter' && geminiAvailable && !openRouterAvailable);
-    const useOpenRouter = (provider === 'openrouter' && openRouterAvailable) || (provider !== 'gemini' && provider !== 'openrouter' && openRouterAvailable);
-    if (provider !== 'gemini' && provider !== 'openrouter') actualModelId = modelToUse;
-
-    const finalize = async (title: string) => {
-      title = (title || '').trim().replace(/^\s*"|"\s*$/g, '');
-      if (!title) return;
-      const current = this.story(); if (!current) return;
-      // Preserve expanded state during update - set flag BEFORE any updates
+    if (result.text) {
+      const newTitle = result.text;
       this.isUpdatingStory = true;
-      const updatedChapters = current.chapters.map(ch => ch.id === chapterId ? {
+      const updatedChapters = s.chapters.map(ch => ch.id === chapterId ? {
         ...ch,
-        scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, title, updatedAt: new Date() } : sc),
+        scenes: ch.scenes.map(sc => sc.id === sceneId ? { ...sc, title: newTitle, updatedAt: new Date() } : sc),
         updatedAt: new Date()
       } : ch);
-      this.story.set({ ...current, chapters: updatedChapters, updatedAt: new Date() });
-      await this.storyService.updateScene(current.id, chapterId, sceneId, { title });
+      this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
+      await this.storyService.updateScene(s.id, chapterId, sceneId, { title: newTitle });
       this.promptManager.refresh();
-      clearTimeout(timeoutId);
-      this.generatingTitle.update(set => {
-        const newSet = new Set(set);
-        newSet.delete(sceneId);
-        return newSet;
-      });
-      // Use requestAnimationFrame to reset flag after rendering cycle completes
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.isUpdatingStory = false;
-        });
-      });
-    };
-
-    if (useGemini) {
-      this.geminiApi.generateText(prompt, { model: actualModelId!, maxTokens: 200, temperature: titleSettings.temperature })
-        .subscribe({
-          next: async (response) => {
-            const cand = response.candidates?.[0];
-            const text = cand?.content?.parts?.[0]?.text?.trim() || '';
-            await finalize(text);
-          },
-          error: (error) => {
-            console.error('Error generating scene title:', error);
-            clearTimeout(timeoutId);
-            this.generatingTitle.update(set => {
-              const newSet = new Set(set);
-              newSet.delete(sceneId);
-              return newSet;
-            });
-            alert(this.describeGeminiError(error));
-          }
-        });
-    } else if (useOpenRouter) {
-      this.openRouterApi.generateText(prompt, { model: actualModelId!, maxTokens: 200, temperature: titleSettings.temperature })
-        .subscribe({
-          next: async (response) => {
-            const text = response.choices?.[0]?.message?.content?.trim() || '';
-            await finalize(text);
-          },
-          error: (error) => {
-            console.error('Error generating scene title:', error);
-            clearTimeout(timeoutId);
-            this.generatingTitle.update(set => {
-              const newSet = new Set(set);
-              newSet.delete(sceneId);
-              return newSet;
-            });
-            alert(this.describeOpenRouterError(error));
-          }
-        });
+      this.deferResetUpdatingState();
     }
   }
 
-  private removeEmbeddedImages(content: string): string {
-    let cleaned = content.replace(/<img[^>]*src="data:image\/[^"]*"[^>]*>/gi, '[Image removed]');
-    cleaned = cleaned.replace(/!\[[^\]]*\]\(data:image\/[^)]*\)/gi, '[Image removed]');
-    cleaned = cleaned.replace(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/]{1000,}={0,2}/g, '[Image data removed]');
-    return cleaned;
-  }
-
-  private describeOpenRouterError(error: unknown): string {
-    const err = (error || {}) as { status?: number; message?: string; error?: { error?: { message?: string }, message?: string } };
-    if (!error) return 'Error generating text.';
-    if (err.status === 400) return 'Invalid request. Please check your API settings.';
-    if (err.status === 401) return 'Invalid API key. Please check your OpenRouter API key in settings.';
-    if (err.status === 403) return 'Access denied. Your API key may not have the required permissions.';
-    if (err.status === 429) return 'Rate limit reached. Please wait a moment and try again.';
-    if (err.status === 500) return 'OpenRouter server error. Please try again later.';
-    if (err.message?.includes('nicht aktiviert')) return err.message;
-    return 'Error generating text.';
-  }
-
-  private describeGeminiError(error: unknown): string {
-    const err = (error || {}) as { status?: number; message?: string };
-    if (!error) return 'Error generating text.';
-    if (err.status === 400) return 'Invalid request. Please check your API settings.';
-    if (err.status === 401) return 'Invalid API key. Please check your Google Gemini API key in settings.';
-    if (err.status === 403) return 'Access denied. Your API key may not have the required permissions.';
-    if (err.status === 429) return 'Rate limit reached. Please wait a moment and try again.';
-    if (err.status === 500) return 'Gemini server error. Please try again later.';
-    if (err.message?.includes('nicht aktiviert')) return err.message;
-    return 'Error generating text.';
-  }
-
-  // Chapter title inline editing
-  editingChapterTitles: Record<string, string> = {};
-  private savingChapterTitleSet = new Set<string>();
-
-  isEditingChapterTitle(chapterId: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this.editingChapterTitles, chapterId);
-  }
-
-  startEditChapterTitle(chapterId: string, current: string | undefined, event?: Event): void {
-    if (event) event.stopPropagation();
-    this.editingChapterTitles = { ...this.editingChapterTitles, [chapterId]: current || '' };
-  }
-
-  cancelEditChapterTitle(chapterId: string, event?: Event): void {
-    if (event) event.stopPropagation();
-    const rest = { ...this.editingChapterTitles };
-    delete rest[chapterId];
-    this.editingChapterTitles = rest;
-  }
-
-  onEditChapterTitleChange(chapterId: string, value: string): void {
-    this.editingChapterTitles = { ...this.editingChapterTitles, [chapterId]: value };
-  }
-
-  savingChapterTitle(chapterId: string): boolean {
-    return this.savingChapterTitleSet.has(chapterId);
-  }
-
-  async saveChapterTitle(chapterId: string, event?: Event): Promise<void> {
-    if (event) event.stopPropagation();
+  // --- Chapter Header Event Handlers ---
+  async onChapterTitleUpdate(event: ChapterTitleUpdateEvent): Promise<void> {
     const s = this.story();
     if (!s) return;
-    const title = (this.editingChapterTitles[chapterId] ?? '').trim();
-    if (!title) return;
-    this.savingChapterTitleSet.add(chapterId);
-    // Preserve expanded state during update - set flag BEFORE any updates
+
+    this.savingChapters.add(event.chapterId);
     this.isUpdatingStory = true;
+
     try {
-      await this.storyService.updateChapter(s.id, chapterId, { title });
-      const updatedChapters = s.chapters.map(ch => ch.id === chapterId ? { ...ch, title, updatedAt: new Date() } : ch);
+      await this.storyService.updateChapter(s.id, event.chapterId, { title: event.title });
+      const updatedChapters = s.chapters.map(ch =>
+        ch.id === event.chapterId ? { ...ch, title: event.title, updatedAt: new Date() } : ch
+      );
       this.story.set({ ...s, chapters: updatedChapters, updatedAt: new Date() });
-      this.cancelEditChapterTitle(chapterId);
-      // Use requestAnimationFrame to reset flag after rendering cycle completes
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.isUpdatingStory = false;
-        });
-      });
+      this.deferResetUpdatingState();
     } catch (e) {
       console.error('Failed to save chapter title', e);
       this.isUpdatingStory = false;
+      this.showToast('Failed to save chapter title. Please try again.', 'danger');
     } finally {
-      this.savingChapterTitleSet.delete(chapterId);
+      this.savingChapters.delete(event.chapterId);
     }
-  }
-
-  // TrackBy functions to preserve accordion state during updates
-  trackChapterById(index: number, chapter: Chapter): string {
-    return chapter.id;
-  }
-
-  trackSceneById(index: number, scene: { id: string }): string {
-    return scene.id;
-  }
-
-  private indentXmlBlock(xml: string, indentation = '    '): string {
-    if (!xml) return '';
-    return xml
-      .split('\n')
-      .map(line => line ? `${indentation}${line}` : line)
-      .join('\n');
-  }
-
-  private escapeXml(value: string | unknown): string {
-    const str = String(value ?? '');
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
-  }
-
-  private calculateSummaryMinimumWords(sceneWordCount: number): number {
-    const baseMinimum = 120;
-    if (sceneWordCount <= 2000) return baseMinimum;
-    const extraWords = sceneWordCount - 2000;
-    const increments = Math.ceil(extraWords / 500);
-    return baseMinimum + increments * 25;
   }
 
   private async scrollToScene(sceneId: string): Promise<void> {
@@ -874,12 +460,23 @@ export class StoryOutlineOverviewComponent implements OnInit {
 
         // Add a highlight effect
         element.classList.add('highlight');
-        setTimeout(() => element.classList.remove('highlight'), 2000);
+        const highlightTimeout = setTimeout(() => element.classList.remove('highlight'), 2000);
+        this.activeTimeouts.push(highlightTimeout);
       } catch (error) {
         console.error('Error scrolling to scene:', error);
         // Fallback to standard scrollIntoView
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
+  }
+
+  private async showToast(message: string, color: 'success' | 'warning' | 'danger') {
+    const toast = await this.toastController.create({
+      message,
+      duration: 4000,
+      color,
+      position: 'bottom'
+    });
+    await toast.present();
   }
 }

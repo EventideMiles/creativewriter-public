@@ -18,6 +18,7 @@ export interface BeatAI {
     originalText: string; // The text that was rewritten
     instruction: string; // The user's rewrite instruction
   };
+  stagingNotes?: string; // Meta-context for physical/positional consistency (character positions, scene setup)
 }
 
 export interface BeatAIGenerationEvent {
@@ -42,6 +43,8 @@ export interface BeatAIPromptEvent {
     selectedSceneContexts: { sceneId: string; chapterId: string; content: string; }[];
   };
   existingText?: string; // Text to be rewritten (for rewrite action)
+  textAfterBeat?: string; // Text after beat for scene beat bridging context
+  stagingNotes?: string; // Staging notes for physical/positional consistency
 }
 
 export interface BeatContentInsertEvent {

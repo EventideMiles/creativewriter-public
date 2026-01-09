@@ -20,10 +20,7 @@ import { NgSelectModule } from '@ng-select/ng-select';
 import { ModelOption } from '../../../core/models/model.interface';
 import { addIcons } from 'ionicons';
 import { closeOutline, logoGoogle, globeOutline, sparklesOutline } from 'ionicons/icons';
-import { OpenRouterIconComponent } from '../../icons/openrouter-icon.component';
-import { ClaudeIconComponent } from '../../icons/claude-icon.component';
-import { ReplicateIconComponent } from '../../icons/replicate-icon.component';
-import { OllamaIconComponent } from '../../icons/ollama-icon.component';
+import { ProviderIconComponent } from '../../../shared/components/provider-icon/provider-icon.component';
 
 @Component({
   selector: 'app-model-favorites-settings',
@@ -44,13 +41,10 @@ import { OllamaIconComponent } from '../../icons/ollama-icon.component';
     IonIcon,
     IonNote,
     IonSpinner,
-    OpenRouterIconComponent,
-    ClaudeIconComponent,
-    ReplicateIconComponent,
-    OllamaIconComponent
+    ProviderIconComponent
   ],
   templateUrl: './model-favorites-settings.component.html',
-  styleUrls: ['./model-favorites-settings.component.css']
+  styleUrls: ['./model-favorites-settings.component.scss']
 })
 export class ModelFavoritesSettingsComponent implements OnChanges {
   @Input() favoriteIds: string[] = [];
@@ -109,21 +103,6 @@ export class ModelFavoritesSettingsComponent implements OnChanges {
 
   trackById(_index: number, option: ModelOption): string {
     return option.id;
-  }
-
-  isGenericProvider(provider: string): boolean {
-    return !['openrouter', 'claude', 'replicate', 'ollama'].includes(provider);
-  }
-
-  getProviderIcon(provider: string): string {
-    switch (provider) {
-      case 'gemini':
-        return 'logo-google';
-      case 'grok':
-        return 'sparkles-outline';
-      default:
-        return 'globe-outline';
-    }
   }
 
   formatSelectedItems(items: ModelOption[]): string {

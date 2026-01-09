@@ -40,6 +40,7 @@ export class SyncedCustomBackgroundService {
   
   private customBackgrounds = signal<CustomBackgroundOption[]>([]);
   private blobUrlCache = new Map<string, string>();
+  private isPullingFromRemote = false;
   
   // Computed signal for reactive access
   backgrounds = computed(() => this.customBackgrounds());
@@ -359,6 +360,71 @@ export class SyncedCustomBackgroundService {
    */
   getCurrentUser() {
     return this.authService.getCurrentUser();
+  }
+
+  /**
+   * Pull custom backgrounds directly from remote database.
+   * Uses targeted replication instead of full sync for faster results.
+   *
+   * IMPORTANT: This does NOT stop/restart the main sync to:
+   * 1. Avoid interfering with ongoing story sync operations
+   * 2. Prevent sync from detecting "relocated" changes and doing extra work
+   */
+  async pullBackgroundsFromRemote(): Promise<void> {
+    // Guard against concurrent pulls (e.g., rapid tab switching)
+    if (this.isPullingFromRemote) {
+      return;
+    }
+
+    const remoteDb = this.databaseService.getRemoteDatabase();
+    if (!remoteDb) {
+      // Not connected to remote - skip silently
+      return;
+    }
+
+    const db = await this.databaseService.getDatabase();
+    if (!db) {
+      return;
+    }
+
+    this.isPullingFromRemote = true;
+    try {
+      // Query remote for custom background documents by type (more robust than ID prefix)
+      const result = await remoteDb.find({
+        selector: {
+          type: 'custom-background'
+        },
+        fields: ['_id']  // Only need IDs for replication
+      });
+
+      if (!result.docs || result.docs.length === 0) {
+        return; // No remote backgrounds
+      }
+
+      const docIds = (result.docs as { _id: string }[]).map(doc => doc._id);
+
+      // Targeted replication - pull only these documents
+      // Does NOT stop/restart main sync - runs alongside it
+      // Safe for small document sets (typically <20 backgrounds)
+      const replicateOptions = {
+        doc_ids: docIds,
+        return_docs: false,  // Memory optimization
+        batch_size: 10,      // Small batches to minimize impact
+        batches_limit: 2     // Limit concurrent batches
+      };
+      await db.replicate.from(
+        remoteDb,
+        replicateOptions as PouchDB.Replication.ReplicateOptions
+      );
+
+      // Reload backgrounds from local DB
+      await this.loadCustomBackgrounds();
+    } catch (error) {
+      console.warn('Failed to pull custom backgrounds from remote:', error);
+      // Silent failure - don't disrupt user experience
+    } finally {
+      this.isPullingFromRemote = false;
+    }
   }
 
   /**

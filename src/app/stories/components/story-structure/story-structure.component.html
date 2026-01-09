@@ -1,10 +1,10 @@
 <div class="story-structure" role="navigation" aria-label="Story structure">
   <div class="structure-header">
     <h2>Structure</h2>
-    <ion-button 
-      fill="clear" 
+    <ion-button
+      fill="clear"
       size="small"
-      class="close-button"
+      class="close-button cw-btn-icon"
       (click)="onCloseSidebar()"
       aria-label="Close sidebar">
       <ion-icon name="close" slot="icon-only"></ion-icon>
@@ -17,11 +17,10 @@
     </div>
     
     <div class="structure-actions">
-      <ion-button 
-        expand="block" 
-        fill="outline" 
-        color="primary" 
-        class="add-chapter-btn" 
+      <ion-button
+        expand="block"
+        fill="outline"
+        class="add-chapter-btn cw-btn-primary"
         (click)="addChapter()"
         aria-label="Add new chapter">
         <ion-icon name="add" slot="start" [attr.aria-hidden]="true"></ion-icon>
@@ -42,7 +41,7 @@
           role="treeitem"
           tabindex="0"
           [attr.aria-expanded]="expandedChapters.has(chapter.id)"
-          [attr.aria-label]="'Chapter: ' + (chapter.title || 'Untitled') + '. ' + (expandedChapters.has(chapter.id) ? 'Collapsed' : 'Expanded')">
+          [attr.aria-label]="'Chapter: ' + (chapter.title || 'Untitled') + '. ' + (expandedChapters.has(chapter.id) ? 'Expanded' : 'Collapsed')">
           <ion-icon 
             [name]="expandedChapters.has(chapter.id) ? 'chevron-down' : 'chevron-forward'" 
             slot="start" 
@@ -52,21 +51,12 @@
           </ion-icon>
           <div class="chapter-title-container">
             <div class="chapter-id-display">{{ 'C' + (chapter.chapterNumber || chapter.order) }}</div>
-            <ion-input 
-              [(ngModel)]="chapter.title" 
-              (ionBlur)="updateChapter(chapter)"
-              (click)="$event.stopPropagation()"
-              (keydown.space)="$event.stopPropagation()"
-              (keydown.enter)="$event.stopPropagation()"
-              class="chapter-title-input"
-              placeholder="Chapter Title"
-              [attr.aria-label]="'Edit chapter title'"
-            ></ion-input>
+            <ion-label class="chapter-title">{{ chapter.title || 'Chapter Title' }}</ion-label>
           </div>
-          <ion-button 
-            fill="clear" 
-            color="danger" 
-            slot="end" 
+          <ion-button
+            fill="clear"
+            class="delete-btn cw-btn-icon-danger"
+            slot="end"
             (click)="deleteChapter(chapter.id, $event)"
             [attr.aria-label]="'Delete chapter: ' + (chapter.title || 'Untitled')">
             <ion-icon name="trash" slot="icon-only" [attr.aria-hidden]="true"></ion-icon>
@@ -82,73 +72,37 @@
                 [class.active-scene]="isActiveScene(chapter.id, scene.id)"
                 (click)="selectScene(chapter.id, scene.id)"
                 (keydown)="onSceneKeyDown($event, chapter.id, scene.id)"
-                class="scene-item multi-line"
+                class="scene-item"
                 role="treeitem"
                 tabindex="0"
                 [attr.aria-selected]="isActiveScene(chapter.id, scene.id)"
                 [attr.aria-label]="'Scene: ' + (scene.title || 'Untitled') + '. ' + (getWordCount(scene)) + ' words' + (isActiveScene(chapter.id, scene.id) ? '. Currently selected' : '')">
                 
                 <div class="scene-content">
-                  <!-- Scene title and actions -->
-                  <div class="scene-title-row">
-                    <div class="scene-title-container">
-                      <div class="scene-id-display">{{ 'C' + (chapter.chapterNumber || chapter.order) + 'S' + (scene.sceneNumber || scene.order) }}</div>
-                      <div
-                        *ngIf="!isEditingTitle.has(scene.id)"
-                        class="scene-title-display"
-                        (click)="startEditingTitle(scene.id, $event)"
-                        [attr.aria-label]="'Scene title: ' + (scene.title || 'Untitled') + '. Click to edit.'"
-                        tabindex="0"
-                        (keydown.enter)="startEditingTitle(scene.id, $event)"
-                        (keydown.space)="startEditingTitle(scene.id, $event)">
-                        {{ scene.title || 'Scene Title' }}
-                      </div>
-                      <ion-input
-                        *ngIf="isEditingTitle.has(scene.id)"
-                        [(ngModel)]="scene.title"
-                        (ionBlur)="stopEditingTitle(chapter.id, scene)"
-                        (keydown.enter)="stopEditingTitle(chapter.id, scene); $event.stopPropagation()"
-                        (keydown.escape)="cancelEditingTitle(scene); $event.stopPropagation()"
-                        (keydown.space)="$event.stopPropagation()"
-                        (click)="$event.stopPropagation()"
-                        class="scene-title-input-edit"
-                        placeholder="Scene Title"
-                        fill="clear"
-                        [attr.aria-label]="'Edit scene title'"
-                        #titleInput
-                      ></ion-input>
-                    </div>
+                  <div class="scene-id-display">{{ 'C' + (chapter.chapterNumber || chapter.order) + 'S' + (scene.sceneNumber || scene.order) }}</div>
+                  <div class="scene-title-container">
+                    <ion-label class="scene-title-display">{{ scene.title || 'Scene Title' }}</ion-label>
                   </div>
-
-                  <!-- Word count and action buttons -->
-                  <div class="scene-actions-row">
-                    <ion-badge color="medium" class="word-count-badge">
-                      {{ getWordCount(scene) }} words
-                    </ion-badge>
-
-                    <div class="action-buttons">
-                      <ion-button
-                        fill="clear"
-                        size="small"
-                        color="danger"
-                        (click)="deleteScene(chapter.id, scene.id, $event)"
-                        [attr.aria-label]="'Delete scene: ' + (scene.title || 'Untitled')"
-                        (touchstart)="$event.stopPropagation()"
-                        (touchend)="$event.stopPropagation()">
-                        <ion-icon name="trash" slot="icon-only" [attr.aria-hidden]="true"></ion-icon>
-                      </ion-button>
-                    </div>
-                  </div>
+                  <span class="word-count-badge">{{ getWordCount(scene) }}w</span>
+                  <ion-button
+                    fill="clear"
+                    size="small"
+                    class="delete-btn cw-btn-icon-danger"
+                    (click)="deleteScene(chapter.id, scene.id, $event)"
+                    [attr.aria-label]="'Delete scene: ' + (scene.title || 'Untitled')"
+                    (touchstart)="$event.stopPropagation()"
+                    (touchend)="$event.stopPropagation()">
+                    <ion-icon name="trash" slot="icon-only" [attr.aria-hidden]="true"></ion-icon>
+                  </ion-button>
                 </div>
               </ion-item>
             </ng-container>
           </ion-list>
           
-          <ion-button 
-            expand="block" 
-            fill="outline" 
-            color="primary" 
-            class="add-scene-btn" 
+          <ion-button
+            expand="block"
+            fill="outline"
+            class="add-scene-btn cw-btn-secondary"
             (click)="addScene(chapter.id)"
             [attr.aria-label]="'Add new scene to chapter: ' + (chapter.title || 'Untitled')">
             <ion-icon name="add" slot="start" [attr.aria-hidden]="true"></ion-icon>

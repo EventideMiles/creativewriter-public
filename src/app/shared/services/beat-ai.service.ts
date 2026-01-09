@@ -1,8 +1,12 @@
 import { Injectable, OnDestroy, inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
-import { Observable, ReplaySubject, Subject, Subscription, catchError, finalize, from, map, of, scan, switchMap, tap } from 'rxjs';
+import { Observable, ReplaySubject, Subject, Subscription, bufferTime, catchError, filter, finalize, from, map, of, switchMap, tap } from 'rxjs';
 import { BeatAI, BeatAIGenerationEvent } from '../../stories/models/beat-ai.interface';
-import { Story, NarrativePerspective } from '../../stories/models/story.interface';
+import {
+  Story, NarrativePerspective, StoryTense,
+  DEFAULT_BEAT_TEMPLATE_SECTIONS, DEFAULT_SCENE_BEAT_TEMPLATE_SECTIONS
+} from '../../stories/models/story.interface';
+import { sectionsToTemplate, sceneBeatSectionsToTemplate, mergeBeatSections, mergeSceneBeatSections } from '../utils/template-migration';
 import { OpenRouterApiService } from '../../core/services/openrouter-api.service';
 import { GoogleGeminiApiService } from '../../core/services/google-gemini-api.service';
 import { OllamaApiService } from '../../core/services/ollama-api.service';
@@ -37,6 +41,7 @@ interface GenerationContext {
   fallbackSubscription?: Subscription;
   fallbackStatus: 'idle' | 'prepared' | 'running' | 'completed';
   latestContent?: string;
+  isCompleted?: boolean; // Tracks whether generation completed normally (vs cancelled)
 }
 
 @Injectable({
@@ -429,6 +434,7 @@ export class BeatAIService implements OnDestroy {
     action?: 'generate' | 'rewrite';
     existingText?: string;
     textAfterBeat?: string; // Text that follows this beat position (for scene beat bridging)
+    stagingNotes?: string; // Meta-context for physical/positional consistency
   } = {}): Observable<string> {
     const settings = this.settingsService.getSettings();
 
@@ -531,6 +537,8 @@ export class BeatAIService implements OnDestroy {
             if (this.pendingVisibilityFallbacks.has(beatId) && context.fallbackStatus !== 'completed') {
               return;
             }
+            // Mark as completed normally (not cancelled)
+            context.isCompleted = true;
             resultSubject.complete();
             this.cleanupContext(beatId);
           }
@@ -548,6 +556,11 @@ export class BeatAIService implements OnDestroy {
           };
         }).pipe(
           finalize(() => {
+            // Only save to history if generation completed normally (not cancelled/unsubscribed)
+            if (!context.isCompleted) {
+              console.info('[BeatAIService] Generation was cancelled, not saving to history');
+              return;
+            }
             // Save to version history after generation completes
             const finalContent = context.latestContent;
             if (finalContent && finalContent.trim().length > 0) {
@@ -575,6 +588,10 @@ export class BeatAIService implements OnDestroy {
       requestId: requestId,
       messages: messages
     }).pipe(
+      // Batch chunks every 50ms for smoother DOM updates (reduces operations for thinking models)
+      bufferTime(50),
+      filter((chunks: string[]) => chunks.length > 0),
+      map((chunks: string[]) => chunks.join('')),
       map(chunk => this.decodeStreamingChunk(beatId, chunk)),
       tap((decodedChunk: string) => {
         // Emit each chunk as it arrives
@@ -585,7 +602,7 @@ export class BeatAIService implements OnDestroy {
           isComplete: false
         });
       }),
-      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
+      // Note: Removed redundant scan() - accumulatedContent already tracks full content
       tap({
         complete: () => {
           if (this.pendingVisibilityFallbacks.has(beatId)) {
@@ -695,6 +712,10 @@ export class BeatAIService implements OnDestroy {
       requestId: requestId,
       messages: messages
     }).pipe(
+      // Batch chunks every 50ms for smoother DOM updates (reduces operations for thinking models)
+      bufferTime(50),
+      filter((chunks: string[]) => chunks.length > 0),
+      map((chunks: string[]) => chunks.join('')),
       map(chunk => this.decodeStreamingChunk(beatId, chunk)),
       tap((decodedChunk: string) => {
         // Emit each chunk as it arrives
@@ -705,7 +726,7 @@ export class BeatAIService implements OnDestroy {
           isComplete: false
         });
       }),
-      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
+      // Note: Removed redundant scan() - accumulatedContent already tracks full content
       tap({
         complete: () => {
           if (this.pendingVisibilityFallbacks.has(beatId)) {
@@ -769,6 +790,10 @@ export class BeatAIService implements OnDestroy {
       requestId: requestId,
       messages: messages
     }).pipe(
+      // Batch chunks every 50ms for smoother DOM updates (reduces operations for thinking models)
+      bufferTime(50),
+      filter((chunks: string[]) => chunks.length > 0),
+      map((chunks: string[]) => chunks.join('')),
       map(chunk => this.decodeStreamingChunk(beatId, chunk)),
       tap((decodedChunk: string) => {
         // Emit each chunk as it arrives
@@ -779,7 +804,7 @@ export class BeatAIService implements OnDestroy {
           isComplete: false
         });
       }),
-      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
+      // Note: Removed redundant scan() - accumulatedContent already tracks full content
       tap({
         complete: () => {
           if (this.pendingVisibilityFallbacks.has(beatId)) {
@@ -843,6 +868,10 @@ export class BeatAIService implements OnDestroy {
       requestId: requestId,
       messages: messages
     }).pipe(
+      // Batch chunks every 50ms for smoother DOM updates (reduces operations for thinking models)
+      bufferTime(50),
+      filter((chunks: string[]) => chunks.length > 0),
+      map((chunks: string[]) => chunks.join('')),
       map(chunk => this.decodeStreamingChunk(beatId, chunk)),
       tap((decodedChunk: string) => {
         // Emit each chunk as it arrives
@@ -853,7 +882,7 @@ export class BeatAIService implements OnDestroy {
           isComplete: false
         });
       }),
-      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
+      // Note: Removed redundant scan() - accumulatedContent already tracks full content
       tap({
         complete: () => {
           if (this.pendingVisibilityFallbacks.has(beatId)) {
@@ -964,6 +993,10 @@ export class BeatAIService implements OnDestroy {
       requestId: requestId,
       messages: messages
     }).pipe(
+      // Batch chunks every 50ms for smoother DOM updates (reduces operations for thinking models)
+      bufferTime(50),
+      filter((chunks: string[]) => chunks.length > 0),
+      map((chunks: string[]) => chunks.join('')),
       map(chunk => this.decodeStreamingChunk(beatId, chunk)),
       tap((decodedChunk: string) => {
         // Emit each chunk as it arrives
@@ -974,7 +1007,7 @@ export class BeatAIService implements OnDestroy {
           isComplete: false
         });
       }),
-      scan((acc, decodedChunk) => acc + decodedChunk, ''), // Accumulate chunks
+      // Note: Removed redundant scan() - accumulatedContent already tracks full content
       tap({
         complete: () => {
           if (this.pendingVisibilityFallbacks.has(beatId)) {
@@ -1105,6 +1138,7 @@ export class BeatAIService implements OnDestroy {
     action?: 'generate' | 'rewrite';
     existingText?: string;
     textAfterBeat?: string; // Text that follows this beat position (for scene beat bridging)
+    stagingNotes?: string; // Meta-context for physical/positional consistency
   }): Observable<string> {
     if (!options.storyId) {
       return of(userPrompt);
@@ -1196,12 +1230,15 @@ export class BeatAIService implements OnDestroy {
         
             // Find protagonist for point of view from Codex
             const protagonist = this.findProtagonist(filteredCodexEntries);
-            const pointOfView = this.generatePointOfViewXml(
+            const pointOfViewText = this.generatePointOfViewText(
               story.settings?.narrativePerspective,
               protagonist
             );
-        
-        
+
+            // Generate tense text
+            const tenseText = this.generateTenseText(story.settings?.tense);
+
+
         const codexText = filteredCodexEntries.length > 0 
           ? '<codex>\n' + filteredCodexEntries.map(categoryData => {
               const categoryType = this.getCategoryXmlType(categoryData.category);
@@ -1293,6 +1330,9 @@ ${userPrompt}
 Please rewrite the above text according to the instructions. Only output the rewritten text, nothing else.`;
         }
 
+        // Build rules text if rules exist
+        const rulesText = this.buildRulesText(story.settings?.beatRules);
+
         // Build template placeholders
         const placeholdersRaw = {
           systemMessage: story.settings!.systemMessage,
@@ -1302,14 +1342,13 @@ Please rewrite the above text according to the instructions. Only output the rew
           sceneFullText: sceneContext, // Use the sceneContext we built above
           wordCount: (options.wordCount || 200).toString(),
           prompt: finalPrompt,
-          pointOfView: pointOfView,
-          writingStyle: story.settings!.beatInstruction === 'continue'
-            ? 'Continue the story'
-            : 'Stay in the moment'
+          pointOfView: pointOfViewText,
+          tense: tenseText,
+          rules: rulesText,
+          stagingNotes: options.stagingNotes || ''
         } as const;
 
-        // Escape only plain-text placeholders that are injected into XML blocks
-        // Keep XML fragments (codexEntries, storySoFar, pointOfView) as-is
+        // Escape plain-text placeholders, keep XML fragments (codexEntries, storySoFar) as-is
         const placeholders: Record<string, string> = {
           systemMessage: this.escapeXml(placeholdersRaw.systemMessage),
           codexEntries: placeholdersRaw.codexEntries,
@@ -1318,29 +1357,76 @@ Please rewrite the above text according to the instructions. Only output the rew
           sceneFullText: this.escapeXml(placeholdersRaw.sceneFullText),
           wordCount: placeholdersRaw.wordCount,
           prompt: this.escapeXml(placeholdersRaw.prompt),
-          pointOfView: placeholdersRaw.pointOfView,
-          writingStyle: this.escapeXml(placeholdersRaw.writingStyle)
+          pointOfView: this.escapeXml(placeholdersRaw.pointOfView),
+          tense: this.escapeXml(placeholdersRaw.tense),
+          rules: this.escapeXml(placeholdersRaw.rules),
+          stagingNotes: this.escapeXml(placeholdersRaw.stagingNotes)
         };
 
         // Log the final codex text to debug
-        
-        // Use template from story settings and replace placeholders
-        let processedTemplate = story.settings!.beatGenerationTemplate;
-        
+
+        // Build template from sections (always use section-based templates)
+        let processedTemplate: string;
+        console.log('[BeatAI] Using section-based template, beatType:', options.beatType, 'action:', options.action);
+
+        // For rewrite actions, use rewrite-specific template sections
+        if (options.action === 'rewrite') {
+          const rewriteSections = {
+            ...DEFAULT_BEAT_TEMPLATE_SECTIONS,
+            userMessagePreamble: 'You are rewriting a specific piece of story content. Here is the context:',
+            objective: `Rewrite ONLY the text provided in the <beat_requirements> section under "EXISTING TEXT TO REWRITE".
+Do NOT generate new content beyond what is provided.
+Only make changes where the rewrite instructions specifically require it.
+Preserve all aspects of the original text that are not addressed by the instructions.`,
+            narrativeParameters: `<point_of_view>{pointOfView}</point_of_view>
+<tense>Match the tense of the original text</tense>
+<length>Preserve the approximate length of the original text unless instructions specify otherwise</length>`,
+            beatRequirements: '{prompt}',  // prompt contains EXISTING TEXT TO REWRITE and REWRITE INSTRUCTIONS
+            styleGuidance: `- Maintain the exact tone and narrative voice of the original text
+- Preserve the writing style unless the rewrite instructions specifically request a change`,
+            constraints: `- Rewrite ONLY the provided text - do not add new scenes, paragraphs, or story elements
+- Only modify what the rewrite instructions specifically ask for
+- Preserve the original length unless the instructions explicitly request a change
+- Maintain consistency with the story context provided above
+- Do NOT continue the story or add new content`,
+            generatePrompt: 'Output the rewritten text now:'
+          };
+          processedTemplate = sectionsToTemplate(rewriteSections);
+          console.log('[BeatAI] Built template for rewrite action');
+        } else if (options.beatType === 'scene') {
+          // Use scene beat sections - smart merge that prefers non-empty values over defaults
+          const sceneSections = mergeSceneBeatSections(
+            DEFAULT_SCENE_BEAT_TEMPLATE_SECTIONS,
+            story.settings?.sceneBeatTemplateSections
+          );
+          processedTemplate = sceneBeatSectionsToTemplate(
+            sceneSections,
+            undefined, // systemMessage placeholder will be replaced below
+            options.textAfterBeat
+          );
+          console.log('[BeatAI] Built template from scene beat sections, textAfterBeat:', options.textAfterBeat ? 'present' : 'none');
+        } else {
+          // Use story beat sections - smart merge that prefers non-empty values over defaults
+          const beatSections = mergeBeatSections(
+            DEFAULT_BEAT_TEMPLATE_SECTIONS,
+            story.settings?.beatTemplateSections
+          );
+          processedTemplate = sectionsToTemplate(beatSections);
+          console.log('[BeatAI] Built template from story beat sections');
+        }
+
+        // Replace placeholders in the template
         Object.entries(placeholders).forEach(([key, value]) => {
           const placeholder = `{${key}}`;
           const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
           processedTemplate = processedTemplate.replace(regex, value || '');
         });
 
-        // For scene beats, replace the beat_generation_task with scene-specific instructions
-        console.log('[BeatAI] buildStructuredPromptFromTemplate - beatType:', options.beatType);
-        if (options.beatType === 'scene') {
-          console.log('[BeatAI] Using scene beat instructions, textAfterBeat:', options.textAfterBeat ? 'present' : 'none');
-          processedTemplate = this.replaceWithSceneBeatInstructions(
-            processedTemplate,
-            placeholders,
-            options.textAfterBeat
+        // Remove staging_notes section if no staging notes provided
+        if (!options.stagingNotes?.trim()) {
+          processedTemplate = processedTemplate.replace(
+            /<staging_notes>[\s\S]*?<\/staging_notes>\s*/g,
+            ''
           );
         }
 
@@ -1433,7 +1519,7 @@ Please rewrite the above text according to the instructions. Only output the rew
   <narrative_parameters>
     ${placeholders['pointOfView']}
     <word_count>${placeholders['wordCount']} words (±50 words acceptable)</word_count>
-    <tense>Match the established tense</tense>
+    <tense>${placeholders['tense']}</tense>
   </narrative_parameters>
 
   <focus_areas>
@@ -1451,7 +1537,6 @@ ${bridgingSection}
   <style_guidance>
     - Match the exact tone and narrative voice of the current scene
     - Maintain the established balance of dialogue, action, and introspection
-    - ${placeholders['writingStyle']}
     - Deepen the reader's connection to the viewpoint character
   </style_guidance>
 
@@ -1527,6 +1612,7 @@ ${bridgingSection}
       };
       action?: 'generate' | 'rewrite';
       existingText?: string;
+      stagingNotes?: string;
     }
   ): Promise<void> {
     // Don't save if content is empty or fallback
@@ -1541,6 +1627,19 @@ ${bridgingSection}
     }
 
     try {
+      // Check for duplicate content in existing history
+      const existingHistory = await this.beatHistoryService.getHistory(beatId);
+      if (existingHistory) {
+        const normalizedContent = content.trim();
+        const isDuplicate = existingHistory.versions.some(
+          v => v.content.trim() === normalizedContent
+        );
+        if (isDuplicate) {
+          console.info('[BeatAIService] Skipping duplicate content in history');
+          return;
+        }
+      }
+
       // Extract selected scenes from custom context
       const selectedScenes = options.customContext?.selectedSceneContexts?.map(ctx => ({
         sceneId: ctx.sceneId,
@@ -1562,7 +1661,8 @@ ${bridgingSection}
           selectedScenes,
           includeStoryOutline: options.customContext?.includeStoryOutline,
           action: options.action || 'generate',
-          existingText: options.existingText
+          existingText: options.existingText,
+          stagingNotes: options.stagingNotes
         }
       );
     } catch (error) {
@@ -1583,6 +1683,8 @@ ${bridgingSection}
       includeStoryOutline: boolean;
       selectedSceneContexts: { sceneId: string; chapterId: string; content: string; }[];
     };
+    textAfterBeat?: string;
+    stagingNotes?: string;
   }): Observable<string> {
     return this.buildStructuredPromptFromTemplate(userPrompt, beatId, options);
   }
@@ -1643,6 +1745,13 @@ ${bridgingSection}
       .replace(/'/g, '&apos;');
   }
 
+  private buildRulesText(rules?: string): string {
+    if (!rules || rules.trim().length === 0) {
+      return '';
+    }
+    return rules.trim();
+  }
+
   private sanitizeXmlTagName(name: string | unknown): string {
     // Convert to camelCase and remove invalid characters
     const str = String(name || '');
@@ -1667,7 +1776,7 @@ ${bridgingSection}
     return null;
   }
 
-  private generatePointOfViewXml(
+  private generatePointOfViewText(
     perspective: NarrativePerspective | undefined,
     protagonistName: string | null
   ): string {
@@ -1684,10 +1793,21 @@ ${bridgingSection}
 
     // Include character for first/third-limited/second person when protagonist is known
     if (protagonistName && ['first-person', 'third-person-limited', 'second-person'].includes(effectivePerspective)) {
-      return `<pointOfView type="${povType}" character="${this.escapeXml(protagonistName)}"/>`;
+      return `${povType}, character: ${protagonistName}`;
     }
 
-    return `<pointOfView type="${povType}"/>`;
+    return povType;
+  }
+
+  private generateTenseText(tense: StoryTense | undefined): string {
+    const effectiveTense = tense || 'past';
+
+    const tenseMap: Record<StoryTense, string> = {
+      'past': 'past tense',
+      'present': 'present tense'
+    };
+
+    return tenseMap[effectiveTense];
   }
 
   private convertCodexEntriesToRelevanceFormat(codexEntries: { category: string; entries: CodexEntry[]; icon?: string }[]): CodexRelevanceEntry[] {

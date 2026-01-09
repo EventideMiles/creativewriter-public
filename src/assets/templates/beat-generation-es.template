@@ -24,7 +24,7 @@
   <narrative_parameters>
     {pointOfView}
     <word_count>{wordCount} palabras (±50 palabras aceptable)</word_count>
-    <tense>Coincidir con el tiempo establecido (típicamente pasado)</tense>
+    <tense>{tense}</tense>
   </narrative_parameters>
 
   <beat_requirements>
@@ -34,7 +34,6 @@
   <style_guidance>
     - Coincidir exactamente con el tono y la voz narrativa de la escena actual
     - Mantener el equilibrio establecido entre diálogo, acción e introspección
-    - {writingStyle}
     - Terminar en un momento de significación, punto de decisión o transición natural
   </style_guidance>
 
@@ -44,6 +43,8 @@
     - NO introducir subtramas no relacionadas o nuevos elementos principales
     - NO escribir más allá de lo específicamente solicitado en los requisitos del beat
   </constraints>
+
+  {rules}
 
   <output_format>
     Prosa narrativa pura. Sin meta-comentarios, marcadores de escena, títulos de capítulo o notas del autor.

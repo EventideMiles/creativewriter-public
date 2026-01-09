@@ -17,9 +17,10 @@
           [leftActions]="leftActions"
           [rightActions]="rightActions"
           [showBurgerMenu]="true"
-          [burgerMenuItems]="burgerMenuItems"
+          [burgerMenuGroups]="burgerMenuGroups"
           [burgerMenuFooterContent]="burgerMenuFooter"
           (burgerMenuToggle)="onBurgerMenuToggle()">
+          <app-generation-status slot="user-status"></app-generation-status>
         </app-header>
         
         <ng-template #headerTitle>
@@ -240,5 +241,20 @@
         (opened)="openBeatNavPanel()"
         (beatSelected)="onBeatSelected($event)">
       </app-beat-navigation-panel>
+
+      <!-- Beat Input FAB -->
+      <ion-fab
+        *ngIf="showBeatFab"
+        slot="fixed"
+        vertical="bottom"
+        horizontal="end"
+        class="beat-input-fab">
+        <ion-fab-button
+          (click)="onBeatFabClick()"
+          color="primary"
+          [attr.aria-label]="'Insert beat at cursor position'">
+          <ion-icon name="sparkles-outline"></ion-icon>
+        </ion-fab-button>
+      </ion-fab>
       </div>
     </ion-split-pane>

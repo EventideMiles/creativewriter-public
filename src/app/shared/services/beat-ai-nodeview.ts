@@ -1,6 +1,7 @@
 import { ComponentRef, Injector, ApplicationRef, createComponent, EnvironmentInjector } from '@angular/core';
 import { EditorView, NodeView } from 'prosemirror-view';
 import { Node as ProseMirrorNode } from 'prosemirror-model';
+import { Subscription } from 'rxjs';
 import { BeatAIComponent } from '../../stories/components/beat-ai/beat-ai.component';
 import { BeatAI, BeatAIPromptEvent } from '../../stories/models/beat-ai.interface';
 import { ProseMirrorEditorService } from './prosemirror-editor.service';
@@ -15,6 +16,17 @@ export class BeatAINodeView implements NodeView {
     chapterId?: string;
     sceneId?: string;
   };
+
+  // Event handler references for proper cleanup (prevents memory leaks)
+  private handleMousedown: ((e: Event) => void) | null = null;
+  private handleFocusin: ((e: Event) => void) | null = null;
+  private handleInput: ((e: Event) => void) | null = null;
+
+  // EventEmitter subscription references for proper cleanup (prevents memory leaks)
+  private promptSubmitSub: Subscription | null = null;
+  private contentUpdateSub: Subscription | null = null;
+  private deleteSub: Subscription | null = null;
+  private beatFocusSub: Subscription | null = null;
 
   constructor(
     private node: ProseMirrorNode,
@@ -64,21 +76,21 @@ export class BeatAINodeView implements NodeView {
       this.componentRef.instance.sceneId = this.storyContext.sceneId;
     }
     
-    // Subscribe to component outputs
-    this.componentRef.instance.promptSubmit.subscribe((event: BeatAIPromptEvent) => {
+    // Subscribe to component outputs and store references for cleanup
+    this.promptSubmitSub = this.componentRef.instance.promptSubmit.subscribe((event: BeatAIPromptEvent) => {
       this.onPromptSubmit(event);
     });
-    
-    this.componentRef.instance.contentUpdate.subscribe((beatData: BeatAI) => {
+
+    this.contentUpdateSub = this.componentRef.instance.contentUpdate.subscribe((beatData: BeatAI) => {
       this.updateNodeAttrs(beatData);
       this.onContentUpdate(beatData);
     });
-    
-    this.componentRef.instance.delete.subscribe(() => {
+
+    this.deleteSub = this.componentRef.instance.delete.subscribe(() => {
       this.deleteNode();
     });
-    
-    this.componentRef.instance.beatFocus.subscribe(() => {
+
+    this.beatFocusSub = this.componentRef.instance.beatFocus.subscribe(() => {
       // When beat AI gets focus, hide any open slash dropdown
       if (this.onBeatFocus) {
         this.onBeatFocus();
@@ -105,6 +117,12 @@ export class BeatAINodeView implements NodeView {
 
     this.node = node;
     const newBeatData = this.createBeatDataFromNode(node);
+
+    // Update the data-beat-id attribute for navigation (fixes scene-switch navigation bug)
+    // This ensures the DOM element has the correct beat ID after NodeView reuse
+    if (newBeatData.id && newBeatData.id !== this.beatData?.id) {
+      this.dom.setAttribute('data-beat-id', newBeatData.id);
+    }
 
     // Only update if the component is not currently generating
     // This preserves the component's isGenerating state during streaming
@@ -138,29 +156,32 @@ export class BeatAINodeView implements NodeView {
 
   private setupEventHandlers(): void {
     // Prevent node selection when clicking on interactive elements
-    this.dom.addEventListener('mousedown', (event) => {
+    this.handleMousedown = (event: Event) => {
       const target = event.target as HTMLElement;
       if (target) {
         const interactiveElements = ['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'];
-        const isInteractive = interactiveElements.includes(target.tagName) || 
+        const isInteractive = interactiveElements.includes(target.tagName) ||
                              target.contentEditable === 'true' ||
                              target.closest('button, input, textarea, select');
-        
+
         if (isInteractive) {
           event.stopPropagation();
         }
       }
-    });
+    };
+    this.dom.addEventListener('mousedown', this.handleMousedown);
 
     // Handle focus events
-    this.dom.addEventListener('focusin', (event) => {
+    this.handleFocusin = (event: Event) => {
       event.stopPropagation();
-    });
+    };
+    this.dom.addEventListener('focusin', this.handleFocusin);
 
     // Handle input events
-    this.dom.addEventListener('input', (event) => {
+    this.handleInput = (event: Event) => {
       event.stopPropagation();
-    });
+    };
+    this.dom.addEventListener('input', this.handleInput);
   }
 
   selectNode(): void {
@@ -187,7 +208,8 @@ export class BeatAINodeView implements NodeView {
       selectedScenes: attrs['selectedScenes'] ? JSON.parse(attrs['selectedScenes']) : undefined,
       includeStoryOutline: attrs['includeStoryOutline'] !== undefined ? attrs['includeStoryOutline'] : true,
       currentVersionId: attrs['currentVersionId'] || undefined,
-      hasHistory: attrs['hasHistory'] || false
+      hasHistory: attrs['hasHistory'] || false,
+      stagingNotes: attrs['stagingNotes'] || undefined
     };
   }
 
@@ -217,6 +239,8 @@ export class BeatAINodeView implements NodeView {
     if (beatData.includeStoryOutline !== undefined) {
       attrs['includeStoryOutline'] = beatData.includeStoryOutline;
     }
+    // Always include stagingNotes, preserving existing value if not provided
+    attrs['stagingNotes'] = beatData.stagingNotes ?? this.node.attrs['stagingNotes'] ?? '';
 
     const tr = this.view.state.tr.setNodeMarkup(pos, undefined, attrs);
     this.view.dispatch(tr);
@@ -262,10 +286,42 @@ export class BeatAINodeView implements NodeView {
   }
 
   destroy(): void {
+    // Remove event listeners to prevent memory leaks
+    if (this.handleMousedown) {
+      this.dom.removeEventListener('mousedown', this.handleMousedown);
+      this.handleMousedown = null;
+    }
+    if (this.handleFocusin) {
+      this.dom.removeEventListener('focusin', this.handleFocusin);
+      this.handleFocusin = null;
+    }
+    if (this.handleInput) {
+      this.dom.removeEventListener('input', this.handleInput);
+      this.handleInput = null;
+    }
+
+    // Unsubscribe from EventEmitter subscriptions to prevent memory leaks
+    if (this.promptSubmitSub) {
+      this.promptSubmitSub.unsubscribe();
+      this.promptSubmitSub = null;
+    }
+    if (this.contentUpdateSub) {
+      this.contentUpdateSub.unsubscribe();
+      this.contentUpdateSub = null;
+    }
+    if (this.deleteSub) {
+      this.deleteSub.unsubscribe();
+      this.deleteSub = null;
+    }
+    if (this.beatFocusSub) {
+      this.beatFocusSub.unsubscribe();
+      this.beatFocusSub = null;
+    }
+
     // Deregister from ProseMirrorEditorService
     const proseMirrorService = this.injector.get(ProseMirrorEditorService);
     proseMirrorService.unregisterBeatNodeView(this);
-    
+
     // Clean up component
     if (this.componentRef) {
       this.componentRef.destroy();

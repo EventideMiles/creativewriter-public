@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { Story, Chapter, Scene, DEFAULT_STORY_SETTINGS, NarrativePerspective } from '../models/story.interface';
+import { Story, Chapter, Scene, DEFAULT_STORY_SETTINGS, NarrativePerspective, StoryTense } from '../models/story.interface';
 import { DatabaseService } from '../../core/services/database.service';
 import { DeviceService } from '../../core/services/device.service';
-import { getSystemMessage, getBeatGenerationTemplate } from '../../shared/resources/system-messages';
+import { getSystemMessage, getBeatGenerationTemplate, getDefaultBeatRules } from '../../shared/resources/system-messages';
 import { StoryLanguage } from '../../ui/components/language-selection-dialog/language-selection-dialog.component';
 import { BeatHistoryService } from '../../shared/services/beat-history.service';
 import { StoryMetadataIndexService } from './story-metadata-index.service';
@@ -25,6 +25,14 @@ export class StoryService {
   // Performance optimization: Cache for story previews and word counts
   private previewCache = new Map<string, string>();
   private wordCountCache = new Map<string, number>();
+
+  // Sync push throttling - PouchDB live sync with filters doesn't push local changes
+  // so we need to manually trigger push after saves
+  private pushPending = false;
+  private lastPushTime = 0;
+  private pushTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pendingStoryId: string | null = null;
+  private readonly PUSH_THROTTLE_MS = 10000; // Max one push every 10 seconds
 
   constructor() {
     // Ensure metadata index exists and is up-to-date
@@ -190,7 +198,7 @@ export class StoryService {
     }
   }
 
-  async createStory(language: StoryLanguage = 'en', narrativePerspective?: NarrativePerspective): Promise<Story> {
+  async createStory(language: StoryLanguage = 'en', narrativePerspective?: NarrativePerspective, tense?: StoryTense): Promise<Story> {
     this.db = await this.databaseService.getDatabase();
     
     const firstChapter: Chapter = {
@@ -213,10 +221,11 @@ export class StoryService {
 
     const storyId = this.generateId();
     
-    // Load language-specific templates
-    const [systemMessage, beatTemplate] = await Promise.all([
+    // Load language-specific templates and default beat rules
+    const [systemMessage, beatTemplate, defaultBeatRules] = await Promise.all([
       getSystemMessage(language),
-      getBeatGenerationTemplate(language)
+      getBeatGenerationTemplate(language),
+      getDefaultBeatRules(language)
     ]);
     
     const deviceInfo = this.deviceService.getDeviceInfo();
@@ -230,8 +239,10 @@ export class StoryService {
         ...DEFAULT_STORY_SETTINGS,
         systemMessage: systemMessage,
         beatGenerationTemplate: beatTemplate,
+        beatRules: defaultBeatRules,
         language: language,
-        ...(narrativePerspective && { narrativePerspective })
+        ...(narrativePerspective && { narrativePerspective }),
+        ...(tense && { tense })
       },
       schemaVersion: CURRENT_SCHEMA_VERSION, // Mark as current version
       // Don't set order here - let it be undefined so it appears at top with latest updatedAt
@@ -289,10 +300,55 @@ export class StoryService {
       this.metadataIndexService.updateStoryMetadata(updatedStory).catch(err => {
         console.error('[StoryService] Failed to update metadata index after update:', err);
       });
+
+      // Manually trigger sync push - PouchDB live sync with filters doesn't push local changes
+      this.scheduleSyncPush(updatedStory._id || updatedStory.id);
     } catch (error) {
       console.error('Error updating story:', error);
       throw error;
     }
+  }
+
+  /**
+   * Schedule a throttled sync push after story saves.
+   * Required because PouchDB live sync with filter functions doesn't detect local changes.
+   */
+  private scheduleSyncPush(storyId: string): void {
+    this.pendingStoryId = storyId;
+
+    const now = Date.now();
+    const timeSinceLastPush = now - this.lastPushTime;
+
+    if (timeSinceLastPush < this.PUSH_THROTTLE_MS) {
+      if (!this.pushPending) {
+        this.pushPending = true;
+        const delay = this.PUSH_THROTTLE_MS - timeSinceLastPush;
+        this.pushTimeout = setTimeout(() => this.executeSyncPush(), delay);
+      }
+      return;
+    }
+
+    this.executeSyncPush();
+  }
+
+  private executeSyncPush(): void {
+    const storyId = this.pendingStoryId;
+    this.pushPending = false;
+    this.pushTimeout = null;
+    this.pendingStoryId = null;
+    this.lastPushTime = Date.now();
+
+    if (!storyId) return;
+
+    // Only push story document - metadata index is synced via live sync
+    // when updateStoryMetadata() writes to local DB
+    this.databaseService.pushDocuments([storyId]).then(result => {
+      if (result.docsProcessed > 0) {
+        console.info(`[StoryService] Pushed story ${storyId}: ${result.docsProcessed} docs`);
+      }
+    }).catch(err => {
+      console.warn('[StoryService] Push failed (live sync will retry):', err);
+    });
   }
 
   async deleteStory(id: string): Promise<void> {

@@ -1,4 +1,23 @@
-export interface ImageGenerationModel {
+// Re-export all types from the provider interface
+export type {
+  ImageProvider,
+  ImageModelCapabilities,
+  ImageGenerationModel,
+  ImageGenerationRequest,
+  GeneratedImage,
+  ImageGenerationResult,
+  ImageGenerationJob,
+  IImageProvider,
+  ModelCacheEntry
+} from '../services/image-providers/image-provider.interface';
+
+// Legacy interfaces for backward compatibility with old code
+// These can be removed once all components are updated
+
+/**
+ * @deprecated Use ImageGenerationModel from image-provider.interface instead
+ */
+export interface LegacyImageGenerationModel {
   id: string;
   name: string;
   description: string;
@@ -8,6 +27,9 @@ export interface ImageGenerationModel {
   maxBatchSize?: number;
 }
 
+/**
+ * @deprecated Use ImageModelCapabilities instead
+ */
 export interface ModelInput {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'integer' | 'file' | 'array';
@@ -19,11 +41,17 @@ export interface ModelInput {
   required?: boolean;
 }
 
-export interface ImageGenerationRequest {
+/**
+ * @deprecated Use ImageGenerationRequest from image-provider.interface instead
+ */
+export interface LegacyImageGenerationRequest {
   version: string;
   input: Record<string, unknown>;
 }
 
+/**
+ * @deprecated Use ImageGenerationResult from image-provider.interface instead
+ */
 export interface ImageGenerationResponse {
   id: string;
   status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
@@ -35,7 +63,10 @@ export interface ImageGenerationResponse {
   };
 }
 
-export interface ImageGenerationJob {
+/**
+ * @deprecated Use ImageGenerationJob from image-provider.interface instead
+ */
+export interface LegacyImageGenerationJob {
   id: string;
   model: string;
   prompt: string;
@@ -44,6 +75,6 @@ export interface ImageGenerationJob {
   createdAt: Date;
   completedAt?: Date;
   imageUrl?: string;
-  imageUrls?: string[]; // For multiple images
+  imageUrls?: string[];
   error?: string;
 }

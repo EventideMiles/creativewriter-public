@@ -24,7 +24,7 @@
   <narrative_parameters>
     {pointOfView}
     <word_count>{wordCount} words (±50 words acceptable)</word_count>
-    <tense>Match the established tense (typically past tense)</tense>
+    <tense>{tense}</tense>
   </narrative_parameters>
 
   <beat_requirements>
@@ -34,7 +34,6 @@
   <style_guidance>
     - Match the exact tone and narrative voice of the current scene
     - Maintain the established balance of dialogue, action, and introspection
-    - {writingStyle}
     - End on a moment of significance, decision point, or natural transition
   </style_guidance>
 
@@ -44,6 +43,8 @@
     - Do NOT introduce unrelated subplots or major new story elements
     - Do NOT write beyond what is specifically requested in the beat requirements
   </constraints>
+
+  {rules}
 
   <output_format>
     Pure narrative prose. No meta-commentary, scene markers, chapter headings, or author notes.

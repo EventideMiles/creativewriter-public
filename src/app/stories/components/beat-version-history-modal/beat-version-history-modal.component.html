@@ -68,7 +68,20 @@
       <ion-card-content>
         <!-- Version Prompt (if different from current) -->
         <div class="version-prompt" *ngIf="version.prompt && version.prompt !== currentPrompt">
-          <strong>Prompt:</strong> <em>{{ version.prompt }}</em>
+          <div class="prompt-content">
+            <strong>Prompt:</strong> <em>{{ version.prompt }}</em>
+          </div>
+          <ion-button
+            fill="clear"
+            size="small"
+            class="copy-btn"
+            (click)="copyPrompt(version, $event)"
+            [title]="copiedPromptId === version.versionId ? 'Copied!' : 'Copy prompt'">
+            <ion-icon
+              [name]="copiedPromptId === version.versionId ? 'checkmark-outline' : 'copy-outline'"
+              slot="icon-only">
+            </ion-icon>
+          </ion-button>
         </div>
 
         <!-- Original Text (for rewrites) -->
@@ -99,24 +112,44 @@
           </small>
         </div>
 
+        <!-- Staging Notes -->
+        <div class="staging-notes-info" *ngIf="version.stagingNotes">
+          <strong>Staging Notes:</strong>
+          <div class="staging-notes-content">
+            {{ version.stagingNotes }}
+          </div>
+        </div>
+
         <!-- Actions -->
         <div class="version-actions">
           <ion-button
             size="small"
             fill="clear"
-            (click)="toggleExpanded(version)">
+            (click)="toggleExpanded(version)"
+            [title]="version.expanded ? 'Show less' : 'View full content'">
             <ion-icon
               [name]="version.expanded ? 'chevron-up' : 'chevron-down'"
-              slot="start">
+              slot="icon-only">
             </ion-icon>
-            {{ version.expanded ? 'Show Less' : 'View Full' }}
+          </ion-button>
+
+          <ion-button
+            size="small"
+            fill="clear"
+            (click)="copyContent(version, $event)"
+            [title]="copiedContentId === version.versionId ? 'Copied!' : 'Copy text'">
+            <ion-icon
+              [name]="copiedContentId === version.versionId ? 'checkmark-outline' : 'copy-outline'"
+              slot="icon-only">
+            </ion-icon>
           </ion-button>
 
           <ion-button
             size="small"
             fill="solid"
-            (click)="restoreVersion(version)">
-            Restore
+            (click)="restoreVersion(version)"
+            title="Restore this version">
+            <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
           </ion-button>
         </div>
       </ion-card-content>

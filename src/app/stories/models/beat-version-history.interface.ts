@@ -51,6 +51,9 @@ export interface BeatVersion {
 
   /** For rewrite actions: the original text that was rewritten */
   existingText?: string;
+
+  /** Staging notes for physical/positional consistency */
+  stagingNotes?: string;
 }
 
 /**

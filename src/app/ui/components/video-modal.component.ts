@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { VideoService } from '../../shared/services/video.service';
 import { StoredVideo } from '../../shared/models/video.interface';
+import { DialogService } from '../../core/services/dialog.service';
 
 @Component({
   selector: 'app-video-modal',
@@ -403,6 +404,7 @@ export class VideoModalComponent implements OnInit, OnDestroy, OnChanges {
   private videoService = inject(VideoService);
   private cdr = inject(ChangeDetectorRef);
   private zone = inject(NgZone);
+  private dialogService = inject(DialogService);
 
   // State
   currentVideo: StoredVideo | null = null;
@@ -504,12 +506,12 @@ export class VideoModalComponent implements OnInit, OnDestroy, OnChanges {
 
   private handleFile(file: File): void {
     if (!file.type.startsWith('video/')) {
-      alert('Please select a video file.');
+      this.dialogService.showError({ header: 'Invalid File', message: 'Please select a video file.' });
       return;
     }
 
     if (file.size > 50 * 1024 * 1024) { // 50MB limit
-      alert('Video is too large. Maximum size: 50MB');
+      this.dialogService.showError({ header: 'File Too Large', message: 'Video is too large. Maximum size: 50MB' });
       return;
     }
 
@@ -530,7 +532,7 @@ export class VideoModalComponent implements OnInit, OnDestroy, OnChanges {
         this.uploadPreview = null;
         this.uploadedFile = null;
       });
-      alert('Could not read the selected video. Please try again.');
+      this.dialogService.showError({ header: 'Read Error', message: 'Could not read the selected video. Please try again.' });
     };
     reader.readAsDataURL(file);
   }
@@ -568,7 +570,7 @@ export class VideoModalComponent implements OnInit, OnDestroy, OnChanges {
       }
     } catch (error) {
       console.error('Error saving video:', error);
-      alert('Error saving video. Please try again.');
+      this.dialogService.showError({ header: 'Save Error', message: 'Error saving video. Please try again.' });
     } finally {
       this.applyChanges(() => {
         this.isProcessing = false;
@@ -592,7 +594,11 @@ export class VideoModalComponent implements OnInit, OnDestroy, OnChanges {
   async removeVideo(): Promise<void> {
     if (!this.imageId || !this.currentVideo) return;
 
-    const confirmed = confirm('Do you really want to remove the link between image and video?');
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Remove Video',
+      message: 'Do you really want to remove the link between image and video?',
+      confirmText: 'Remove'
+    });
     if (!confirmed) return;
 
     try {
@@ -603,7 +609,10 @@ export class VideoModalComponent implements OnInit, OnDestroy, OnChanges {
       });
     } catch (error) {
       console.error('Error removing association:', error);
-      alert('Error removing association.');
+      await this.dialogService.showError({
+        header: 'Error',
+        message: 'Error removing video association. Please try again.'
+      });
     }
   }
 
@@ -622,7 +631,7 @@ export class VideoModalComponent implements OnInit, OnDestroy, OnChanges {
 
   onVideoError(): void {
     console.error('Error loading video');
-    alert('Error loading video.');
+    this.dialogService.showError({ header: 'Video Error', message: 'Error loading video.' });
   }
 
   private pauseVideo(): void {

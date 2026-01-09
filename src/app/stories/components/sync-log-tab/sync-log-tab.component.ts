@@ -12,6 +12,7 @@ import {
   alertCircleOutline, timeOutline, personOutline, syncOutline
 } from 'ionicons/icons';
 import { SyncLoggerService, SyncLog } from '../../../core/services/sync-logger.service';
+import { DialogService } from '../../../core/services/dialog.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -28,6 +29,7 @@ import { Subscription } from 'rxjs';
 })
 export class SyncLogTabComponent implements OnInit, OnDestroy {
   private syncLoggerService = inject(SyncLoggerService);
+  private dialogService = inject(DialogService);
 
   logs: SyncLog[] = [];
   expandedLogs = new Set<string>();
@@ -66,8 +68,13 @@ export class SyncLogTabComponent implements OnInit, OnDestroy {
     }
   }
 
-  clearLogs(): void {
-    if (confirm('Do you really want to delete all synchronization logs?')) {
+  async clearLogs(): Promise<void> {
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Clear Sync Logs',
+      message: 'Do you really want to delete all synchronization logs?',
+      confirmText: 'Clear Logs'
+    });
+    if (confirmed) {
       this.syncLoggerService.clearLogs();
       this.expandedLogs.clear();
     }

@@ -40,3 +40,8 @@ export interface BeatInfo {
   isGenerating: boolean;
   hasContent: boolean;
 }
+
+export interface SurroundingContext {
+  beforeText: string;
+  afterText: string;
+}

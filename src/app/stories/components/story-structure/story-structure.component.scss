@@ -8,7 +8,7 @@
   width: 100%;
   height: 100%;
   background: transparent;
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: 1px solid var(--cw-border-default);
   display: flex;
   flex-direction: column;
   overflow: hidden; /* Prevent container overflow */
@@ -18,39 +18,39 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(45, 45, 45, 0.3);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+  padding: var(--cw-space-md);
+  border-bottom: 1px solid var(--cw-border-subtle);
+  background: var(--cw-bg-elevated);
+  backdrop-filter: blur(var(--cw-blur-lg));
+  -webkit-backdrop-filter: blur(var(--cw-blur-lg));
+  box-shadow: var(--cw-shadow-md);
 }
 
 .structure-header h2 {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #f8f9fa;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  font-size: var(--cw-font-size-xl);
+  font-weight: var(--cw-font-weight-semibold);
+  color: var(--cw-text-primary);
+  text-shadow: var(--cw-shadow-text);
 }
 
 .close-button {
-  --color: #f8f9fa;
-  --background: rgba(255, 255, 255, 0.1);
-  --background-hover: rgba(255, 255, 255, 0.2);
-  --background-activated: rgba(255, 255, 255, 0.3);
-  --border-radius: 8px;
+  --color: var(--cw-text-primary);
+  --background: var(--cw-bg-button-ghost);
+  --background-hover: var(--cw-bg-button-ghost-hover);
+  --background-activated: var(--cw-bg-button-ghost-active);
+  --border-radius: var(--cw-radius-md);
   --padding-start: 8px;
   --padding-end: 8px;
   margin: -4px -4px -4px 0;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  transition: all var(--cw-transition-normal);
+  backdrop-filter: blur(var(--cw-blur-sm));
+  -webkit-backdrop-filter: blur(var(--cw-blur-sm));
 }
 
 .close-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cw-shadow-md);
 }
 
 /* Hide close button on desktop since menu is always visible */
@@ -87,78 +87,111 @@
 }
 
 .structure-actions {
-  padding: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 0.5rem;
+  padding: var(--cw-space-md);
+  border-bottom: 1px solid var(--cw-border-subtle);
+  margin-bottom: var(--cw-space-xs);
 }
 
 .add-chapter-btn {
-  --background: linear-gradient(135deg, rgba(71, 118, 230, 0.2) 0%, rgba(139, 180, 248, 0.2) 100%);
-  --background-hover: linear-gradient(135deg, rgba(71, 118, 230, 0.3) 0%, rgba(139, 180, 248, 0.3) 100%);
-  --color: #8bb4f8;
-  --border-color: rgba(71, 118, 230, 0.5);
+  --background: var(--cw-gradient-primary-subtle);
+  --background-hover: var(--cw-gradient-primary-subtle-hover);
+  --color: var(--cw-color-primary-light);
+  --border-color: var(--cw-border-primary);
   --border-style: dashed;
   --border-width: 2px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  transition: all 0.3s ease;
+  backdrop-filter: blur(var(--cw-blur-sm));
+  -webkit-backdrop-filter: blur(var(--cw-blur-sm));
+  transition: all var(--cw-transition-slow);
 }
 
 .add-chapter-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(71, 118, 230, 0.3);
+  box-shadow: var(--cw-shadow-primary-glow);
 }
 
 .chapters-list {
   background: transparent;
-  padding-top: 0.5rem;
+  padding-top: var(--cw-space-sm);
   padding-bottom: 10rem; /* Increased bottom padding to ensure last items are reachable */
 }
 
 .chapter-item {
-  margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, rgba(20, 20, 20, 0.7) 0%, rgba(15, 15, 15, 0.7) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
+  margin-bottom: 4px;
+  background: var(--cw-bg-glass);
+  border: 1px solid var(--cw-border-subtle);
+  border-radius: var(--cw-radius-md);
+  backdrop-filter: blur(var(--cw-blur-md)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--cw-blur-md)) saturate(120%);
+  box-shadow: var(--cw-shadow-sm);
+  transition: all var(--cw-transition-slow);
   overflow: hidden;
 }
 
 .chapter-item:hover {
-  background: linear-gradient(135deg, rgba(25, 25, 25, 0.8) 0%, rgba(20, 20, 20, 0.8) 100%);
-  border-color: rgba(71, 118, 230, 0.3);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  background: var(--cw-gradient-glass-hover);
+  border-color: var(--cw-border-accent);
+  box-shadow: var(--cw-shadow-lg);
   transform: translateY(-2px);
 }
 
 .chapter-header {
   --background: transparent;
-  --background-hover: rgba(255, 255, 255, 0.1);
-  --color: #f8f9fa;
+  --background-hover: var(--cw-bg-hover);
+  --color: var(--cw-text-primary);
+  --min-height: 32px;
+  --padding-top: 4px;
+  --padding-bottom: 4px;
+}
+
+/* Show chapter delete button on hover/focus */
+.chapter-header .delete-btn {
+  opacity: 0;
+  transition: opacity var(--cw-transition-fast);
+}
+
+.chapter-item:hover .delete-btn,
+.chapter-header:focus-within .delete-btn {
+  opacity: 1;
 }
 
 .expand-icon {
-  color: #8bb4f8;
-  font-size: 1rem;
-  padding: 0.5rem;
-  margin: -0.5rem;
+  color: var(--cw-color-primary-light);
+  font-size: 14px;
+  padding: 4px;
+  margin: -4px;
   cursor: pointer;
 }
 
-.chapter-title-input {
-  --background: transparent;
-  --color: #f8f9fa;
-  --placeholder-color: #adb5bd;
+.chapter-title-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chapter-id-display {
+  color: var(--cw-text-muted);
+  font-size: 10px;
   font-weight: 500;
-  font-size: 0.9rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chapter-title {
+  color: var(--cw-text-primary);
+  font-weight: var(--cw-font-weight-medium);
+  font-size: var(--cw-font-size-sm);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scenes-list {
   background: transparent;
-  padding: 0.5rem;
+  padding: var(--cw-space-sm);
 }
 
 .scenes-list ion-list {
@@ -166,22 +199,30 @@
 }
 
 .scene-item {
-  --background: rgba(30, 30, 30, 0.6);
-  --background-hover: rgba(71, 118, 230, 0.5);
-  --color: #f8f9fa;
-  --border-radius: 8px;
-  margin-bottom: 0.25rem;
+  --background: var(--cw-bg-input);
+  --background-hover: var(--cw-bg-primary-hover);
+  --color: var(--cw-text-primary);
+  --border-radius: var(--cw-radius-md);
+  --min-height: 36px;
+  --padding-top: 4px;
+  --padding-bottom: 4px;
   --padding-start: 8px;
-  --padding-end: 8px;
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  --padding-end: 4px;
+  margin-bottom: 2px;
+  backdrop-filter: blur(var(--cw-blur-sm));
+  border: 1px solid var(--cw-border-subtle);
+  transition: all var(--cw-transition-slow);
 }
 
-.scene-item.multi-line {
-  --padding-top: 8px;
-  --padding-bottom: 8px;
-  min-height: 60px;
+/* Show delete button on hover/focus */
+.scene-item .delete-btn {
+  opacity: 0;
+  transition: opacity var(--cw-transition-fast);
+}
+
+.scene-item:hover .delete-btn,
+.scene-item:focus-within .delete-btn {
+  opacity: 1;
 }
 
 .scene-item.active-scene {
@@ -195,54 +236,33 @@
 
 .scene-content {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   width: 100%;
-  gap: 4px;
+  gap: 6px;
 }
 
-.scene-title-row {
-  display: flex;
-  align-items: flex-start;
-  width: 100%;
+.scene-id-display {
+  color: var(--cw-text-muted);
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.scene-title-container {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .scene-title-display {
-  flex: 1;
-  font-size: 0.9rem;
+  font-size: var(--cw-font-size-sm);
   color: var(--ion-text-color);
-  padding: 2px 8px 2px 0;
-  cursor: pointer;
-  white-space: normal;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.4;
-  min-height: 22px;
-  transition: background-color 0.2s;
-  border-radius: 4px;
-}
-
-.scene-title-display:hover {
-  background-color: var(--ion-color-step-100);
-}
-
-.scene-title-display:focus {
-  outline: 2px solid var(--ion-color-primary);
-  outline-offset: 1px;
-}
-
-.scene-title-input-edit {
-  --color: var(--ion-text-color);
-  --placeholder-color: var(--ion-color-medium);
-  font-size: 0.9rem;
-  flex: 1;
-  --padding-start: 0;
-  --padding-end: 8px;
-  --padding-top: 2px;
-  --padding-bottom: 2px;
-}
-
-.scene-item.active-scene .scene-title-input-edit {
-  --color: var(--ion-color-primary-contrast);
 }
 
 .scene-item.active-scene .scene-title-display {
@@ -257,47 +277,35 @@
   flex-shrink: 0;
 }
 
-.scene-actions-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
+/* Delete button in scene row */
+.scene-content .delete-btn {
+  --padding-start: 4px;
+  --padding-end: 4px;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .word-count-badge {
-  font-size: 0.7rem;
-  height: 20px;
-  --padding-horizontal: 6px;
-}
-
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.action-buttons ion-button {
-  --padding-start: 4px;
-  --padding-end: 4px;
+  font-size: 9px;
+  color: var(--cw-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 
-.scene-item.active-scene ion-badge {
-  --background: var(--ion-color-primary-contrast);
-  --color: var(--ion-color-primary);
-}
+
 
 .scene-details {
-  background: var(--ion-background-color);
-  padding: 0.5rem;
+  background: var(--cw-bg-base);
+  padding: var(--cw-space-sm);
 }
 
 .scene-summary-section {
-  background: var(--ion-color-step-100);
-  padding: 1rem;
-  margin: 0.5rem 0;
-  border-radius: 8px;
-  border: 1px solid var(--ion-color-step-200);
+  background: var(--cw-bg-elevated);
+  padding: var(--cw-space-lg);
+  margin: var(--cw-space-sm) 0;
+  border-radius: var(--cw-radius-md);
+  border: 1px solid var(--cw-border-default);
   display: flex;
   flex-direction: column;
   min-height: 300px;
@@ -306,18 +314,18 @@
 .summary-favorites {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(18, 18, 18, 0.6);
-  margin-bottom: 0.5rem;
+  gap: var(--cw-space-xs);
+  padding: var(--cw-space-xs) var(--cw-space-sm);
+  border-radius: var(--cw-radius-full);
+  border: 1px solid var(--cw-border-subtle);
+  background: var(--cw-bg-glass);
+  margin-bottom: var(--cw-space-sm);
   flex-wrap: wrap;
 }
 
 .summary-favorites .favorite-icon {
-  font-size: 1rem;
-  color: #ffd43b;
+  font-size: var(--cw-font-size-base);
+  color: var(--cw-color-accent);
   opacity: 0.85;
 }
 
@@ -340,27 +348,27 @@
   align-items: center;
   justify-content: center;
   padding: 0.2rem 0.45rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--cw-radius-xl);
+  background: var(--cw-bg-button-ghost);
   border: 1px solid transparent;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 0.7rem;
-  font-weight: 500;
+  color: var(--cw-text-secondary);
+  font-size: var(--cw-font-size-2xs);
+  font-weight: var(--cw-font-weight-medium);
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all var(--cw-transition-fast);
   min-width: 0;
   white-space: nowrap;
 }
 
 .summary-favorites .favorite-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--cw-bg-button-ghost-hover);
+  border-color: var(--cw-border-default);
 }
 
 .summary-favorites .favorite-btn.active {
-  background: rgba(77, 171, 247, 0.18);
-  border-color: rgba(77, 171, 247, 0.45);
-  color: #4dabf7;
+  background: var(--cw-bg-info-subtle);
+  border-color: var(--cw-border-info);
+  color: var(--cw-color-info);
 }
 
 .summary-favorites .favorite-btn-content {
@@ -374,7 +382,7 @@
 }
 
 .summary-favorites .model-short-name {
-  font-weight: 500;
+  font-weight: var(--cw-font-weight-medium);
   letter-spacing: 0.01em;
 }
 
@@ -382,52 +390,52 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--ion-color-medium);
-  font-weight: 500;
+  margin-bottom: var(--cw-space-sm);
+  font-size: var(--cw-font-size-sm);
+  color: var(--cw-text-muted);
+  font-weight: var(--cw-font-weight-medium);
   flex-shrink: 0;
 }
 
 .summary-buttons {
   display: flex;
-  gap: 0.25rem;
+  gap: var(--cw-space-xs);
   align-items: center;
 }
 
 .model-select {
   width: 100%;
-  margin-bottom: 0.5rem;
-  --background: rgba(30, 30, 30, 0.4);
-  --color: #f8f9fa;
-  --placeholder-color: #adb5bd;
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  margin-bottom: var(--cw-space-sm);
+  --background: var(--cw-bg-input);
+  --color: var(--cw-text-primary);
+  --placeholder-color: var(--cw-text-muted);
+  backdrop-filter: blur(var(--cw-blur-sm));
+  border: 1px solid var(--cw-border-default);
+  border-radius: var(--cw-radius-md);
   flex-shrink: 0;
 }
 
 .summary-textarea {
-  --background: rgba(30, 30, 30, 0.4);
-  --color: #f8f9fa;
-  --placeholder-color: #adb5bd;
-  --padding-start: 12px;
-  --padding-end: 12px;
-  --padding-top: 12px;
-  --padding-bottom: 12px;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
+  --background: var(--cw-bg-input);
+  --color: var(--cw-text-primary);
+  --placeholder-color: var(--cw-text-muted);
+  --padding-start: var(--cw-space-md);
+  --padding-end: var(--cw-space-md);
+  --padding-top: var(--cw-space-md);
+  --padding-bottom: var(--cw-space-md);
+  font-size: var(--cw-font-size-sm);
+  margin-top: var(--cw-space-sm);
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid var(--cw-border-default);
+  border-radius: var(--cw-radius-md);
+  backdrop-filter: blur(var(--cw-blur-sm));
+  -webkit-backdrop-filter: blur(var(--cw-blur-sm));
   flex: 1 1 auto;
   min-height: 200px;
   resize: none;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-  
+  scrollbar-color: var(--cw-scrollbar-thumb) transparent;
+
   /* Try ionic custom properties for height */
   --min-height: 200px;
   --max-height: none;
@@ -446,42 +454,42 @@
 }
 
 .summary-textarea::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  background: var(--cw-scrollbar-track);
+  border-radius: var(--cw-radius-xs);
 }
 
 .summary-textarea::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
+  background: var(--cw-scrollbar-thumb);
+  border-radius: var(--cw-radius-xs);
 }
 
 .summary-textarea::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--cw-scrollbar-thumb-hover);
 }
 
 
 .summary-info {
-  margin-top: 0.5rem;
+  margin-top: var(--cw-space-sm);
   align-self: flex-end;
   flex-shrink: 0;
 }
 
 .add-scene-btn {
-  margin: 0.5rem;
-  --background: linear-gradient(135deg, rgba(71, 118, 230, 0.2) 0%, rgba(139, 180, 248, 0.2) 100%);
-  --background-hover: linear-gradient(135deg, rgba(71, 118, 230, 0.3) 0%, rgba(139, 180, 248, 0.3) 100%);
-  --color: #8bb4f8;
-  --border-color: rgba(71, 118, 230, 0.5);
+  margin: var(--cw-space-sm);
+  --background: var(--cw-gradient-primary-subtle);
+  --background-hover: var(--cw-gradient-primary-subtle-hover);
+  --color: var(--cw-color-primary-light);
+  --border-color: var(--cw-border-primary);
   --border-style: dashed;
   --border-width: 2px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  transition: all 0.3s ease;
+  backdrop-filter: blur(var(--cw-blur-sm));
+  -webkit-backdrop-filter: blur(var(--cw-blur-sm));
+  transition: all var(--cw-transition-slow);
 }
 
 .add-scene-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(71, 118, 230, 0.3);
+  box-shadow: var(--cw-shadow-primary-glow);
 }
 
 /* Screen reader only content */
@@ -502,7 +510,7 @@
 .scene-item:focus-visible {
   outline: 2px solid var(--ion-color-primary);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--cw-radius-xs);
 }
 
 ion-button:focus-visible {
@@ -520,17 +528,11 @@ ion-select:focus-visible {
 /* Tablet adjustments */
 @media (max-width: 1024px) and (min-width: 769px) {
   .chapter-header {
-    --min-height: 44px;
+    --min-height: 40px;
   }
-  
+
   .scene-item {
-    --min-height: 48px;
-  }
-  
-  .ai-title-btn,
-  .action-buttons ion-button {
-    min-width: 40px;
-    min-height: 40px;
+    --min-height: 40px;
   }
 }
 
@@ -558,27 +560,25 @@ ion-select:focus-visible {
     max-height: none; /* Remove any height restrictions */
   }
   
-  /* Larger touch targets for mobile */
+  /* Touch targets for mobile */
   .chapter-header {
-    --min-height: 48px; /* Minimum touch target size */
-    --padding-top: 12px;
-    --padding-bottom: 12px;
+    --min-height: 44px;
+    --padding-top: 8px;
+    --padding-bottom: 8px;
   }
-  
+
   /* Make expand icon easier to tap on mobile */
   .expand-icon {
-    font-size: 1.25rem;
-    padding: 0.75rem;
-    margin: -0.75rem;
+    font-size: 1.1rem;
+    padding: 10px;
+    margin: -10px;
     min-width: 44px;
     min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
-    z-index: 5;
   }
-  
+
   /* Add tap highlight for better feedback */
   .expand-icon:active {
     background-color: var(--ion-color-step-200);
@@ -586,41 +586,23 @@ ion-select:focus-visible {
   }
   
   .scene-item {
-    --min-height: 56px; /* Larger touch target for scenes */
-    --padding-top: 12px;
-    --padding-bottom: 12px;
+    --min-height: 44px; /* Touch-friendly but compact */
+    --padding-top: 8px;
+    --padding-bottom: 8px;
   }
-  
-  .scene-item.multi-line {
-    min-height: 72px; /* Even larger for multi-line content */
+
+  /* Always show delete buttons on touch devices */
+  .scene-item .delete-btn,
+  .chapter-header .delete-btn {
+    opacity: 1;
   }
-  
+
   /* Larger buttons on mobile */
   .chapter-header ion-button {
     --padding-start: 8px;
     --padding-end: 8px;
     min-width: 44px;
     min-height: 44px;
-  }
-  
-  .ai-title-btn {
-    --padding-start: 8px;
-    --padding-end: 8px;
-    min-width: 48px;
-    min-height: 48px;
-    margin-left: 8px;
-    position: relative;
-    z-index: 10;
-  }
-  
-  .action-buttons ion-button {
-    --padding-start: 8px;
-    --padding-end: 8px;
-    min-width: 48px;
-    min-height: 48px;
-    margin: 0 2px;
-    position: relative;
-    z-index: 10;
   }
 
   .summary-favorites {
@@ -635,37 +617,18 @@ ion-select:focus-visible {
   }
 
   .add-scene-btn {
-    --min-height: 48px;
-    margin: 0.75rem;
-    font-size: 1rem;
-  }
-  
-  /* Larger input fields */
-  .chapter-title-input {
     --min-height: 44px;
-    font-size: 1rem;
+    margin: 0.5rem;
+    font-size: 0.9rem;
   }
-  
-  .scene-title-input {
-    --min-height: 44px;
+
+  /* Larger text on mobile */
+  .chapter-title {
     font-size: 0.95rem;
   }
-  
-  /* Better spacing for scene content */
-  .scene-content {
-    gap: 8px;
-    position: relative;
-  }
-  
-  .scene-title-row {
-    min-height: 48px;
-    align-items: center;
-  }
-  
-  .scene-actions-row {
-    min-height: 48px;
-    padding-top: 4px;
-    align-items: center;
+
+  .scene-title-display {
+    font-size: 0.9rem;
   }
 }
 
@@ -715,16 +678,8 @@ ion-select:focus-visible {
 /* Large mobile devices and small tablets */
 @media (min-width: 481px) and (max-width: 768px) {
   .story-structure {
-    max-width: 100vw; /* Full width on all mobile sizes */
-    width: 100vw; /* Ensure full width */
-  }
-  
-  .scene-item.multi-line {
-    min-height: 80px; /* More space for content */
-  }
-  
-  .scene-content {
-    gap: 10px;
+    max-width: 100vw;
+    width: 100vw;
   }
 }
 
@@ -867,86 +822,19 @@ ion-select:focus-visible {
     z-index: 1;
   }
   
-  /* Ensure buttons are above other elements */
-  .ai-title-btn,
-  .action-buttons ion-button {
+  /* Ensure delete button is accessible */
+  .delete-btn {
     position: relative;
     z-index: 20;
     pointer-events: auto;
   }
-  
-  /* Prevent scene item clicks from interfering with button clicks */
-  .scene-item {
-    pointer-events: auto;
-  }
-  
-  .scene-content {
-    pointer-events: none;
-  }
-  
-  .scene-content > * {
-    pointer-events: auto;
-  }
-  
+
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
 
-  /* Chapter and Scene ID displays */
-  .chapter-title-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-  }
-
-  .chapter-id-display {
-    background: var(--ion-color-primary-tint);
-    color: var(--ion-color-primary-contrast);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    min-width: 20px;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  .scene-title-container {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    flex: 1;
-    min-width: 0; /* Allow flex item to shrink below content size */
-  }
-
-  .scene-id-display {
-    background: var(--ion-color-secondary-tint);
-    color: var(--ion-color-secondary-contrast);
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 500;
-    min-width: 30px;
-    text-align: center;
-    white-space: nowrap;
-    flex-shrink: 0;
-    margin-top: 3px;
-  }
-
-  .chapter-title-input {
-    flex: 1;
-  }
-  
   .scene-title-display {
-    --min-height: 44px;
-    font-size: 0.95rem;
-    padding: 8px 8px 8px 0;
-  }
-  
-  .scene-title-input-edit {
-    --min-height: 44px;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
   }
 }

@@ -6,217 +6,97 @@
 ></app-header>
 
 <ion-content [fullscreen]="true">
-  <!-- Floating Action Button to toggle model selection -->
-  <ion-fab class="model-fab" vertical="bottom" horizontal="end" slot="fixed">
-    <ion-fab-button
-      aria-label="Toggle model selection"
-      [attr.aria-expanded]="toolbarVisible()"
-      aria-controls="model-selection-panel"
-      (click)="toggleToolbar()"
-      [color]="toolbarVisible() ? 'primary' : 'medium'"
-      size="small">
-      <ion-icon [name]="toolbarVisible() ? 'close-outline' : 'sparkles-outline'"></ion-icon>
-    </ion-fab-button>
-  </ion-fab>
-
-  <button
-    *ngIf="toolbarVisible()"
-    type="button"
-    class="fab-menu-backdrop"
-    aria-label="Dismiss model tools"
-    (click)="toggleToolbar()"
-    (keydown.enter)="toggleToolbar()"
-    (keydown.space)="toggleToolbar()">
-  </button>
-
-  <!-- Floating menu content -->
-  <section
-    id="model-selection-panel"
-    class="fab-menu"
-    [class.visible]="toolbarVisible()"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Model tools">
-    <header class="fab-menu__header">
-      <h2>Model tools</h2>
-      <ion-button size="small" fill="clear" color="light" (click)="toggleToolbar()">
-        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
-      </ion-button>
-    </header>
-    <div class="fab-menu__body">
-      <ion-searchbar
-        #searchbar
-        placeholder="Search titles and summaries"
-        [debounce]="150"
-        (ionInput)="query.set($any($event.target).value || '')">
-      </ion-searchbar>
-      <app-model-selector
-        [(model)]="selectedModel"
-        [placeholder]="'Select AI model'"
-        [appendTo]="'body'">
-      </app-model-selector>
-    </div>
-  </section>
-
-  <div class="story-meta" *ngIf="story() as s">
-    <div class="title">{{ s.title || 'Untitled Story' }}</div>
-    <div class="meta">{{ s.chapters?.length || 0 }} chapter(s)</div>
-  </div>
-
-  <div *ngIf="loading()" class="loading">
-    <ion-skeleton-text [animated]="true" style="width: 60%; height: 20px;"></ion-skeleton-text>
-    <ion-skeleton-text [animated]="true" style="width: 90%; height: 16px;"></ion-skeleton-text>
-    <ion-skeleton-text [animated]="true" style="width: 80%; height: 16px;"></ion-skeleton-text>
-  </div>
-
-  <ion-accordion-group *ngIf="!loading()" [multiple]="true" [value]="expandedArray()" (ionChange)="onAccordionChange($event)">
-    <ion-accordion *ngFor="let chapter of filteredChapters(); trackBy: trackChapterById" [value]="chapter.id">
-      <ion-item slot="header" lines="full">
-        <ion-label>
-          <div class="chapter-header-row">
-            <div class="chapter-title">
-              <ng-container *ngIf="!isEditingChapterTitle(chapter.id); else editChapterTpl">
-                <span class="idx">{{chapter.chapterNumber}}.</span>
-                <span>{{ chapter.title || 'Untitled Chapter' }}</span>
-              </ng-container>
-              <ng-template #editChapterTpl>
-                <div class="chapter-edit">
-                  <span class="idx">{{chapter.chapterNumber}}.</span>
-                  <ion-input
-                    class="chapter-edit-input"
-                    [ngModel]="editingChapterTitles[chapter.id] || ''"
-                    (ngModelChange)="onEditChapterTitleChange(chapter.id, $event)"
-                    placeholder="Untitled Chapter"
-                    (click)="$event.stopPropagation()"
-                    (keydown)="$event.stopPropagation()"
-                    (keydown.enter)="saveChapterTitle(chapter.id, $event)">
-                  </ion-input>
-                </div>
-              </ng-template>
-            </div>
-            <div class="chapter-actions">
-              <ion-button *ngIf="!isEditingChapterTitle(chapter.id)" fill="outline" size="small" color="medium" (click)="startEditChapterTitle(chapter.id, chapter.title, $event)">
-                <ion-icon name="create-outline" slot="start"></ion-icon>
-                Edit Title
-              </ion-button>
-              <ion-button *ngIf="isEditingChapterTitle(chapter.id)" size="small" color="primary" [disabled]="savingChapterTitle(chapter.id)" (click)="saveChapterTitle(chapter.id, $event)">
-                <ion-icon name="save-outline" slot="start"></ion-icon>
-                Save
-              </ion-button>
-              <ion-button *ngIf="isEditingChapterTitle(chapter.id)" fill="outline" size="small" color="medium" [disabled]="savingChapterTitle(chapter.id)" (click)="cancelEditChapterTitle(chapter.id, $event)">
-                <ion-icon name="close-outline" slot="start"></ion-icon>
-                Cancel
-              </ion-button>
-            </div>
-          </div>
-          <ion-note>{{ chapter.scenes.length }} scene(s)</ion-note>
-        </ion-label>
-      </ion-item>
-      <div class="chapter-content" slot="content">
-        <ion-list lines="none">
-          <ion-card *ngFor="let scene of chapter.scenes; trackBy: trackSceneById" class="scene-card" [id]="'scene-' + scene.id">
-            <ion-card-header>
-              <div class="scene-header">
-                <ion-card-title>
-                  <ng-container *ngIf="!isEditingTitle(scene.id); else editTitleTpl">
-                    <span class="idx">{{scene.sceneNumber}}.</span>
-                    <span>{{ scene.title || 'Untitled Scene' }}</span>
-                    <ion-badge color="warning" *ngIf="!scene.summary">No summary</ion-badge>
-                  </ng-container>
-                  <ng-template #editTitleTpl>
-                    <div class="title-edit">
-                      <span class="idx">{{scene.sceneNumber}}.</span>
-                      <ion-input
-                        class="title-input"
-                        [ngModel]="editingTitles[scene.id] || ''"
-                        (ngModelChange)="onEditTitleChange(scene.id, $event)"
-                        placeholder="Untitled Scene"
-                        (keydown.enter)="saveSceneTitle(chapter.id, scene.id)">
-                      </ion-input>
-                    </div>
-                  </ng-template>
-                </ion-card-title>
-                <ion-note class="scene-word-count" color="medium">
-                  {{ getSceneWordCountLabel(scene.id) }}
-                </ion-note>
-              </div>
-            </ion-card-header>
-            <ion-card-content>
-              <ng-container *ngIf="!isEditing(scene.id); else editSummaryTpl">
-                <div class="summary" [class.placeholder]="!scene.summary">
-                  {{ scene.summary || 'No summary available for this scene.' }}
-                </div>
-              </ng-container>
-
-              <ng-template #editSummaryTpl>
-                <div class="summary-edit">
-                  <ion-textarea
-                    [ngModel]="editingSummaries[scene.id] || ''"
-                    (ngModelChange)="onEditSummaryChange(scene.id, $event)"
-                    [autoGrow]="false"
-                    rows="6"
-                    placeholder="Write a short summary for this scene..."
-                    (keydown)="onSummaryKeydown($event, chapter.id, scene.id)">
-                  </ion-textarea>
-                </div>
-              </ng-template>
-
-              <div class="actions">
-                <ion-button *ngIf="!isEditingTitle(scene.id) && !isEditing(scene.id)"
-                            size="small" fill="outline" color="primary"
-                            (click)="generateSceneTitle(chapter.id, scene.id)"
-                            [disabled]="isGeneratingTitle(scene.id) || !(scene.content && scene.content.trim()) || !selectedModel">
-                  <ion-icon [name]="isGeneratingTitle(scene.id) ? 'time-outline' : 'sparkles-outline'" slot="start"></ion-icon>
-                  {{ isGeneratingTitle(scene.id) ? 'Generating…' : 'AI Title' }}
-                  <ion-spinner *ngIf="isGeneratingTitle(scene.id)" name="dots" style="width: 14px; height: 14px; margin-left: 6px;"></ion-spinner>
-                </ion-button>
-
-                <ion-button *ngIf="!isEditingTitle(scene.id) && !isEditing(scene.id)"
-                            size="small" color="success"
-                            (click)="generateSceneSummary(chapter.id, scene.id)"
-                            [disabled]="isGeneratingSummary(scene.id) || !(scene.content && scene.content.trim()) || !selectedModel">
-                  <ion-icon [name]="isGeneratingSummary(scene.id) ? 'time-outline' : 'flash-outline'" slot="start"></ion-icon>
-                  {{ isGeneratingSummary(scene.id) ? 'Generating…' : 'AI Summary' }}
-                  <ion-spinner *ngIf="isGeneratingSummary(scene.id)" name="dots" style="width: 14px; height: 14px; margin-left: 6px;"></ion-spinner>
-                </ion-button>
-                <ion-button *ngIf="!isEditingTitle(scene.id)" size="small" fill="outline" color="medium" (click)="startEditTitle(scene.id, scene.title)" title="Edit title">
-                  <ion-icon name="create-outline" slot="start"></ion-icon>
-                  Edit Title
-                </ion-button>
-                <ion-button *ngIf="isEditingTitle(scene.id)" size="small" color="primary" (click)="saveSceneTitle(chapter.id, scene.id)" [disabled]="savingTitle(scene.id)" title="Save title (Enter)">
-                  <ion-icon name="save-outline" slot="start"></ion-icon>
-                  Save Title
-                </ion-button>
-                <ion-button *ngIf="isEditingTitle(scene.id)" size="small" fill="outline" color="medium" (click)="cancelEditTitle(scene.id)" [disabled]="savingTitle(scene.id)" title="Cancel">
-                  <ion-icon name="close-outline" slot="start"></ion-icon>
-                  Cancel
-                </ion-button>
-
-                <ion-button *ngIf="!isEditing(scene.id)" size="small" fill="outline" color="medium" (click)="startEdit(scene.id, scene.summary)" title="Edit summary">
-                  <ion-icon name="create-outline" slot="start"></ion-icon>
-                  Edit Summary
-                </ion-button>
-                <ion-button *ngIf="isEditing(scene.id)" size="small" color="primary" (click)="saveSceneSummary(chapter.id, scene.id)" [disabled]="saving(scene.id)" title="Save summary (Ctrl+Enter)">
-                  <ion-icon name="save-outline" slot="start"></ion-icon>
-                  Save
-                </ion-button>
-                <ion-button *ngIf="isEditing(scene.id)" size="small" fill="outline" color="medium" (click)="cancelEdit(scene.id)" [disabled]="saving(scene.id)" title="Cancel">
-                  <ion-icon name="close-outline" slot="start"></ion-icon>
-                  Cancel
-                </ion-button>
-                <ion-button size="small" color="medium" (click)="openInEditor(chapter.id, scene.id)" title="Open in editor">
-                  <ion-icon name="open-outline" slot="start"></ion-icon>
-                  Open Scene
-                </ion-button>
-              </div>
-            </ion-card-content>
-          </ion-card>
-        </ion-list>
+  @if (story(); as s) {
+    <div class="story-meta">
+      <div class="title">{{ s.title || 'Untitled Story' }}</div>
+      <div class="meta">
+        {{ s.chapters.length || 0 }} chapter(s)
+        @if (query()) {
+          <span class="filter-info"> • Filtering: "{{ query() }}"</span>
+        }
       </div>
-    </ion-accordion>
-  </ion-accordion-group>
+    </div>
+  }
 
-  <div class="empty" *ngIf="!loading() && filteredChapters().length === 0">
-    <p>No scenes match your filter.</p>
-  </div>
+  @if (loading()) {
+    <div class="loading">
+      <ion-skeleton-text [animated]="true" style="width: 60%; height: 20px;"></ion-skeleton-text>
+      <ion-skeleton-text [animated]="true" style="width: 90%; height: 16px;"></ion-skeleton-text>
+      <ion-skeleton-text [animated]="true" style="width: 80%; height: 16px;"></ion-skeleton-text>
+    </div>
+  }
+
+  @if (!loading()) {
+    <ion-accordion-group [multiple]="true" [value]="expandedArray()" (ionChange)="onAccordionChange($event)">
+      @for (chapter of filteredChapters(); track chapter.id) {
+        <ion-accordion [value]="chapter.id">
+          <ion-item slot="header" lines="full">
+            <app-chapter-header
+              [chapter]="chapter"
+              [saving]="isSavingChapter(chapter.id)"
+              (titleUpdate)="onChapterTitleUpdate($event)">
+            </app-chapter-header>
+          </ion-item>
+          <div class="chapter-content" slot="content">
+            <ion-list lines="none">
+              @for (scene of chapter.scenes; track scene.id) {
+                <app-scene-card
+                  [scene]="scene"
+                  [chapterId]="chapter.id"
+                  [wordCount]="getSceneWordCount(scene.id)"
+                  [selectedModel]="selectedModel"
+                  [generatingSummary]="isGeneratingSummary(scene.id)"
+                  [generatingTitle]="isGeneratingTitle(scene.id)"
+                  [savingSummary]="isSavingScene(scene.id)"
+                  [savingTitle]="isSavingScene(scene.id)"
+                  (update)="onSceneUpdate($event)"
+                  (generateAI)="onSceneAIGenerate($event)"
+                  (openScene)="onSceneNavigate($event)">
+                </app-scene-card>
+              }
+            </ion-list>
+          </div>
+        </ion-accordion>
+      }
+    </ion-accordion-group>
+  }
+
+  @if (!loading() && filteredChapters().length === 0) {
+    <div class="empty">
+      <p>No scenes match your filter.</p>
+    </div>
+  }
 </ion-content>
+
+<!-- Bottom Tools Bar -->
+<div class="tools-bar tools-bar--bottom">
+  <div class="tools-bar__search">
+    <ion-searchbar
+      #searchbar
+      placeholder="Search titles and summaries..."
+      [debounce]="150"
+      [value]="query()"
+      (ionInput)="query.set($any($event.target).value || '')"
+      (ionClear)="query.set('')">
+    </ion-searchbar>
+  </div>
+  <div class="tools-bar__actions">
+    <app-model-selector
+      [(model)]="selectedModel"
+      [quickPickIds]="sceneSummaryFavorites"
+      [placeholder]="'AI Model'"
+      [appendTo]="'body'"
+      class="model-selector-compact">
+    </app-model-selector>
+    <ion-button
+      size="small"
+      fill="outline"
+      color="medium"
+      (click)="copyAllSummaries()"
+      title="Copy all summaries to clipboard"
+      class="copy-btn">
+      <ion-icon name="copy-outline" slot="start"></ion-icon>
+      <span class="btn-text">Copy All</span>
+    </ion-button>
+  </div>
+</div>

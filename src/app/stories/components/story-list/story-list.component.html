@@ -9,10 +9,11 @@
   [userGreeting]="currentUser ? '👋 ' + (currentUser.displayName || currentUser.username) : ''"
   (burgerMenuToggle)="onBurgerMenuToggle()">
   
-  <app-sync-status 
-    slot="user-status" 
-    [showActions]="false" 
-    class="compact-sync-status" 
+  <app-generation-status slot="user-status" class="compact-generation-status"></app-generation-status>
+  <app-sync-status
+    slot="user-status"
+    [showActions]="false"
+    class="compact-sync-status"
     *ngIf="currentUser">
   </app-sync-status>
 </app-header>
@@ -46,15 +47,15 @@
   </div>
 
   <div class="action-buttons">
-    <ion-button expand="block" size="default" color="primary" (click)="createNewStory()">
+    <ion-button expand="block" size="default" class="cw-btn-primary" (click)="createNewStory()">
       <ion-icon name="add" slot="start"></ion-icon>
       Write New Story
     </ion-button>
-    <ion-button expand="block" size="default" fill="outline" color="medium" (click)="importNovelCrafter()">
+    <ion-button expand="block" size="default" fill="outline" class="cw-btn-secondary" (click)="importNovelCrafter()">
       <ion-icon name="download" slot="start"></ion-icon>
       NovelCrafter Import
     </ion-button>
-    <ion-button expand="block" size="default" fill="outline" color="secondary" (click)="goToImageGeneration()">
+    <ion-button expand="block" size="default" fill="outline" class="cw-btn-secondary" (click)="goToImageGeneration()">
       <ion-icon name="images" slot="start"></ion-icon>
       Image Generation
     </ion-button>
@@ -87,7 +88,7 @@
             <ion-icon name="reorder-three" slot="icon-only"></ion-icon>
           </ion-button>
           <ion-card-title>{{ story.title || 'Untitled Story' }}</ion-card-title>
-          <ion-button fill="clear" size="small" color="danger" (click)="deleteStory($event, story.id)">
+          <ion-button fill="clear" size="small" class="cw-btn-icon-danger" (click)="deleteStory($event, story.id)">
             <ion-icon name="trash" slot="icon-only"></ion-icon>
           </ion-button>
         </div>
@@ -111,7 +112,7 @@
     <ion-button
       expand="block"
       fill="outline"
-      color="primary"
+      class="cw-btn-secondary"
       (click)="loadMoreStories()"
       [disabled]="isLoadingMore">
       <ion-spinner name="crescent" *ngIf="isLoadingMore"></ion-spinner>

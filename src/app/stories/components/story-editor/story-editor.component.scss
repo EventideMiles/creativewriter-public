@@ -108,17 +108,17 @@
     }
     
     ion-button {
-      --color: #f8f9fa;
-      --background: rgba(255, 255, 255, 0.1);
-      --background-hover: rgba(255, 255, 255, 0.2);
-      --border-radius: 8px;
-      margin: 0 4px;
-      transition: all 0.2s ease;
+      --color: var(--cw-text-primary);
+      --background: var(--cw-bg-button-ghost);
+      --background-hover: var(--cw-bg-button-ghost-hover);
+      --border-radius: var(--cw-radius-md);
+      margin: 0 var(--cw-space-xs);
+      transition: all var(--cw-transition-normal);
     }
-    
+
     ion-button:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--cw-shadow-md);
     }
     
     ion-icon {
@@ -548,24 +548,24 @@
     }
     
     .scene-navigation .nav-button {
-      --color: #e0e0e0;
-      --color-hover: #f8f9fa;
-      font-size: 0.85rem;
-      font-weight: 500;
+      --color: var(--cw-text-secondary);
+      --color-hover: var(--cw-text-primary);
+      font-size: var(--cw-font-size-sm);
+      font-weight: var(--cw-font-weight-medium);
       min-width: 120px;
-      --padding-top: 4px;
-      --padding-bottom: 4px;
+      --padding-top: var(--cw-space-xs);
+      --padding-bottom: var(--cw-space-xs);
       height: auto;
-      transition: all 0.2s ease;
+      transition: all var(--cw-transition-normal);
     }
-    
+
     .scene-navigation .nav-button:not([disabled]):hover {
-      --background: rgba(255, 255, 255, 0.1);
+      --background: var(--cw-bg-hover);
       transform: translateY(-1px);
     }
-    
+
     .scene-navigation .nav-button[disabled] {
-      --color: #6c757d;
+      --color: var(--cw-text-disabled);
       opacity: 0.5;
     }
     
@@ -583,8 +583,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #6c757d;
-      font-size: 1.1rem;
+      color: var(--cw-text-disabled);
+      font-size: var(--cw-font-size-lg);
     }
     
     .editor-wrapper {
@@ -615,13 +615,13 @@
       justify-content: center;
       width: 34px;
       height: 34px;
-      border-radius: 50%;
+      border-radius: var(--cw-radius-full);
       border: none;
       background: rgba(0, 0, 0, 0.78);
-      color: #fff;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      color: var(--cw-text-primary);
+      box-shadow: var(--cw-shadow-lg);
       cursor: pointer;
-      transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      transition: all var(--cw-transition-normal);
       z-index: 5;
     }
 
@@ -631,8 +631,8 @@
 
     .image-video-action-button:hover,
     .image-video-action-button:focus {
-      background: rgba(92, 124, 250, 0.95);
-      box-shadow: 0 14px 36px rgba(92, 124, 250, 0.35);
+      background: var(--cw-color-primary);
+      box-shadow: var(--cw-shadow-primary-glow);
       transform: translateY(-1px);
     }
 
@@ -1070,4 +1070,39 @@
       backdrop-filter: blur(4px);
       pointer-events: none;
       z-index: 1;
+    }
+
+    /* Beat Input FAB Styles */
+    .beat-input-fab {
+      bottom: calc(var(--ion-safe-area-bottom, 0px) + 16px);
+      right: 16px;
+      z-index: 999;
+
+      ion-fab-button {
+        --background: var(--ion-color-primary);
+        --box-shadow: 0 4px 16px rgba(13, 110, 253, 0.4);
+        width: 56px;
+        height: 56px;
+
+        ion-icon {
+          font-size: 24px;
+        }
+      }
+    }
+
+    /* Mobile keyboard handling for FAB */
+    @media (max-width: 768px) {
+      :host-context(.keyboard-visible) .beat-input-fab {
+        bottom: calc(var(--keyboard-height, 0px) + var(--ion-safe-area-bottom, 0px) + 16px);
+        transition: bottom 0.3s ease;
+      }
+
+      .beat-input-fab ion-fab-button {
+        width: 48px;
+        height: 48px;
+
+        ion-icon {
+          font-size: 20px;
+        }
+      }
     }

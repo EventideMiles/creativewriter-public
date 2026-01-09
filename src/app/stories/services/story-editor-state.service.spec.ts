@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick, flush } from '@angular/core/testing';
 import { StoryEditorStateService } from './story-editor-state.service';
 import { StoryService } from './story.service';
 import { PromptManagerService } from '../../shared/services/prompt-manager.service';
@@ -50,7 +50,8 @@ describe('StoryEditorStateService', () => {
       'setCurrentStory'
     ]);
     const statsServiceSpyObj = jasmine.createSpyObj('StoryStatsService', [
-      'calculateTotalStoryWordCount'
+      'calculateTotalStoryWordCount',
+      'calculateSceneWordCount'
     ]);
 
     TestBed.configureTestingModule({
@@ -74,6 +75,7 @@ describe('StoryEditorStateService', () => {
     storyServiceSpy.updateStory.and.returnValue(Promise.resolve());
     promptManagerSpy.setCurrentStory.and.returnValue(Promise.resolve());
     statsServiceSpy.calculateTotalStoryWordCount.and.returnValue(100);
+    statsServiceSpy.calculateSceneWordCount.and.returnValue(50);
   });
 
   it('should be created', () => {
@@ -131,15 +133,23 @@ describe('StoryEditorStateService', () => {
       expect(state.hasUnsavedChanges).toBe(true);
     });
 
-    it('should recalculate word count', async () => {
-      await service.loadStory('story-1');
-      statsServiceSpy.calculateTotalStoryWordCount.and.returnValue(150);
+    it('should recalculate word count after throttle delay', fakeAsync(() => {
+      service.loadStory('story-1');
+      flush(); // Resolve loadStory promise
 
+      // Initial state: wordCount=100, activeSceneWordCount=50
+      // Simulate scene content getting longer (100 words now)
+      statsServiceSpy.calculateSceneWordCount.and.returnValue(100);
       service.updateSceneContent('<p>New longer content</p>');
 
+      // Word count recalculation is throttled (3000ms delay)
+      tick(3000);
+
+      // Delta is 100-50=50, so total becomes 100+50=150
       const state = service.getCurrentState();
       expect(state.wordCount).toBe(150);
-    });
+      expect(state.activeSceneWordCount).toBe(100);
+    }));
   });
 
   describe('saveStory', () => {
@@ -364,6 +374,15 @@ describe('StoryEditorStateService', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       expect(service.shouldAllowReload(50)).toBe(true);
+    });
+
+    it('should return false if saved recently (within 7 seconds)', async () => {
+      await service.loadStory('story-1');
+      service.updateSceneContent('<p>New content</p>');
+      await service.saveStory();
+
+      // Immediately after save, should not allow reload (within 7s window)
+      expect(service.shouldAllowReload(0)).toBe(false);
     });
   });
 

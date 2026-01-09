@@ -49,21 +49,30 @@ async function createSnapshotsForDatabase(dbName, tier) {
 
   // Validate result structure
   if (!result || !result.rows) {
-    logger.warn(`Invalid response from allDocs for database ${dbName}: ${JSON.stringify(result)}`);
+    logger.warn(`Invalid response from allDocs for database ${dbName}`);
     return 0;
+  }
+
+  logger.debug(`Database ${dbName}: Found ${result.rows.length} total documents`);
+
+  // Debug: Check if docs are actually included
+  const docsWithContent = result.rows.filter(row => row.doc !== undefined);
+  if (docsWithContent.length !== result.rows.length) {
+    logger.warn(`Database ${dbName}: Only ${docsWithContent.length}/${result.rows.length} rows have doc content - include_docs may not be working`);
   }
 
   // Filter for story documents (not snapshots or other types)
   const stories = result.rows
     .map(row => row.doc)
-    .filter(doc =>
-      doc &&
-      !doc._id.startsWith('_design') &&
-      doc.type !== 'story-snapshot' &&
-      !doc.type &&  // Stories don't have a type field
-      doc.chapters &&
-      Array.isArray(doc.chapters)
-    );
+    .filter(doc => {
+      if (!doc) return false;
+      if (!doc._id) return false;
+      if (doc._id.startsWith('_design')) return false;
+      if (doc.type === 'story-snapshot') return false;
+      if (doc.type) return false;  // Stories don't have a type field
+      if (!doc.chapters || !Array.isArray(doc.chapters)) return false;
+      return true;
+    });
 
   if (stories.length === 0) {
     logger.debug(`No stories found in database ${dbName}`);

@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import jsPDF from 'jspdf';
 import { BackgroundService } from './background.service';
 import { SyncedCustomBackgroundService } from './synced-custom-background.service';
+import { convertToWebP } from './image-optimization.service';
 import { Story } from '../../stories/models/story.interface';
 import { BehaviorSubject } from 'rxjs';
 
@@ -539,9 +540,9 @@ export class PDFExportService {
           backgroundImageData = await this.convertBlobToBase64(customBg.blobUrl);
         }
       } else {
-        // Handle standard backgrounds - load from assets
+        // Handle standard backgrounds - load from assets (use WebP for better performance)
         console.log('Processing standard background from assets');
-        backgroundImageData = await this.loadImageAsBase64(`assets/backgrounds/${currentBackground}`);
+        backgroundImageData = await this.loadImageAsBase64(`assets/backgrounds/${convertToWebP(currentBackground)}`);
       }
 
       if (backgroundImageData) {

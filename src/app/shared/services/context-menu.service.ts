@@ -4,7 +4,7 @@ import { Plugin, PluginKey, TextSelection } from 'prosemirror-state';
 import { ModalController } from '@ionic/angular/standalone';
 import { Subject } from 'rxjs';
 import { AIRewriteModalComponent, AIRewriteResult } from '../../ui/components/ai-rewrite-modal.component';
-import { StoryContext } from './prosemirror-editor.interfaces';
+import { StoryContext, SurroundingContext } from './prosemirror-editor.interfaces';
 import { hasEmptyParagraphs } from './prosemirror-editor.utils';
 import { PremiumRewriteService } from './premium-rewrite.service';
 
@@ -21,14 +21,17 @@ export class ContextMenuService {
   /**
    * Create the context menu plugin
    */
-  createContextMenuPlugin(getHTMLContent: () => string): Plugin {
+  createContextMenuPlugin(
+    getHTMLContent: () => string,
+    getStoryContext: () => StoryContext | null
+  ): Plugin {
     return new Plugin({
       key: new PluginKey('contextMenu'),
       props: {
         handleDOMEvents: {
           contextmenu: (view, event) => {
             event.preventDefault();
-            this.showContextMenu(view, event, getHTMLContent);
+            this.showContextMenu(view, event, getHTMLContent, getStoryContext);
             return true;
           },
           click: () => {
@@ -44,7 +47,12 @@ export class ContextMenuService {
   /**
    * Show context menu at the specified position
    */
-  private showContextMenu(view: EditorView, event: MouseEvent, getHTMLContent: () => string): void {
+  private showContextMenu(
+    view: EditorView,
+    event: MouseEvent,
+    getHTMLContent: () => string,
+    getStoryContext: () => StoryContext | null
+  ): void {
     this.hideContextMenu(); // Remove any existing menu
 
     const { state } = view;
@@ -86,7 +94,23 @@ export class ContextMenuService {
       const aiRewriteItem = this.createContextMenuItem(menuLabel, async () => {
         const hasAccess = await this.premiumRewriteService.checkAndGateAccess();
         if (hasAccess) {
-          this.openAIRewriteModal(view, selectedText, from, to, getHTMLContent, null);
+          // Extract full scene text before and after the selection
+          const beforeText = state.doc.textBetween(
+            0,
+            from,
+            '\n\n',
+            ''  // Explicitly ignore leaf nodes like images
+          );
+          const afterText = state.doc.textBetween(
+            to,
+            state.doc.content.size,
+            '\n\n',
+            ''  // Explicitly ignore leaf nodes like images
+          );
+          // Only pass context if we have actual content
+          const surroundingContext: SurroundingContext | undefined =
+            (beforeText || afterText) ? { beforeText, afterText } : undefined;
+          this.openAIRewriteModal(view, selectedText, from, to, getHTMLContent, getStoryContext(), surroundingContext);
         }
         this.hideContextMenu();
       });
@@ -195,7 +219,8 @@ export class ContextMenuService {
     from: number,
     to: number,
     getHTMLContent: () => string,
-    currentStoryContext: StoryContext | null
+    currentStoryContext: StoryContext | null,
+    surroundingContext?: SurroundingContext
   ): Promise<void> {
     try {
       // Save current scroll position before opening modal
@@ -206,6 +231,7 @@ export class ContextMenuService {
         component: AIRewriteModalComponent,
         componentProps: {
           selectedText,
+          surroundingContext,
           storyId: currentStoryContext?.storyId || '',
           currentChapterId: currentStoryContext?.chapterId || '',
           currentSceneId: currentStoryContext?.sceneId || ''

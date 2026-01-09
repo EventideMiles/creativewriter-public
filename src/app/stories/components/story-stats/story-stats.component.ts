@@ -12,6 +12,7 @@ import {
 } from 'ionicons/icons';
 import { Story } from '../../models/story.interface';
 import { StoryStatsService } from '../../services/story-stats.service';
+import { DialogService } from '../../../core/services/dialog.service';
 
 export interface StoryStatistics {
   totalWords: number;
@@ -63,6 +64,7 @@ export class StoryStatsComponent implements OnInit, OnChanges {
   showDetailedBreakdown = true; // Show detailed breakdown button
 
   private readonly storyStatsService = inject(StoryStatsService);
+  private readonly dialogService = inject(DialogService);
 
   constructor() {
     addIcons({ 
@@ -185,6 +187,6 @@ export class StoryStatsComponent implements OnInit, OnChanges {
       });
     }
     
-    alert(message);
+    this.dialogService.showInfo({ header: 'Storage Breakdown', message });
   }
 }

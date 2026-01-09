@@ -21,7 +21,7 @@ import {
   arrowBack, send, personCircle, chatbubbles, copy, refresh,
   close, helpCircle, timeOutline, chevronForward,
   createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline, copyOutline,
-  lockClosed, sparkles
+  lockClosed, sparkles, stopCircle
 } from 'ionicons/icons';
 import { ModelSelectorComponent } from '../../../shared/components/model-selector/model-selector.component';
 
@@ -43,6 +43,7 @@ import { SettingsService } from '../../../core/services/settings.service';
 import { Story } from '../../models/story.interface';
 import { CodexEntry, Codex } from '../../models/codex.interface';
 import { AppHeaderComponent, HeaderAction } from '../../../ui/components/app-header.component';
+import { DialogService } from '../../../core/services/dialog.service';
 
 interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -90,6 +91,7 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   private geminiService = inject(GoogleGeminiApiService);
   private settingsService = inject(SettingsService);
   private characterChatHistoryService = inject(CharacterChatHistoryService);
+  private dialogService = inject(DialogService);
 
   // State
   story: Story | null = null;
@@ -137,12 +139,15 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
 
   private subscriptions = new Subscription();
 
+  // Streaming state (minimal for template compatibility - public version doesn't use streaming)
+  streamingContent = '';
+
   constructor() {
     addIcons({
       arrowBack, send, personCircle, chatbubbles, copy, refresh,
       close, helpCircle, timeOutline, chevronForward,
       createOutline, refreshOutline, checkmarkOutline, closeOutline, personOutline, copyOutline,
-      lockClosed, sparkles
+      lockClosed, sparkles, stopCircle
     });
     this.initializeHeaderActions();
   }
@@ -506,7 +511,7 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
   }
 
   showHelp(): void {
-    alert('Character Chat lets you have conversations with characters from your story. Select a character to begin chatting. You can set a knowledge cutoff to limit what the character knows about the story.');
+    this.dialogService.showInfo({ header: 'Character Chat Help', message: 'Character Chat lets you have conversations with characters from your story. Select a character to begin chatting. You can set a knowledge cutoff to limit what the character knows about the story.' });
   }
 
   copyMessage(content: string): void {
@@ -788,5 +793,12 @@ export class CharacterChatComponent implements OnInit, OnDestroy {
     } finally {
       this.isGenerating = false;
     }
+  }
+
+  /**
+   * Stop generation - stub for template compatibility (public version doesn't use streaming)
+   */
+  stopGeneration(): void {
+    this.isGenerating = false;
   }
 }

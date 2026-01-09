@@ -1,13 +1,17 @@
-import { Component, inject, OnInit, OnDestroy, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, CUSTOM_ELEMENTS_SCHEMA, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonCard, IonCardHeader, IonCardTitle, IonCardContent,
+  IonAccordion, IonAccordionGroup,
   IonItem, IonLabel, IonInput, IonButton, IonIcon,
-  IonSpinner, IonBadge, IonNote
+  IonSpinner, IonBadge, IonNote, IonSelect, IonSelectOption
 } from '@ionic/angular/standalone';
+import { PortraitModel } from '../../core/models/settings.interface';
 import { addIcons } from 'ionicons';
-import { star, checkmarkCircle, closeCircle, refresh } from 'ionicons/icons';
+import {
+  star, checkmarkCircle, closeCircle, refresh,
+  sparklesOutline, imageOutline, cardOutline, lockClosed, timeOutline
+} from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 import { SubscriptionService } from '../../core/services/subscription.service';
 import { SettingsService } from '../../core/services/settings.service';
@@ -18,206 +22,13 @@ import { environment } from '../../../environments/environment';
   standalone: true,
   imports: [
     CommonModule, FormsModule,
-    IonCard, IonCardHeader, IonCardTitle, IonCardContent,
+    IonAccordion, IonAccordionGroup,
     IonItem, IonLabel, IonInput, IonButton, IonIcon,
-    IonSpinner, IonBadge, IonNote
+    IonSpinner, IonBadge, IonNote, IonSelect, IonSelectOption
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  template: `
-    <ion-card>
-      <ion-card-header>
-        <ion-card-title>
-          <ion-icon name="star" class="premium-icon"></ion-icon>
-          Premium Subscription
-        </ion-card-title>
-      </ion-card-header>
-      <ion-card-content>
-        <!-- Status Badge -->
-        <div class="status-section">
-          <ion-badge [color]="isPremium ? 'success' : 'medium'">
-            <ion-icon [name]="isPremium ? 'checkmark-circle' : 'close-circle'"></ion-icon>
-            {{ isPremium ? 'Active' : 'Not Active' }}
-          </ion-badge>
-          <span *ngIf="isPremium && plan" class="plan-badge">{{ plan | titlecase }} Plan</span>
-          <span *ngIf="isPremium && expiresAt" class="expires-text">
-            Expires: {{ expiresAt | date:'mediumDate' }}
-          </span>
-        </div>
-
-        <!-- Email Input -->
-        <ion-item>
-          <ion-label position="stacked">Subscription Email</ion-label>
-          <ion-input
-            type="email"
-            [(ngModel)]="email"
-            placeholder="Enter the email used for subscription"
-            (ionBlur)="onEmailBlur()">
-          </ion-input>
-        </ion-item>
-        <ion-note class="input-note">
-          Enter your subscription email. You will be redirected to Stripe to verify ownership.
-        </ion-note>
-
-        <!-- Actions -->
-        <div class="actions">
-          <ion-button
-            expand="block"
-            (click)="verifySubscription()"
-            [disabled]="isVerifying || verificationPending || !email">
-            <ion-spinner *ngIf="isVerifying || verificationPending" name="crescent" slot="start"></ion-spinner>
-            <ion-icon *ngIf="!isVerifying && !verificationPending" name="refresh" slot="start"></ion-icon>
-            {{ isVerifying || verificationPending ? 'Verifying...' : 'Verify via Stripe Portal' }}
-          </ion-button>
-
-        </div>
-
-        <!-- Error/Success Message -->
-        <div *ngIf="message" class="message" [class.success]="messageType === 'success'" [class.error]="messageType === 'error'">
-          {{ message }}
-        </div>
-
-        <!-- Premium Features Info -->
-        <div class="features-info">
-          <h4>Premium Features</h4>
-          <ul>
-            <li><strong>AI Rewrite</strong> - Context-aware text rewriting with AI assistance</li>
-            <li><strong>Character Chat</strong> - Interview your characters and explore their personalities</li>
-            <li><em>More features coming soon...</em></li>
-          </ul>
-        </div>
-
-        <!-- Stripe Pricing Table (only shown when not premium) -->
-        <div *ngIf="!isPremium" class="pricing-section">
-          <h4>Get Premium</h4>
-          <stripe-pricing-table
-            [attr.pricing-table-id]="stripePricingTableId"
-            [attr.publishable-key]="stripePublishableKey"
-            [attr.customer-email]="email || null">
-          </stripe-pricing-table>
-        </div>
-      </ion-card-content>
-    </ion-card>
-  `,
-  styles: [`
-    .premium-icon {
-      color: #ffc107;
-      margin-right: 0.5rem;
-    }
-
-    .status-section {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
-    }
-
-    ion-badge {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      padding: 0.5rem 0.75rem;
-      font-size: 0.9rem;
-    }
-
-    .plan-badge {
-      background: linear-gradient(135deg, #4776e6 0%, #8bb4f8 100%);
-      color: white;
-      padding: 0.25rem 0.75rem;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      font-weight: 500;
-    }
-
-    .expires-text {
-      color: #9ca3af;
-      font-size: 0.85rem;
-    }
-
-    ion-item {
-      --background: rgba(20, 20, 20, 0.3);
-      --border-color: rgba(139, 180, 248, 0.2);
-      margin-bottom: 0.25rem;
-      border-radius: 8px;
-    }
-
-    .input-note {
-      display: block;
-      font-size: 0.8rem;
-      color: #6b7280;
-      padding: 0.25rem 1rem 1rem;
-    }
-
-    .actions {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      margin-top: 1.5rem;
-    }
-
-    .message {
-      margin-top: 1rem;
-      padding: 0.75rem 1rem;
-      border-radius: 8px;
-      font-size: 0.9rem;
-    }
-
-    .message.success {
-      background: rgba(16, 185, 129, 0.2);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #10b981;
-    }
-
-    .message.error {
-      background: rgba(239, 68, 68, 0.2);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: #ef4444;
-    }
-
-    .features-info {
-      margin-top: 2rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid rgba(139, 180, 248, 0.1);
-    }
-
-    .features-info h4 {
-      color: #f8f9fa;
-      margin: 0 0 0.75rem 0;
-      font-size: 1rem;
-    }
-
-    .features-info ul {
-      margin: 0;
-      padding-left: 1.25rem;
-      color: #9ca3af;
-    }
-
-    .features-info li {
-      margin-bottom: 0.5rem;
-      line-height: 1.4;
-    }
-
-    .features-info strong {
-      color: #e0e0e0;
-    }
-
-    .pricing-section {
-      margin-top: 2rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid rgba(139, 180, 248, 0.1);
-    }
-
-    .pricing-section h4 {
-      color: #f8f9fa;
-      margin: 0 0 1rem 0;
-      font-size: 1rem;
-    }
-
-    stripe-pricing-table {
-      display: block;
-      width: 100%;
-    }
-  `]
+  templateUrl: './premium-settings.component.html',
+  styleUrls: ['./premium-settings.component.scss']
 })
 export class PremiumSettingsComponent implements OnInit, OnDestroy {
   private subscriptionService = inject(SubscriptionService);
@@ -231,6 +42,9 @@ export class PremiumSettingsComponent implements OnInit, OnDestroy {
   expiresAt?: Date;
   message = '';
   messageType: 'success' | 'error' | '' = '';
+  portraitModel: PortraitModel = 'flux';
+
+  @Output() settingsChange = new EventEmitter<void>();
 
   // Stripe configuration from environment
   stripePublishableKey = environment.stripe.publishableKey;
@@ -239,13 +53,17 @@ export class PremiumSettingsComponent implements OnInit, OnDestroy {
   private subscriptions = new Subscription();
 
   constructor() {
-    addIcons({ star, checkmarkCircle, closeCircle, refresh });
+    addIcons({
+      star, checkmarkCircle, closeCircle, refresh,
+      sparklesOutline, imageOutline, cardOutline, lockClosed, timeOutline
+    });
   }
 
   ngOnInit(): void {
     // Load current settings
     const settings = this.settingsService.getSettings();
     this.email = settings.premium?.email || '';
+    this.portraitModel = settings.portraitModel?.selectedModel || 'flux';
 
     // Subscribe to premium status
     this.subscriptions.add(
@@ -265,19 +83,29 @@ export class PremiumSettingsComponent implements OnInit, OnDestroy {
     this.subscriptionService.initialize();
     this.updateStatusFromCache();
 
-    // Check for verification code in URL (from Stripe portal redirect)
-    this.checkVerificationCode();
+    // Check for portal return or legacy verification code in URL
+    this.checkPortalReturn();
   }
 
   /**
-   * Check URL for verification code after returning from Stripe portal
+   * Check if user is returning from Stripe portal and attempt to claim verification
+   *
+   * Flow 1 (Legacy - direct code): URL contains ?verify=<code>
+   * Flow 2 (login_page): URL contains ?tab=premium and email is set, poll for verification
+   *
+   * The login_page flow works like this:
+   * 1. User goes to Stripe login_page, enters email, receives OTP
+   * 2. User enters OTP (proves email ownership via Stripe)
+   * 3. billing_portal.session.created webhook fires, backend stores verification
+   * 4. User returns to app, we poll for verification
    */
-  private async checkVerificationCode(): Promise<void> {
+  private async checkPortalReturn(): Promise<void> {
     const urlParams = new URLSearchParams(window.location.search);
     const verifyCode = urlParams.get('verify');
+    const tab = urlParams.get('tab');
 
+    // Flow 1: Legacy verification code in URL
     if (verifyCode) {
-      // Remove code from URL to prevent re-processing
       const url = new URL(window.location.href);
       url.searchParams.delete('verify');
       window.history.replaceState({}, '', url.toString());
@@ -294,13 +122,73 @@ export class PremiumSettingsComponent implements OnInit, OnDestroy {
           this.message = 'No active subscription found';
           this.messageType = 'error';
         }
-      } catch {
-        this.message = 'Verification failed. Please try again.';
+      } catch (error) {
+        this.message = error instanceof Error
+          ? error.message
+          : 'Verification failed. Please try again.';
         this.messageType = 'error';
       } finally {
         this.verificationPending = false;
       }
+      return;
     }
+
+    // Flow 2: Check if we should try to claim portal verification
+    // This happens when user returns from Stripe's login_page
+    // We attempt to claim if: we're on premium tab, email is set, and not already premium
+    if (tab === 'premium' && this.email && !this.isPremium) {
+      await this.attemptClaimVerification();
+    }
+  }
+
+  /**
+   * Attempt to claim portal verification with polling
+   * The webhook might not have arrived yet, so we poll with increasing delays
+   */
+  private async attemptClaimVerification(): Promise<void> {
+    if (!this.email) return;
+
+    this.verificationPending = true;
+
+    // Poll for 30 seconds total with exponential backoff
+    const maxAttempts = 10;
+    const delays = [1000, 2000, 2000, 3000, 3000, 4000, 4000, 4000, 4000, 3000]; // Total: ~30s
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      this.message = `Verifying with Stripe... (${attempt}/${maxAttempts})`;
+      this.messageType = '';
+
+      try {
+        const claimed = await this.subscriptionService.claimPortalVerification(this.email);
+
+        if (claimed) {
+          this.updateStatusFromCache();
+          this.message = 'Subscription verified successfully!';
+          this.messageType = 'success';
+          this.verificationPending = false;
+          return;
+        }
+
+        // Not yet verified - wait and try again
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, delays[attempt - 1] || 3000));
+        }
+      } catch (error) {
+        // On error (not 401), stop polling
+        this.message = error instanceof Error
+          ? error.message
+          : 'Verification failed. Please try again.';
+        this.messageType = 'error';
+        this.verificationPending = false;
+        return;
+      }
+    }
+
+    // All attempts exhausted - show actionable message
+    // This is normal if the user just loaded the page without returning from portal
+    this.message = 'Verification not found. If you just returned from Stripe, please click "Verify via Stripe Portal" again.';
+    this.messageType = 'error';
+    this.verificationPending = false;
   }
 
   ngOnDestroy(): void {
@@ -326,6 +214,29 @@ export class PremiumSettingsComponent implements OnInit, OnDestroy {
         }
       });
     }
+  }
+
+  onPortraitModelChange(): void {
+    // Emit change event first so parent shows "Not Saved" briefly
+    this.settingsChange.emit();
+    // Then save immediately - parent will update to "Saved" via settings$ subscription
+    this.settingsService.updateSettings({
+      portraitModel: {
+        selectedModel: this.portraitModel
+      }
+    });
+  }
+
+  /**
+   * Get the default expanded accordion values
+   * For non-premium users, also expand the subscribe accordion
+   */
+  getDefaultExpandedAccordions(): string[] {
+    const expanded = ['status', 'features'];
+    if (!this.isPremium) {
+      expanded.push('subscribe');
+    }
+    return expanded;
   }
 
   async verifySubscription(): Promise<void> {

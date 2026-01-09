@@ -1,353 +1,94 @@
-ion-fab.model-fab {
-  z-index: 40;
-  margin-bottom: calc(96px + env(safe-area-inset-bottom));
-  margin-right: calc(16px + env(safe-area-inset-right));
-
-  ion-fab-button {
-    --box-shadow: 0 16px 28px rgba(0, 0, 0, 0.3);
-  }
-
-  @media (min-width: 768px) {
-    margin-bottom: 48px;
-    margin-right: 32px;
-  }
-}
-
-.fab-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  border: none;
-  padding: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  z-index: 30;
-  cursor: pointer;
-}
-
-.fab-menu {
-  position: fixed;
-  right: 16px;
-  bottom: calc(92px + env(safe-area-inset-bottom));
-  width: min(360px, calc(100% - 32px));
-  background: rgba(20, 20, 20, 0.95);
-  border-radius: 20px;
-  padding: 18px 18px 22px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transform: translate3d(0, 24px, 0);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 0.24s ease, opacity 0.24s ease;
-  z-index: 50;
-
-  &.visible {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .fab-menu__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
-
-    h2 {
-      margin: 0;
-      font-size: 0.95rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    ion-button {
-      --padding-start: 4px;
-      --padding-end: 4px;
-      --padding-top: 2px;
-      --padding-bottom: 2px;
-    }
-  }
-
-  .fab-menu__body {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-
-    ion-searchbar {
-      --background: rgba(255, 255, 255, 0.04);
-      --border-radius: 14px;
-    }
-  }
-
-  @media (max-width: 768px) {
-    left: 16px;
-    right: 16px;
-    bottom: calc(96px + env(safe-area-inset-bottom));
-    width: auto;
-  }
-}
-
-.chapter-title {
+/* Tools bar - search and actions (anchored at bottom) */
+.tools-bar {
   display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-
-.chapter-header-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
   gap: 12px;
+  padding: 8px 16px;
+  background: rgba(20, 20, 20, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  &.tools-bar--bottom {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding-bottom: calc(8px + var(--ion-safe-area-bottom, 0px));
+  }
+
+  .tools-bar__search {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    ion-searchbar {
+      --background: rgba(255, 255, 255, 0.06);
+      --border-radius: 10px;
+      --box-shadow: none;
+      --padding-start: 12px;
+      --padding-end: 12px;
+      --height: 40px;
+      padding: 0;
+    }
+  }
+
+  .tools-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+
+    .model-selector-compact {
+      min-width: 140px;
+      max-width: 180px;
+    }
+
+    .copy-btn {
+      --padding-start: 12px;
+      --padding-end: 12px;
+    }
+  }
 
   @media (max-width: 768px) {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 8px;
+    padding: 8px 12px;
+
+    &.tools-bar--bottom {
+      padding-bottom: calc(8px + var(--ion-safe-area-bottom, 0px));
+    }
+
+    .tools-bar__actions {
+      justify-content: space-between;
+
+      .model-selector-compact {
+        flex: 1 1 auto;
+        max-width: none;
+      }
+
+      .copy-btn .btn-text {
+        display: none;
+      }
+    }
   }
 }
 
-.chapter-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-
-  @media (max-width: 768px) {
-    width: 100%;
-    justify-content: stretch;
-  }
-}
-
-.chapter-actions ion-button {
-  --padding-start: 12px;
-  --padding-end: 12px;
-  --padding-top: 6px;
-  --padding-bottom: 6px;
-  --height: 32px;
-  min-width: 110px; /* reduce layout shift */
-
-  @media (max-width: 768px) {
-    --padding-top: 10px;
-    --padding-bottom: 10px;
-    --height: 44px;
-    min-width: auto;
-    flex: 1 1 auto;
-  }
-}
-
-.chapter-edit-input {
-  --background: rgba(0, 0, 0, 0.2);
-  --color: var(--ion-text-color);
-  --padding-start: 8px;
-  --padding-end: 8px;
-  --padding-top: 4px;
-  --padding-bottom: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  min-width: 180px;
-}
-
-.chapter-edit-input::part(native) {
-  background: transparent !important;
-}
-
-.idx {
-  opacity: 0.7;
+/* Filter info styling */
+.filter-info {
+  color: var(--ion-color-primary);
+  font-style: italic;
 }
 
 .chapter-content {
   padding: 12px;
 }
 
-.scene-card {
-  margin-bottom: 12px;
-  /* Glassy transparent card styling */
-  background: linear-gradient(135deg, rgba(20, 20, 20, 0.3) 0%, rgba(15, 15, 15, 0.3) 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 14px !important;
-  backdrop-filter: blur(8px) saturate(120%) !important;
-  -webkit-backdrop-filter: blur(8px) saturate(120%) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
-  transition: all 0.25s ease;
-  --background: transparent !important;
-
-  @media (max-width: 768px) {
-    margin-bottom: 16px;
-  }
-}
-
-.scene-card::part(native) {
-  background: transparent !important;
-}
-
-.scene-card ion-card-header::part(native),
-.scene-card ion-card-content::part(native) {
-  background: transparent !important;
-}
-
-.scene-card ion-card-header,
-.scene-card ion-card-content {
-  background: transparent !important;
-  --background: transparent !important;
-}
-
-.scene-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-}
-
-.scene-card ion-card-title {
-  color: #f8f9fa !important;
-  --color: #f8f9fa !important;
-  font-size: 0.98rem !important;
-  font-weight: 600 !important;
-
-  @media (max-width: 768px) {
-    font-size: 0.95rem !important;
-  }
-}
-
-.scene-word-count {
-  font-size: 0.85rem;
-  opacity: 0.75;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.scene-card:hover {
-  background: linear-gradient(135deg, rgba(25, 25, 25, 0.4) 0%, rgba(20, 20, 20, 0.4) 100%) !important;
-  border-color: rgba(71, 118, 230, 0.3) !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
-  transform: translateY(-2px);
-}
-
-.scene-card.highlight {
-  animation: highlightPulse 2s ease-in-out;
-}
-
-@keyframes highlightPulse {
-  0%, 100% {
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  }
-  50% {
-    border-color: rgba(71, 118, 230, 0.8);
-    box-shadow: 0 0 20px rgba(71, 118, 230, 0.5);
-  }
-}
-
-.summary.placeholder {
-  opacity: 0.7;
-  font-style: italic;
-}
-
-.summary {
-  max-height: 240px;
-  overflow-y: auto;
-  padding-right: 4px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.summary-edit ion-textarea {
-  --background: rgba(0, 0, 0, 0.2);
-  --color: var(--ion-text-color);
-  --padding-start: 12px;
-  --padding-end: 12px;
-  --padding-top: 12px;
-  --padding-bottom: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  --min-height: 180px;
-  --max-height: 240px;
-}
-
-.summary-edit ion-textarea::part(native) {
-  max-height: 240px;
-  overflow: auto;
-}
-
-/* Title edit styling */
-.title-edit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.title-input {
-  --background: rgba(0, 0, 0, 0.2);
-  --color: var(--ion-text-color);
-  --padding-start: 8px;
-  --padding-end: 8px;
-  --padding-top: 4px;
-  --padding-bottom: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  flex: 1 1 auto;
-}
-
-.title-input::part(native) {
-  background: transparent !important;
-}
-
 /* Ensure list container inside accordion content is transparent */
 .chapter-content ion-list {
   background: transparent !important;
   --background: transparent !important;
-}
-
-/* Keep scene action button subtle on glassy background */
-.actions ion-button[color="medium"] {
-  --background: rgba(255, 255, 255, 0.08);
-  --background-hover: rgba(255, 255, 255, 0.15);
-  --border-radius: 8px;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-
-  @media (max-width: 768px) {
-    justify-content: stretch;
-    gap: 6px;
-  }
-}
-
-/* Give scene action buttons comfortable inner spacing */
-.actions ion-button {
-  --padding-start: 12px;
-  --padding-end: 12px;
-  --padding-top: 8px;
-  --padding-bottom: 8px;
-  min-width: 120px; /* reduce layout shift for varying labels */
-
-  @media (max-width: 768px) {
-    --padding-top: 10px;
-    --padding-bottom: 10px;
-    min-width: auto;
-    flex: 1 1 auto;
-    min-height: 44px; /* Touch-optimized */
-  }
-
-  @media (max-width: 480px) {
-    flex: 1 1 100%;
-  }
 }
 
 .loading, .empty {
@@ -365,7 +106,8 @@ ion-fab.model-fab {
     font-size: 0.9em;
   }
 }
-.host, :host {
+
+:host {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -375,6 +117,7 @@ ion-fab.model-fab {
 ion-content {
   flex: 1 1 auto;
   --background: transparent !important;
+  --padding-bottom: 80px; /* Space for fixed bottom tools bar */
 }
 
 /* Transparent accordion styling for outline overview */
@@ -412,9 +155,9 @@ ion-accordion [slot="content"],
   ion-content {
     --offset-top: 0px !important;
     --offset-bottom: 0px !important;
+    --padding-bottom: 120px; /* Taller bottom bar on mobile (stacked layout) */
   }
   ion-content::part(scroll) {
     padding-top: 56px; /* header height compensation */
-    padding-bottom: max(40px, var(--ion-safe-area-bottom, 0px));
   }
 }

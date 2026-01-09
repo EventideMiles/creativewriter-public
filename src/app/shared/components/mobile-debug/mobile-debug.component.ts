@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { RouterModule } from '@angular/router';
 import { MobileDebugService, CrashLog, PerformanceMetrics } from '../../../core/services/mobile-debug.service';
+import { DialogService } from '../../../core/services/dialog.service';
 
 @Component({
   selector: 'app-mobile-debug',
@@ -14,6 +15,7 @@ import { MobileDebugService, CrashLog, PerformanceMetrics } from '../../../core/
 })
 export class MobileDebugComponent implements OnInit, OnDestroy {
   private readonly mobileDebug = inject(MobileDebugService);
+  private readonly dialogService = inject(DialogService);
 
   crashLogs: CrashLog[] = [];
   currentMetrics: PerformanceMetrics | null = null;
@@ -46,8 +48,13 @@ export class MobileDebugComponent implements OnInit, OnDestroy {
     }, 3000);
   }
 
-  clearLogs(): void {
-    if (confirm('Clear all crash logs?')) {
+  async clearLogs(): Promise<void> {
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Clear Crash Logs',
+      message: 'Do you really want to clear all crash logs?',
+      confirmText: 'Clear Logs'
+    });
+    if (confirmed) {
       this.mobileDebug.clearCrashLogs();
       this.loadData();
     }
@@ -67,9 +74,9 @@ export class MobileDebugComponent implements OnInit, OnDestroy {
   copyToClipboard(): void {
     const data = this.mobileDebug.exportCrashLogs();
     navigator.clipboard.writeText(data).then(() => {
-      alert('Debug data copied to clipboard!');
+      this.dialogService.showSuccess({ header: 'Copied', message: 'Debug data copied to clipboard!' });
     }).catch(() => {
-      alert('Failed to copy. Try export instead.');
+      this.dialogService.showError({ header: 'Copy Failed', message: 'Failed to copy. Try export instead.' });
     });
   }
 
@@ -100,8 +107,13 @@ export class MobileDebugComponent implements OnInit, OnDestroy {
     return /Android/.test(navigator.userAgent);
   }
 
-  triggerTestCrash(): void {
-    if (confirm('Trigger a test crash for debugging?')) {
+  async triggerTestCrash(): Promise<void> {
+    const confirmed = await this.dialogService.confirmWarning({
+      header: 'Trigger Test Crash',
+      message: 'This will trigger a test crash for debugging purposes. Continue?',
+      confirmText: 'Trigger Crash'
+    });
+    if (confirmed) {
       throw new Error('Test crash triggered from mobile debug panel');
     }
   }

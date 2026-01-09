@@ -1,12 +1,11 @@
 import { Component, OnInit, OnChanges, SimpleChanges, Input, Output, EventEmitter, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { IonIcon, IonGrid, IonRow, IonCol, IonText, IonCard, IonCardContent, IonButton, IonAlert } from '@ionic/angular/standalone';
 import { checkmarkCircle, trashOutline } from 'ionicons/icons';
 import { addIcons } from 'ionicons';
-import { SettingsService } from '../../core/services/settings.service';
 import { SyncedCustomBackgroundService, CustomBackgroundOption } from '../../shared/services/synced-custom-background.service';
 import { LazyImageDirective } from '../../shared/directives/lazy-image.directive';
+import { convertToWebP } from '../../shared/services/image-optimization.service';
 
 interface BackgroundOption {
   filename: string;
@@ -171,13 +170,11 @@ interface BackgroundOption {
   `,
   styles: [`
     .background-selector {
-      padding: 1rem;
+      padding: 0;
     }
 
     .background-selector h3 {
-      color: var(--ion-color-primary);
-      margin-bottom: 1rem;
-      font-size: 1.2rem;
+      display: none;
     }
 
     .section-header {
@@ -186,11 +183,14 @@ interface BackgroundOption {
       align-items: center;
       margin: 1.5rem 0 1rem 0;
       padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--ion-color-light-shade);
+      border-bottom: 1px solid var(--cw-border-subtle);
     }
 
     .section-header h4 {
-      color: var(--ion-color-primary);
+      background: var(--cw-gradient-text-accent);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
       margin: 0;
       font-size: 1rem;
       font-weight: 600;
@@ -213,7 +213,7 @@ interface BackgroundOption {
       border-radius: 8px;
       overflow: hidden;
       margin-bottom: 0.5rem;
-      border: 2px solid var(--ion-color-medium);
+      border: 2px solid var(--cw-border-subtle);
       transition: border-color 0.2s ease;
     }
 
@@ -225,28 +225,29 @@ interface BackgroundOption {
     }
 
     .no-background {
-      background: linear-gradient(45deg, 
-        var(--ion-color-light) 25%, 
-        transparent 25%), 
-      linear-gradient(-45deg, 
-        var(--ion-color-light) 25%, 
-        transparent 25%), 
-      linear-gradient(45deg, 
-        transparent 75%, 
-        var(--ion-color-light) 75%), 
-      linear-gradient(-45deg, 
-        transparent 75%, 
-        var(--ion-color-light) 75%);
+      background: linear-gradient(45deg,
+        rgba(60, 60, 60, 0.5) 25%,
+        transparent 25%),
+      linear-gradient(-45deg,
+        rgba(60, 60, 60, 0.5) 25%,
+        transparent 25%),
+      linear-gradient(45deg,
+        transparent 75%,
+        rgba(60, 60, 60, 0.5) 75%),
+      linear-gradient(-45deg,
+        transparent 75%,
+        rgba(60, 60, 60, 0.5) 75%);
       background-size: 10px 10px;
       background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+      background-color: rgba(30, 30, 30, 0.6);
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
     .no-bg-placeholder {
-      background: rgba(var(--ion-color-dark-rgb), 0.8);
-      color: var(--ion-color-light);
+      background: rgba(0, 0, 0, 0.6);
+      color: var(--cw-text-secondary);
       padding: 0.25rem 0.5rem;
       border-radius: 4px;
       font-size: 0.7rem;
@@ -254,22 +255,41 @@ interface BackgroundOption {
 
     .background-name {
       font-size: 0.8rem;
-      color: var(--ion-color-medium-shade);
+      color: var(--cw-text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
+    ion-card {
+      --background: linear-gradient(135deg, rgba(30, 30, 30, 0.6) 0%, rgba(20, 20, 20, 0.6) 100%);
+      --color: var(--cw-text-secondary);
+      border: 1px solid var(--cw-border-subtle);
+      border-radius: var(--cw-radius-md);
+      margin: 0.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    ion-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--cw-border-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
     .selected {
-      --background: var(--ion-color-primary-tint);
+      --background: linear-gradient(135deg, rgba(139, 180, 248, 0.15) 0%, rgba(139, 180, 248, 0.1) 100%);
+      border-color: var(--cw-color-primary-light) !important;
     }
 
     .selected .preview-container {
-      border-color: var(--ion-color-primary);
+      border-color: var(--cw-color-primary-light);
     }
 
     .selected .background-name {
-      color: var(--ion-color-primary);
+      color: var(--cw-color-primary-light);
       font-weight: 600;
     }
 
@@ -277,7 +297,7 @@ interface BackgroundOption {
       position: absolute;
       top: 0.5rem;
       right: 0.5rem;
-      color: var(--ion-color-primary);
+      color: var(--cw-color-primary-light);
       font-size: 1.2rem;
     }
 
@@ -304,7 +324,7 @@ interface BackgroundOption {
 
     .background-size {
       font-size: 0.7rem;
-      color: var(--ion-color-medium-shade);
+      color: var(--cw-text-disabled);
       text-align: center;
       margin-top: 0.25rem;
     }
@@ -312,42 +332,35 @@ interface BackgroundOption {
     .empty-custom-backgrounds {
       text-align: center;
       padding: 2rem;
-      background: var(--ion-color-light-tint);
-      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(30, 30, 30, 0.4) 0%, rgba(20, 20, 20, 0.4) 100%);
+      border: 1px solid var(--cw-border-subtle);
+      border-radius: var(--cw-radius-md);
       margin-top: 1rem;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
 
     .empty-custom-backgrounds p {
       margin: 0.5rem 0;
       font-size: 0.9rem;
-    }
-
-    ion-card {
-      margin: 0.25rem;
-      cursor: pointer;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    ion-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      color: var(--cw-text-muted);
     }
 
     /* Lazy loading styles */
     .lazy-image {
       transition: opacity 0.3s ease;
     }
-    
+
     .lazy-loading {
       opacity: 0.6;
       filter: blur(1px);
     }
-    
+
     .lazy-loaded {
       opacity: 1;
       filter: none;
     }
-    
+
     .lazy-error {
       opacity: 0.3;
       filter: grayscale(1);
@@ -357,17 +370,17 @@ interface BackgroundOption {
       .preview-container {
         height: 60px;
       }
-      
+
       .background-name {
         font-size: 0.7rem;
       }
-      
+
       .section-header {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.25rem;
       }
-      
+
       .delete-button {
         opacity: 1;
         width: 24px;
@@ -377,9 +390,6 @@ interface BackgroundOption {
   `]
 })
 export class BackgroundSelectorComponent implements OnInit, OnChanges {
-  private http = inject(HttpClient);
-
-  private settingsService = inject(SettingsService);
   private customBackgroundService = inject(SyncedCustomBackgroundService);
 
   // Input/Output for parent component integration
@@ -472,11 +482,12 @@ export class BackgroundSelectorComponent implements OnInit, OnChanges {
     return this.customBackgroundService.formatFileSize(bytes);
   }
 
-  private async loadAvailableBackgrounds() {
-    // List of known image files in the backgrounds folder
+  private loadAvailableBackgrounds() {
+    // Use static list directly - these are bundled assets that will always exist
+    // The LazyImageDirective handles any load errors gracefully
     const knownBackgrounds = [
       'abstract-energy-lines.png',
-      'cosmic-galaxy-burst.png', 
+      'cosmic-galaxy-burst.png',
       'cyberpunk-anime-girl.png',
       'cyberpunk-asian-street.png',
       'cyberpunk-city-noir.png',
@@ -491,136 +502,28 @@ export class BackgroundSelectorComponent implements OnInit, OnChanges {
       'space-nebula-stars.png',
       'zombie-apocalypse-scene.png'
     ];
-    
-    const backgrounds: BackgroundOption[] = [];
-    
-    // Check which images actually exist and are accessible
-    for (const filename of knownBackgrounds) {
-      try {
-        const img = new Image();
-        const imagePath = `assets/backgrounds/${filename}`;
-        
-        // Test if image loads successfully
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject();
-          img.src = imagePath;
-        });
-        
-        // If image loads successfully, add to list
-        backgrounds.push({
-          filename,
-          displayName: this.generateDisplayName(filename),
-          previewPath: imagePath
-        });
-        
-      } catch {
-        // Image doesn't exist or failed to load, skip it
-        console.debug(`Background image ${filename} not found or failed to load`);
-      }
-    }
-    
-    // Sort alphabetically by display name
-    this.backgroundOptions = backgrounds.sort((a, b) => a.displayName.localeCompare(b.displayName));
-    
-    // If no images were found, use fallback
-    if (this.backgroundOptions.length === 0) {
-      console.warn('No background images found, using fallback list');
-      this.backgroundOptions = this.getFallbackBackgrounds();
-    }
+
+    this.backgroundOptions = knownBackgrounds
+      .map(filename => ({
+        filename,
+        displayName: this.generateDisplayName(filename),
+        // Use WebP for previews (smaller file size, faster loading)
+        previewPath: `assets/backgrounds/${convertToWebP(filename)}`
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
 
   private generateDisplayName(filename: string): string {
     // Remove file extension
     const nameWithoutExt = filename.replace(/\.(png|jpg|jpeg|webp)$/i, '');
-    
+
     // Convert kebab-case or snake_case to readable format
     const readable = nameWithoutExt
       .replace(/[-_]/g, ' ')
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
-    
-    return readable;
-  }
 
-  private getFallbackBackgrounds(): BackgroundOption[] {
-    return [
-      {
-        filename: 'abstract-energy-lines.png',
-        displayName: 'Energy',
-        previewPath: 'assets/backgrounds/abstract-energy-lines.png'
-      },
-      {
-        filename: 'cosmic-galaxy-burst.png',
-        displayName: 'Galaxy',
-        previewPath: 'assets/backgrounds/cosmic-galaxy-burst.png'
-      },
-      {
-        filename: 'cyberpunk-anime-girl.png',
-        displayName: 'Cyberpunk Anime',
-        previewPath: 'assets/backgrounds/cyberpunk-anime-girl.png'
-      },
-      {
-        filename: 'cyberpunk-asian-street.png',
-        displayName: 'Cyberpunk Asian',
-        previewPath: 'assets/backgrounds/cyberpunk-asian-street.png'
-      },
-      {
-        filename: 'cyberpunk-city-noir.png',
-        displayName: 'Cyberpunk Noir',
-        previewPath: 'assets/backgrounds/cyberpunk-city-noir.png'
-      },
-      {
-        filename: 'cyberpunk-neon-corridor.png',
-        displayName: 'Cyberpunk Corridor',
-        previewPath: 'assets/backgrounds/cyberpunk-neon-corridor.png'
-      },
-      {
-        filename: 'dark-witch-forest.png',
-        displayName: 'Witch Forest',
-        previewPath: 'assets/backgrounds/dark-witch-forest.png'
-      },
-      {
-        filename: 'gothic-dark-moon-woman.png',
-        displayName: 'Gothic Moon',
-        previewPath: 'assets/backgrounds/gothic-dark-moon-woman.png'
-      },
-      {
-        filename: 'medieval-castle-street.png',
-        displayName: 'Medieval',
-        previewPath: 'assets/backgrounds/medieval-castle-street.png'
-      },
-      {
-        filename: 'modern-dark-apartment.png',
-        displayName: 'Modern Apartment',
-        previewPath: 'assets/backgrounds/modern-dark-apartment.png'
-      },
-      {
-        filename: 'noir-theater-man.png',
-        displayName: 'Noir Theater',
-        previewPath: 'assets/backgrounds/noir-theater-man.png'
-      },
-      {
-        filename: 'pirate-ship-captain.png',
-        displayName: 'Pirate Captain',
-        previewPath: 'assets/backgrounds/pirate-ship-captain.png'
-      },
-      {
-        filename: 'sci-fi-laboratory.png',
-        displayName: 'Sci-Fi Laboratory',
-        previewPath: 'assets/backgrounds/sci-fi-laboratory.png'
-      },
-      {
-        filename: 'space-nebula-stars.png',
-        displayName: 'Space',
-        previewPath: 'assets/backgrounds/space-nebula-stars.png'
-      },
-      {
-        filename: 'zombie-apocalypse-scene.png',
-        displayName: 'Apocalypse',
-        previewPath: 'assets/backgrounds/zombie-apocalypse-scene.png'
-      }
-    ];
+    return readable;
   }
 }

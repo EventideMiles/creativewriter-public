@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ModalController } from '@ionic/angular/standalone';
 import { ImageService, ImageUploadResult } from '../../shared/services/image.service';
 import { ImageCropperModalComponent } from './image-cropper-modal.component';
+import { DialogService } from '../../core/services/dialog.service';
 import imageCompression from 'browser-image-compression';
 
 type ProcessingStage = 'prepare' | 'compressing' | 'uploading' | 'finalizing';
@@ -573,6 +574,7 @@ export class ImageUploadDialogComponent {
   private readonly zone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dialogService = inject(DialogService);
   private viewDestroyed = false;
 
   constructor() {
@@ -613,7 +615,7 @@ export class ImageUploadDialogComponent {
 
   private async handleFile(file: File): Promise<void> {
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file.');
+      this.dialogService.showError({ header: 'Invalid File', message: 'Please select an image file.' });
       return;
     }
 
@@ -636,7 +638,7 @@ export class ImageUploadDialogComponent {
     } catch (error) {
       console.error('Error reading image file', error);
       this.commitState(() => {
-        alert('Error loading the image preview. Please try again.');
+        this.dialogService.showError({ header: 'Load Error', message: 'Error loading the image preview. Please try again.' });
         this.removeUploadedImage();
       });
     }
@@ -781,7 +783,7 @@ export class ImageUploadDialogComponent {
       }
     } catch (error) {
       console.error('Error cropping image:', error);
-      alert('Error cropping image. Please try again.');
+      this.dialogService.showError({ header: 'Crop Error', message: 'Error cropping image. Please try again.' });
     }
   }
 
@@ -909,8 +911,8 @@ export class ImageUploadDialogComponent {
   private handleInsertError(error: unknown): void {
     console.error('Error inserting image:', error);
     const message = this.buildUserFacingError(error);
-    // Ensure alert runs inside Angular zone for consistency across platforms
-    this.zone.run(() => alert(message));
+    // Ensure dialog runs inside Angular zone for consistency across platforms
+    this.zone.run(() => this.dialogService.showError({ header: 'Upload Error', message }));
   }
 
   private buildUserFacingError(error: unknown): string {

@@ -11,6 +11,10 @@ export class PromptTemplateService {
     return this.loadTemplate('assets/prompts/scene-summary-default.txt');
   }
 
+  getStagingNotesTemplate(): Promise<string> {
+    return this.loadTemplate('assets/prompts/staging-notes-default.txt');
+  }
+
   private loadTemplate(path: string): Promise<string> {
     let cached = this.cache.get(path);
     if (!cached) {

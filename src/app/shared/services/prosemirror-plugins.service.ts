@@ -5,6 +5,8 @@ import { Subscription } from 'rxjs';
 import { CodexService } from '../../stories/services/codex.service';
 import { CodexEntry } from '../../stories/models/codex.interface';
 import { createCodexHighlightingPlugin, updateCodexHighlightingPlugin } from './codex-highlighting-plugin';
+import { createDirectSpeechHighlightingPlugin } from './direct-speech-highlighting-plugin';
+import { createQuoteNormalizationPlugin } from './quote-normalization-plugin';
 import { EditorConfig, StoryContext } from './prosemirror-editor.interfaces';
 
 @Injectable({
@@ -129,6 +131,21 @@ export class ProseMirrorPluginsService {
     }
 
     return entries;
+  }
+
+  /**
+   * Create direct speech highlighting plugin
+   */
+  createDirectSpeechHighlightingPlugin(): Plugin {
+    return createDirectSpeechHighlightingPlugin();
+  }
+
+  /**
+   * Create quote normalization plugin
+   * Converts curly quotes, German quotes, and guillemets to ASCII quotes
+   */
+  createQuoteNormalizationPlugin(): Plugin {
+    return createQuoteNormalizationPlugin();
   }
 
   /**

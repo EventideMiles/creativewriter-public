@@ -11,12 +11,12 @@ import {
 import { AlertController } from '@ionic/angular';
 import { AppHeaderComponent, HeaderAction } from '../../../ui/components/app-header.component';
 import { addIcons } from 'ionicons';
-import { 
-  arrowBack, sendOutline, peopleOutline, documentTextOutline, 
+import {
+  arrowBack, sendOutline, peopleOutline, documentTextOutline,
   addOutline, checkmarkOutline, closeOutline, sparklesOutline,
   personOutline, locationOutline, cubeOutline, readerOutline,
   copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
-  refreshOutline, createOutline, timeOutline
+  refreshOutline, createOutline, timeOutline, stopCircle
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { SettingsService } from '../../../core/services/settings.service';
@@ -27,10 +27,8 @@ import { AIRequestLoggerService } from '../../../core/services/ai-request-logger
 import { ModelService } from '../../../core/services/model.service';
 import { ChatHistoryService } from '../../services/chat-history.service';
 import { AIProviderValidationService } from '../../../core/services/ai-provider-validation.service';
-import { OpenRouterIconComponent } from '../../../ui/icons/openrouter-icon.component';
-import { ClaudeIconComponent } from '../../../ui/icons/claude-icon.component';
-import { ReplicateIconComponent } from '../../../ui/icons/replicate-icon.component';
-import { OllamaIconComponent } from '../../../ui/icons/ollama-icon.component';
+import { ProviderIconComponent } from '../../../shared/components/provider-icon/provider-icon.component';
+import { getProviderIcon as getIcon } from '../../../core/provider-icons';
 import { Story, Scene, Chapter } from '../../models/story.interface';
 import { ModelOption } from '../../../core/models/model.interface';
 import { StoryRole } from '../../models/codex.interface';
@@ -126,7 +124,7 @@ interface ParsedExtractionEntry {
     IonContent, IonFooter, IonItem, IonLabel, IonTextarea, IonList,
     IonChip, IonAvatar, IonSearchbar, IonModal, IonCheckbox, IonItemDivider,
     IonButton, IonIcon, IonButtons, IonToolbar, IonTitle, IonHeader, IonSpinner,
-    OpenRouterIconComponent, ClaudeIconComponent, ReplicateIconComponent, OllamaIconComponent
+    ProviderIconComponent
   ],
   templateUrl: './scene-chat.component.html',
   styleUrls: ['./scene-chat.component.scss'],
@@ -158,7 +156,8 @@ export class SceneChatComponent implements OnInit, OnDestroy {
   messages: ChatMessage[] = [];
   currentMessage = '';
   isGenerating = false;
-  
+  streamingContent = '';
+
   selectedScenes: SceneContext[] = [];
   showSceneSelector = false;
   sceneSearchTerm = '';
@@ -197,12 +196,12 @@ export class SceneChatComponent implements OnInit, OnDestroy {
   private customFieldIdCounter = 0;
 
   constructor() {
-    addIcons({ 
-      arrowBack, sendOutline, peopleOutline, documentTextOutline, 
+    addIcons({
+      arrowBack, sendOutline, peopleOutline, documentTextOutline,
       addOutline, checkmarkOutline, closeOutline, sparklesOutline,
       personOutline, locationOutline, cubeOutline, readerOutline,
       copyOutline, logoGoogle, globeOutline, chatbubbleOutline, gitNetworkOutline, cloudUploadOutline, hardwareChip,
-      refreshOutline, createOutline, timeOutline
+      refreshOutline, createOutline, timeOutline, stopCircle
     });
     
     this.initializePresetPrompts();
@@ -266,111 +265,56 @@ export class SceneChatComponent implements OnInit, OnDestroy {
     const userMessage = message.content;
     const extractionType = message.extractionType;
 
-    this.isGenerating = true;
-    this.scrollToBottom();
+    // Prepare scene context
+    const sceneContext = this.selectedScenes
+      .map(s => `<scene chapter="${s.chapterTitle}" title="${s.sceneTitle}">\n${s.content}\n</scene>`)
+      .join('\n\n');
 
-    try {
-      // Prepare scene context
-      const sceneContext = this.selectedScenes
-        .map(s => `<scene chapter="${s.chapterTitle}" title="${s.sceneTitle}">\n${s.content}\n</scene>`)
-        .join('\n\n');
-
-      // Prepare story outline if enabled
-      let storyOutline = '';
-      if (this.includeStoryOutline) {
-        storyOutline = this.buildStoryOutline();
-      }
-
-      // Generate a unique beat ID for this chat message
-      const beatId = 'chat-' + Date.now();
-
-      let prompt = '';
-
-      // Always use direct AI calls without system prompt or codex
-      let contextText = '';
-      if (storyOutline) {
-        contextText += `Story Overview:\n${storyOutline}\n\n`;
-      }
-      if (sceneContext) {
-        contextText += `Scene Text:\n${sceneContext}\n\n`;
-      }
-
-      // Add chat history context (exclude initial system message and preset prompts)
-      const chatHistory = this.buildChatHistory();
-      if (chatHistory) {
-        contextText += `Previous chat history:\n${chatHistory}\n\n`;
-      }
-
-      const languageInstruction = this.getLanguageInstruction();
-
-      // Build prompt based on type
-      if (extractionType) {
-        // Use the extraction prompt directly
-        prompt = `${contextText}${userMessage}`;
-        if (languageInstruction) {
-          prompt += `\n\n${languageInstruction}`;
-        }
-      } else {
-        // For normal chat, just add the user's question
-        prompt = `${contextText}User Question: ${userMessage}\n\n`;
-        if (languageInstruction) {
-          prompt += `${languageInstruction}\n`;
-        }
-        prompt += 'Please answer helpfully and creatively based on the given context and previous conversation.';
-      }
-
-      // Call AI directly without the beat generation template
-      const sessionIdSnapshot = this.chatSessionId;
-      let accumulatedResponse = '';
-      const subscription = this.callAIDirectly(
-        prompt,
-        beatId,
-        { wordCount: 400 }
-      ).subscribe({
-        next: (chunk) => {
-          if (this.chatSessionId !== sessionIdSnapshot) return;
-          accumulatedResponse = chunk;
-          this.cdr.markForCheck();
-        },
-        complete: () => {
-          if (this.chatSessionId !== sessionIdSnapshot) return;
-          this.messages.push({
-            role: 'assistant',
-            content: accumulatedResponse,
-            timestamp: new Date(),
-            extractionType
-          });
-          this.isGenerating = false;
-          this.scrollToBottom();
-          // Persist snapshot of conversation
-          this.saveHistorySnapshot().catch(() => void 0);
-          this.cdr.markForCheck();
-        },
-        error: (error) => {
-          if (this.chatSessionId !== sessionIdSnapshot) return;
-          console.error('Error generating response:', error);
-          this.messages.push({
-            role: 'assistant',
-            content: 'Sorry, an error occurred. Please try again.',
-            timestamp: new Date()
-          });
-          this.isGenerating = false;
-          this.scrollToBottom();
-        }
-      });
-
-      this.subscriptions.add(subscription);
-
-    } catch (error) {
-      console.error('Error generating response:', error);
-      this.messages.push({
-        role: 'assistant',
-        content: 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.',
-        timestamp: new Date()
-      });
-      this.isGenerating = false;
-      this.scrollToBottom();
+    // Prepare story outline if enabled
+    let storyOutline = '';
+    if (this.includeStoryOutline) {
+      storyOutline = this.buildStoryOutline();
     }
+
+    // Generate a unique beat ID for this chat message
+    const beatId = 'chat-' + Date.now();
+
+    // Build context text
+    let contextText = '';
+    if (storyOutline) {
+      contextText += `Story Overview:\n${storyOutline}\n\n`;
+    }
+    if (sceneContext) {
+      contextText += `Scene Text:\n${sceneContext}\n\n`;
+    }
+
+    // Add chat history context (exclude initial system message and preset prompts)
+    const chatHistory = this.buildChatHistory();
+    if (chatHistory) {
+      contextText += `Previous chat history:\n${chatHistory}\n\n`;
+    }
+
+    const languageInstruction = this.getLanguageInstruction();
+
+    // Build prompt based on type
+    let prompt = '';
+    if (extractionType) {
+      // Use the extraction prompt directly
+      prompt = `${contextText}${userMessage}`;
+      if (languageInstruction) {
+        prompt += `\n\n${languageInstruction}`;
+      }
+    } else {
+      // For normal chat, just add the user's question
+      prompt = `${contextText}User Question: ${userMessage}\n\n`;
+      if (languageInstruction) {
+        prompt += `${languageInstruction}\n`;
+      }
+      prompt += 'Please answer helpfully and creatively based on the given context and previous conversation.';
+    }
+
+    // Stream the response
+    this.streamResponse(prompt, beatId, { wordCount: 400 }, extractionType);
   }
 
   ngOnInit() {
@@ -483,103 +427,47 @@ export class SceneChatComponent implements OnInit, OnDestroy {
       extractionType: effectiveExtractionType
     });
 
-    this.isGenerating = true;
-    this.scrollToBottom();
+    // Prepare scene context
+    const sceneContext = this.selectedScenes
+      .map(scene => `<scene chapter="${scene.chapterTitle}" title="${scene.sceneTitle}">\n${scene.content}\n</scene>`)
+      .join('\n\n');
 
-    try {
-      // Prepare scene context
-      const sceneContext = this.selectedScenes
-        .map(scene => `<scene chapter="${scene.chapterTitle}" title="${scene.sceneTitle}">\n${scene.content}\n</scene>`)
-        .join('\n\n');
-
-      // Prepare story outline if enabled
-      let storyOutline = '';
-      if (this.includeStoryOutline) {
-        storyOutline = this.buildStoryOutline();
-      }
-
-      // const settings = this.settingsService.getSettings(); // Unused variable
-      // Generate a unique beat ID for this chat message
-      const beatId = 'chat-' + Date.now();
-      
-      let prompt = '';
-      
-      // Always use direct AI calls without system prompt or codex
-      let contextText = '';
-      if (storyOutline) {
-        contextText += `Story Overview:\n${storyOutline}\n\n`;
-      }
-      if (sceneContext) {
-        contextText += `Scene Text:\n${sceneContext}\n\n`;
-      }
-      
-      // Add chat history context (exclude initial system message and preset prompts)
-      const chatHistory = this.buildChatHistory();
-      if (chatHistory) {
-        contextText += `Previous chat history:\n${chatHistory}\n\n`;
-      }
-      
-      // Build prompt based on type
-      if (extractionType) {
-        // Use the extraction prompt directly
-        prompt = `${contextText}${userMessage}`;
-      } else {
-        // For normal chat, just add the user's question
-        prompt = `${contextText}User Question: ${userMessage}\n\nPlease answer helpfully and creatively based on the given context and previous conversation.`;
-      }
-      
-      // Call AI directly without the beat generation template
-      const sessionIdSnapshot = this.chatSessionId;
-      let accumulatedResponse = '';
-      const subscription = this.callAIDirectly(
-        prompt,
-        beatId,
-        { wordCount: 400 }
-      ).subscribe({
-        next: (chunk) => {
-          if (this.chatSessionId !== sessionIdSnapshot) return;
-          accumulatedResponse = chunk;
-          this.cdr.markForCheck();
-        },
-        complete: () => {
-          if (this.chatSessionId !== sessionIdSnapshot) return;
-          this.messages.push({
-            role: 'assistant',
-            content: accumulatedResponse,
-            timestamp: new Date(),
-            extractionType
-          });
-          this.isGenerating = false;
-          this.scrollToBottom();
-          // Persist snapshot of conversation
-          this.saveHistorySnapshot().catch(() => void 0);
-          this.cdr.markForCheck();
-        },
-        error: (error) => {
-          if (this.chatSessionId !== sessionIdSnapshot) return;
-          console.error('Error generating response:', error);
-          this.messages.push({
-            role: 'assistant',
-            content: 'Sorry, an error occurred. Please try again.',
-            timestamp: new Date()
-          });
-          this.isGenerating = false;
-          this.scrollToBottom();
-        }
-      });
-      
-      this.subscriptions.add(subscription);
-
-    } catch (error) {
-      console.error('Error generating response:', error);
-      this.messages.push({
-        role: 'assistant',
-        content: 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.',
-        timestamp: new Date()
-      });
-      this.isGenerating = false;
-      this.scrollToBottom();
+    // Prepare story outline if enabled
+    let storyOutline = '';
+    if (this.includeStoryOutline) {
+      storyOutline = this.buildStoryOutline();
     }
+
+    // Generate a unique beat ID for this chat message
+    const beatId = 'chat-' + Date.now();
+
+    // Build context text
+    let contextText = '';
+    if (storyOutline) {
+      contextText += `Story Overview:\n${storyOutline}\n\n`;
+    }
+    if (sceneContext) {
+      contextText += `Scene Text:\n${sceneContext}\n\n`;
+    }
+
+    // Add chat history context (exclude initial system message and preset prompts)
+    const chatHistory = this.buildChatHistory();
+    if (chatHistory) {
+      contextText += `Previous chat history:\n${chatHistory}\n\n`;
+    }
+
+    // Build prompt based on type
+    let prompt = '';
+    if (effectiveExtractionType) {
+      // Use the extraction prompt directly
+      prompt = `${contextText}${userMessage}`;
+    } else {
+      // For normal chat, just add the user's question
+      prompt = `${contextText}User Question: ${userMessage}\n\nPlease answer helpfully and creatively based on the given context and previous conversation.`;
+    }
+
+    // Stream the response
+    this.streamResponse(prompt, beatId, { wordCount: 400 }, effectiveExtractionType);
   }
 
   onEnterKey(event: KeyboardEvent) {
@@ -1029,6 +917,85 @@ Separate each object block with a blank line.`
     });
     
     return outline;
+  }
+
+  /**
+   * Shared streaming response handler - consolidates duplicate streaming logic
+   * from sendMessage and resendMessage
+   */
+  private streamResponse(
+    prompt: string,
+    beatId: string,
+    options: { wordCount: number },
+    extractionType?: 'characters' | 'locations' | 'objects'
+  ): void {
+    this.isGenerating = true;
+    this.streamingContent = '';
+    this.scrollToBottom();
+
+    const sessionIdSnapshot = ++this.chatSessionId;
+    let accumulatedResponse = '';
+
+    const subscription = this.callAIDirectly(prompt, beatId, options).subscribe({
+      next: (chunk) => {
+        if (this.chatSessionId !== sessionIdSnapshot) return;
+        accumulatedResponse = chunk;
+        this.streamingContent = chunk;
+        this.scrollToBottom();
+        this.cdr.markForCheck();
+      },
+      complete: () => {
+        if (this.chatSessionId !== sessionIdSnapshot) return;
+        this.streamingContent = '';
+        this.messages.push({
+          role: 'assistant',
+          content: accumulatedResponse,
+          timestamp: new Date(),
+          extractionType
+        });
+        this.isGenerating = false;
+        this.scrollToBottom();
+        this.saveHistorySnapshot().catch(() => void 0);
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        if (this.chatSessionId !== sessionIdSnapshot) return;
+        console.error('Error generating response:', error);
+        this.streamingContent = '';
+        this.messages.push({
+          role: 'assistant',
+          content: 'Sorry, an error occurred. Please try again.',
+          timestamp: new Date()
+        });
+        this.isGenerating = false;
+        this.scrollToBottom();
+        this.cdr.markForCheck();
+      }
+    });
+
+    this.subscriptions.add(subscription);
+  }
+
+  /**
+   * Stop the current generation and save partial content
+   */
+  stopGeneration(): void {
+    // Invalidate current session
+    this.chatSessionId = Date.now();
+
+    // If we have partial content, save it
+    if (this.streamingContent) {
+      this.messages.push({
+        role: 'assistant',
+        content: this.streamingContent + '\n\n[Generation stopped]',
+        timestamp: new Date()
+      });
+      this.saveHistorySnapshot().catch(() => void 0);
+    }
+
+    this.streamingContent = '';
+    this.isGenerating = false;
+    this.cdr.markForCheck();
   }
 
   private callAIDirectly(prompt: string, beatId: string, options: { wordCount: number }): Observable<string> {
@@ -1596,20 +1563,7 @@ Separate each object block with a blank line.`
   }
   
   getProviderIcon(provider: string): string {
-    switch (provider) {
-      case 'gemini':
-        return 'logo-google';
-      case 'openrouter':
-        return 'git-network-outline';
-      case 'claude':
-        return 'claude-custom';
-      case 'ollama':
-        return 'ollama-custom';
-      case 'replicate':
-        return 'replicate-custom';
-      default:
-        return 'globe-outline';
-    }
+    return getIcon(provider);
   }
   
   private buildChatHistory(): string {
@@ -1714,6 +1668,7 @@ Separate each object block with a blank line.`
     this.chatSessionId = Date.now();
     this.isGenerating = false;
     this.currentMessage = '';
+    this.streamingContent = '';
 
     // Clear chat messages and push greeting
     this.messages = [];
@@ -1793,6 +1748,7 @@ Separate each object block with a blank line.`
     // Bump session id to stop any in-flight streaming
     this.chatSessionId = Date.now();
     this.isGenerating = false;
+    this.streamingContent = '';
     // Replace current chat with stored one
     this.messages = (history.messages || []).map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
     if (this.messages.length === 0) {

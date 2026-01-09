@@ -76,7 +76,9 @@ export class ProseMirrorEditorService {
     }
 
     const plugins = [
-      history(),
+      // Limit history depth to prevent unbounded memory growth on mobile
+      // Reduced from 100 to 20 - each state stores full doc copy
+      history({ depth: 20, newGroupDelay: 500 }),
       keymap({
         'Mod-z': undo,
         'Mod-y': redo,
@@ -84,9 +86,14 @@ export class ProseMirrorEditorService {
         'Enter': chainCommands(newlineInCode, createParagraphNear, liftEmptyBlock, splitBlock)
       }),
       keymap(baseKeymap),
+      this.pluginsService.createQuoteNormalizationPlugin(), // Normalize quotes before other plugins process them
       this.pluginsService.createBeatAIPlugin(),
       this.pluginsService.createCodexHighlightingPlugin(config, null), // Will update with editorView after creation
-      this.contextMenuService.createContextMenuPlugin(() => this.getHTMLContent()),
+      this.pluginsService.createDirectSpeechHighlightingPlugin(),
+      this.contextMenuService.createContextMenuPlugin(
+        () => this.getHTMLContent(),
+        () => this.currentStoryContext
+      ),
       this.selectionHighlightService.createFlashHighlightPlugin()
     ];
 

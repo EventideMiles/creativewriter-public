@@ -335,13 +335,18 @@ export class OllamaApiService {
               if (line.trim()) {
                 try {
                   const data = JSON.parse(line);
-                  
+
                   // Extract text based on response type
                   let text = '';
                   if ('response' in data && data.response) {
                     text = data.response;
                   } else if ('message' in data && data.message?.content) {
                     text = data.message.content;
+                  }
+
+                  // Filter out <think>...</think> blocks from reasoning models (e.g., DeepSeek-R1)
+                  if (text) {
+                    text = this.filterThinkingBlocks(text);
                   }
 
                   if (text) {
@@ -458,5 +463,14 @@ export class OllamaApiService {
 
   private generateRequestId(): string {
     return 'req_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  }
+
+  /**
+   * Filter out <think>...</think> blocks from reasoning model responses.
+   * Some models like DeepSeek-R1 embed their reasoning process in these tags.
+   */
+  private filterThinkingBlocks(text: string): string {
+    // Remove complete <think>...</think> blocks
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, '');
   }
 }

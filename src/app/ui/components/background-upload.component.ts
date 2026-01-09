@@ -181,28 +181,38 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
       margin: 0 auto;
     }
 
+    ion-card {
+      --background: linear-gradient(135deg, rgba(30, 30, 30, 0.6) 0%, rgba(20, 20, 20, 0.6) 100%);
+      --color: var(--cw-text-secondary);
+      border: 1px solid var(--cw-border-subtle);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
     ion-card-title {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      color: var(--ion-color-primary);
+      color: var(--cw-color-primary-light);
     }
 
     .upload-area {
-      border: 2px dashed var(--ion-color-medium);
+      border: 2px dashed var(--cw-border-accent);
       border-radius: 12px;
       padding: 2rem;
       text-align: center;
       cursor: pointer;
       transition: all 0.3s ease;
-      background: var(--ion-color-light-tint);
+      background: linear-gradient(135deg, rgba(30, 30, 30, 0.4) 0%, rgba(20, 20, 20, 0.4) 100%);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       margin-bottom: 1rem;
     }
 
     .upload-area:hover,
     .upload-area.dragover {
-      border-color: var(--ion-color-primary);
-      background: var(--ion-color-primary-tint);
+      border-color: var(--cw-color-primary-light);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 180, 248, 0.1) 100%);
     }
 
     .upload-content {
@@ -210,11 +220,21 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
       flex-direction: column;
       align-items: center;
       gap: 0.5rem;
+      color: var(--cw-text-muted);
+    }
+
+    .upload-content p {
+      color: var(--cw-text-secondary);
+      margin: 0;
+    }
+
+    .upload-content small {
+      color: var(--cw-text-muted);
     }
 
     .upload-icon {
       font-size: 3rem;
-      color: var(--ion-color-medium);
+      color: var(--cw-text-muted);
     }
 
     .upload-progress {
@@ -222,6 +242,7 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
       flex-direction: column;
       align-items: center;
       gap: 1rem;
+      color: var(--cw-text-secondary);
     }
 
     .file-preview {
@@ -236,7 +257,7 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
       height: 100px;
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid var(--ion-color-medium);
+      border: 1px solid var(--cw-border-subtle);
     }
 
     .preview-image img {
@@ -251,6 +272,11 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
       min-width: 0;
     }
 
+    .file-info ion-item {
+      --background: transparent;
+      --color: var(--cw-text-secondary);
+    }
+
     .upload-actions {
       padding: 1rem 0;
     }
@@ -260,9 +286,11 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
       align-items: center;
       gap: 0.5rem;
       padding: 1rem;
-      background: var(--ion-color-success-tint);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
+      border: 1px solid rgba(34, 197, 94, 0.3);
       border-radius: 8px;
       margin-top: 1rem;
+      color: var(--cw-text-secondary);
     }
 
     .upload-success ion-icon {
@@ -271,7 +299,8 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
 
     .upload-error {
       padding: 1rem;
-      background: var(--ion-color-danger-tint);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
+      border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: 8px;
       margin-top: 1rem;
     }
@@ -290,18 +319,19 @@ import { SyncedCustomBackgroundService, CustomBackground } from '../../shared/se
     .storage-stats p {
       margin: 0.25rem 0;
       font-size: 0.9rem;
+      color: var(--cw-text-muted);
     }
 
     @media (max-width: 768px) {
       .file-preview {
         flex-direction: column;
       }
-      
+
       .preview-image {
         width: 100%;
         height: 150px;
       }
-      
+
       .storage-stats {
         flex-direction: column;
         align-items: flex-start;

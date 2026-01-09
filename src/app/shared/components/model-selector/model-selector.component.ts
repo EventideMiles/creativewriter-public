@@ -8,15 +8,12 @@ import { starOutline, logoGoogle } from 'ionicons/icons';
 import { ModelService } from '../../../core/services/model.service';
 import { ModelOption } from '../../../core/models/model.interface';
 import { SettingsService } from '../../../core/services/settings.service';
-import { OpenRouterIconComponent } from '../../../ui/icons/openrouter-icon.component';
-import { ClaudeIconComponent } from '../../../ui/icons/claude-icon.component';
-import { ReplicateIconComponent } from '../../../ui/icons/replicate-icon.component';
-import { OllamaIconComponent } from '../../../ui/icons/ollama-icon.component';
+import { ProviderIconComponent } from '../provider-icon/provider-icon.component';
 
 @Component({
   selector: 'app-model-selector',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgSelectModule, IonIcon, OpenRouterIconComponent, ClaudeIconComponent, ReplicateIconComponent, OllamaIconComponent],
+  imports: [CommonModule, FormsModule, NgSelectModule, IonIcon, ProviderIconComponent],
   templateUrl: './model-selector.component.html',
   styleUrls: ['./model-selector.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -82,10 +79,4 @@ export class ModelSelectorComponent implements OnInit {
     this.modelChange.emit(model.id);
   }
 
-  getProviderIcon(provider: string): string {
-    if (provider === 'gemini') return 'logoGoogle';
-    if (provider === 'replicate') return 'gitNetworkOutline';
-    if (provider === 'ollama') return 'hardwareChip';
-    return 'globeOutline';
-  }
 }

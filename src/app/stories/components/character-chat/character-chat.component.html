@@ -197,7 +197,7 @@
           </div>
         </div>
 
-        <!-- Typing indicator -->
+        <!-- Streaming content or Typing indicator -->
         <div *ngIf="isGenerating" class="message assistant-message">
           <div class="message-avatar">
             <ion-avatar>
@@ -205,11 +205,18 @@
             </ion-avatar>
           </div>
           <div class="message-content">
-            <div class="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
+            <!-- Show streaming content if available -->
+            <div class="message-text streaming" *ngIf="streamingContent; else typingIndicator">
+              {{ streamingContent }}
             </div>
+            <!-- Fallback to typing indicator while waiting for first chunk -->
+            <ng-template #typingIndicator>
+              <div class="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </ng-template>
           </div>
         </div>
       </div>
@@ -229,8 +236,17 @@
         class="message-input">
       </ion-textarea>
       <ion-button
+        *ngIf="isGenerating"
+        (click)="stopGeneration()"
+        fill="clear"
+        color="danger"
+        class="stop-button">
+        <ion-icon name="stop-circle" slot="icon-only"></ion-icon>
+      </ion-button>
+      <ion-button
+        *ngIf="!isGenerating"
         (click)="sendMessage()"
-        [disabled]="!currentMessage.trim() || isGenerating"
+        [disabled]="!currentMessage.trim()"
         fill="clear"
         class="send-button">
         <ion-icon name="send" slot="icon-only"></ion-icon>

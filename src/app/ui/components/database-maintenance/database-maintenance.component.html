@@ -1,0 +1,724 @@
+<div class="database-maintenance">
+  <div class="tab-header">
+    <h2>Backup & Restore</h2>
+    <p>Database maintenance, backup, and cleanup tools</p>
+  </div>
+
+  <ion-accordion-group [multiple]="true" [value]="['backup']" class="maintenance-accordion">
+
+    <!-- Backup & Restore -->
+    <ion-accordion value="backup">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="document-text-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Database Backup & Restore</h3>
+          <p>Export and import your complete database</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="isRemoteAvailable ? 'success' : 'medium'">
+          {{ isRemoteAvailable ? 'Connected' : 'Offline' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <!-- Remote Database Info -->
+        <ion-item *ngIf="isRemoteAvailable && remoteDbInfo" lines="none" class="database-info">
+          <ion-icon name="cloud-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Remote Database (CouchDB)</h3>
+            <p>{{ remoteDbInfo.totalDocs }} documents in "{{ remoteDbInfo.dbName }}"</p>
+          </ion-label>
+        </ion-item>
+
+        <ion-item *ngIf="!isRemoteAvailable" lines="none" class="database-info warning">
+          <ion-icon name="cloud-offline-outline" slot="start" color="warning"></ion-icon>
+          <ion-label>
+            <h3>Remote Database Not Connected</h3>
+            <p>Please enable sync in Settings to backup/restore from your cloud database.</p>
+          </ion-label>
+        </ion-item>
+
+        <!-- Export Section -->
+        <div class="operation-section">
+          <h4>Export Database from Cloud</h4>
+          <p class="section-description">
+            Create a complete backup of your remote CouchDB database including all stories, scenes, attachments, and settings.
+          </p>
+
+          <ion-button expand="block" color="primary" (click)="exportDatabase()" [disabled]="isExporting || !isRemoteAvailable">
+            <ion-icon name="download-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isExporting" slot="start"></ion-spinner>
+            {{ isExporting ? 'Exporting...' : 'Export from Cloud' }}
+          </ion-button>
+
+          <div *ngIf="isExporting && exportProgress" class="progress-info">
+            <p *ngIf="exportProgress.phase === 'fetching-ids'">Fetching document list...</p>
+            <p *ngIf="exportProgress.phase === 'fetching-docs'">
+              Exporting {{ exportProgress.current }} of {{ exportProgress.total }} documents...
+            </p>
+            <p *ngIf="exportProgress.phase === 'complete'">Export complete!</p>
+            <ion-progress-bar [value]="exportProgress.total > 0 ? exportProgress.current / exportProgress.total : 0" color="primary"></ion-progress-bar>
+          </div>
+          <ion-progress-bar *ngIf="isExporting && !exportProgress" type="indeterminate" color="primary"></ion-progress-bar>
+        </div>
+
+        <!-- Import Section -->
+        <div class="operation-section">
+          <h4>Restore Database to Cloud</h4>
+          <p class="section-description">
+            Restore from a previously exported backup. This will clear BOTH your remote CouchDB and local database, then import the backup and sync to cloud.
+          </p>
+
+          <div class="import-controls">
+            <input #fileInput type="file" accept=".json" (change)="onFileSelected($event)" class="hidden-file-input">
+
+            <ion-button expand="block" fill="outline" color="secondary" (click)="fileInput.click()" [disabled]="isImporting || !isRemoteAvailable">
+              <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
+              Select Backup File
+            </ion-button>
+
+            <ion-item *ngIf="selectedFile" lines="none" class="selected-file">
+              <ion-icon name="document-text-outline" slot="start" color="secondary"></ion-icon>
+              <ion-label>
+                <h3>{{ selectedFile.name }}</h3>
+                <p>{{ formatFileSize(selectedFile.size) }}</p>
+              </ion-label>
+              <ion-chip slot="end" color="secondary">
+                <ion-icon name="checkmark-circle-outline"></ion-icon>
+                <ion-label>Selected</ion-label>
+              </ion-chip>
+            </ion-item>
+
+            <ion-button expand="block" color="warning" (click)="showImportConfirmation()" [disabled]="!selectedFile || isImporting || !isRemoteAvailable">
+              <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
+              <ion-spinner *ngIf="isImporting" slot="start"></ion-spinner>
+              {{ isImporting ? 'Restoring...' : 'Restore to Cloud' }}
+            </ion-button>
+
+            <div *ngIf="isImporting && importProgress" class="progress-info">
+              <p *ngIf="importProgress.phase === 'clearing-remote'">Clearing remote database...</p>
+              <p *ngIf="importProgress.phase === 'clearing-local'">Clearing local database...</p>
+              <p *ngIf="importProgress.phase === 'importing'">{{ importProgress.message || 'Importing documents...' }}</p>
+              <p *ngIf="importProgress.phase === 'syncing'">Syncing to remote database...</p>
+              <p *ngIf="importProgress.phase === 'complete'">Restore complete!</p>
+              <ion-progress-bar *ngIf="importProgress.phase === 'importing' && importProgress.total" [value]="importProgress.current! / importProgress.total" color="warning"></ion-progress-bar>
+              <ion-progress-bar *ngIf="importProgress.phase !== 'importing' || !importProgress.total" type="indeterminate" color="warning"></ion-progress-bar>
+            </div>
+            <ion-progress-bar *ngIf="isImporting && !importProgress" type="indeterminate" color="warning"></ion-progress-bar>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <ion-icon name="warning-outline" color="warning"></ion-icon>
+          <ul>
+            <li>Export backs up ALL documents from remote CouchDB</li>
+            <li>Import clears BOTH remote AND local databases first</li>
+            <li>Requires active sync connection to remote database</li>
+            <li>Documents with images/attachments are fully supported</li>
+            <li>Make a backup before importing to avoid data loss</li>
+          </ul>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Beat History -->
+    <ion-accordion value="beat-history">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="time-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Beat Version History</h3>
+          <p>Manage beat content version history</p>
+        </ion-label>
+        <ion-badge slot="end" color="primary" *ngIf="beatHistoryStats">
+          {{ beatHistoryStats.totalVersions }} versions
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <ion-item *ngIf="beatHistoryStats" lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Current Beat History Storage</h3>
+            <p>{{ beatHistoryStats.totalHistories }} beat{{ beatHistoryStats.totalHistories !== 1 ? 's' : '' }} with {{ beatHistoryStats.totalVersions }} version{{ beatHistoryStats.totalVersions !== 1 ? 's' : '' }}</p>
+            <p>Estimated size: {{ formatFileSize(beatHistoryStats.totalSize) }}</p>
+          </ion-label>
+          <ion-button slot="end" fill="clear" size="small" (click)="refreshBeatHistoryStats()" aria-label="Refresh beat history statistics">
+            <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
+          </ion-button>
+        </ion-item>
+
+        <ion-item *ngIf="beatHistoryStats && beatHistoryStats.totalHistories === 0" lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start"></ion-icon>
+          <ion-label>
+            <p>No beat histories found. Beat histories are created when you use AI to generate beat content.</p>
+          </ion-label>
+        </ion-item>
+
+        <div class="operation-section">
+          <h4>Delete All Beat Histories</h4>
+          <p class="section-description">
+            Permanently delete all beat version history data. This will free up storage space but cannot be undone. Your current beat content in stories will not be affected.
+          </p>
+
+          <ion-button expand="block" color="danger" (click)="showDeleteBeatHistoriesConfirmation()" [disabled]="isDeletingBeatHistories || !beatHistoryStats || beatHistoryStats.totalHistories === 0">
+            <ion-icon name="trash-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isDeletingBeatHistories" slot="start"></ion-spinner>
+            {{ isDeletingBeatHistories ? 'Deleting...' : 'Delete All Beat Histories' }}
+          </ion-button>
+
+          <ion-progress-bar *ngIf="isDeletingBeatHistories" type="indeterminate" color="danger"></ion-progress-bar>
+        </div>
+
+        <div class="info-section">
+          <ion-icon name="warning-outline" color="warning"></ion-icon>
+          <ul>
+            <li>Deleting beat histories removes all version snapshots</li>
+            <li>Current beat content in your stories remains unchanged</li>
+            <li>This action cannot be undone - no way to recover deleted versions</li>
+            <li>Maximum 10 versions are kept per beat automatically</li>
+            <li>History is stored locally and not synced</li>
+            <li>Histories are only created when using AI generation</li>
+          </ul>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Database Cleanup -->
+    <ion-accordion value="cleanup">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="albums-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Database Cleanup</h3>
+          <p>Remove old database indexes</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="cleanupResult ? 'success' : 'medium'">
+          {{ cleanupResult ? 'Cleaned' : 'Ready' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <ion-item lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>IndexedDB Storage Optimization</h3>
+            <p>Remove old database indexes (mrview databases) to free up storage space. This is safe and will not delete any of your stories or data.</p>
+          </ion-label>
+        </ion-item>
+
+        <div class="operation-section">
+          <h4>Clean Up Old Databases</h4>
+          <p class="section-description">
+            PouchDB creates index databases that can accumulate over time. This removes unused indexes while preserving all your data.
+          </p>
+
+          <ion-button expand="block" color="secondary" (click)="cleanupDatabases()" [disabled]="isCleaningDatabases">
+            <ion-icon name="build-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isCleaningDatabases" slot="start"></ion-spinner>
+            {{ isCleaningDatabases ? 'Cleaning...' : 'Clean Up Databases' }}
+          </ion-button>
+
+          <ion-progress-bar *ngIf="isCleaningDatabases" type="indeterminate" color="secondary"></ion-progress-bar>
+
+          <div *ngIf="cleanupResult" class="result-display" [class.warning]="cleanupResult.errors.length > 0">
+            <ion-icon [name]="cleanupResult.errors.length > 0 ? 'warning-outline' : 'checkmark-circle-outline'" [color]="cleanupResult.errors.length > 0 ? 'warning' : 'success'"></ion-icon>
+            <div>
+              <h4>Cleanup Complete</h4>
+              <p>Removed {{ cleanupResult.cleaned }} old indexes</p>
+              <p>Kept {{ cleanupResult.kept }} active databases</p>
+              <p *ngIf="cleanupResult.errors.length > 0" class="error-text">{{ cleanupResult.errors.length }} error(s) occurred</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+          <ul>
+            <li><strong>SAFE:</strong> Only removes PouchDB index databases (mrview databases)</li>
+            <li>Your stories and beat content are NEVER touched</li>
+            <li>Indexes can be recreated automatically when needed</li>
+            <li>Helps reduce mobile browser memory usage</li>
+            <li>Recommended if you experience crashes or slowness</li>
+          </ul>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Metadata Index -->
+    <ion-accordion value="metadata">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="sync-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Metadata Index</h3>
+          <p>Story list metadata synchronization</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="metadataIndexResult?.success ? 'success' : 'medium'">
+          {{ metadataIndexResult?.success ? 'Synced' : 'Ready' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <ion-item lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Story Metadata Index</h3>
+            <p>The metadata index powers the story list with lightweight previews. Syncing ensures the index matches your remote stories.</p>
+          </ion-label>
+        </ion-item>
+
+        <div class="operation-section">
+          <h4>Sync Metadata Index</h4>
+          <p class="section-description">
+            Fetch the latest metadata index from the remote server. This is useful after browser data deletion or if stories aren't showing in the list.
+          </p>
+
+          <ion-button expand="block" color="primary" (click)="syncMetadataIndex()" [disabled]="isSyncingMetadataIndex">
+            <ion-icon name="sync-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isSyncingMetadataIndex" slot="start"></ion-spinner>
+            {{ isSyncingMetadataIndex ? 'Syncing...' : 'Sync Metadata Index' }}
+          </ion-button>
+
+          <ion-progress-bar *ngIf="isSyncingMetadataIndex" type="indeterminate" color="primary"></ion-progress-bar>
+
+          <div *ngIf="metadataIndexResult" class="result-display" [class.warning]="!metadataIndexResult.success">
+            <ion-icon [name]="metadataIndexResult.success ? 'checkmark-circle-outline' : 'warning-outline'" [color]="metadataIndexResult.success ? 'success' : 'warning'"></ion-icon>
+            <div>
+              <h4>{{ metadataIndexResult.title }}</h4>
+              <p>{{ metadataIndexResult.message }}</p>
+              <p *ngIf="metadataIndexResult.storiesCount !== undefined">
+                Found {{ metadataIndexResult.storiesCount }} stor{{ metadataIndexResult.storiesCount !== 1 ? 'ies' : 'y' }} in index
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="operation-section">
+          <h4>Rebuild Metadata Index</h4>
+          <p class="section-description">
+            Rebuild the metadata index from all stories in the local database. Use this if the index is corrupted or out of sync.
+          </p>
+
+          <ion-button expand="block" fill="outline" color="secondary" (click)="rebuildMetadataIndex()" [disabled]="isRebuildingMetadataIndex">
+            <ion-icon name="refresh-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isRebuildingMetadataIndex" slot="start"></ion-spinner>
+            {{ isRebuildingMetadataIndex ? 'Rebuilding...' : 'Rebuild Metadata Index' }}
+          </ion-button>
+
+          <ion-progress-bar *ngIf="isRebuildingMetadataIndex" type="indeterminate" color="secondary"></ion-progress-bar>
+        </div>
+
+        <div class="info-section">
+          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+          <ul>
+            <li><strong>Sync:</strong> Fetches the metadata index from remote CouchDB (~500KB)</li>
+            <li><strong>Rebuild:</strong> Creates new index from local stories (no remote fetch)</li>
+            <li>Metadata index contains story previews, word counts, and thumbnails</li>
+            <li>Story list loads from this index instead of loading all stories</li>
+            <li>Much faster and uses less memory on mobile</li>
+          </ul>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Orphaned Images -->
+    <ion-accordion value="orphaned">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="image-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Orphaned Images</h3>
+          <p>Find and remove unused images</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="orphanedImages.length > 0 ? 'warning' : 'medium'">
+          {{ orphanedImages.length > 0 ? orphanedImages.length + ' found' : 'Ready' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <ion-item *ngIf="!isRemoteAvailable" lines="none" class="database-info warning">
+          <ion-icon name="cloud-offline-outline" slot="start" color="warning"></ion-icon>
+          <ion-label>
+            <h3>Remote Database Required</h3>
+            <p>Orphaned image scanning requires a remote database connection to scan all stories accurately.</p>
+          </ion-label>
+        </ion-item>
+
+        <ion-item *ngIf="isRemoteAvailable" lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Full Database Scan</h3>
+            <p>Scans the remote database to find images not used in any story. This ensures accuracy across all stories.</p>
+          </ion-label>
+        </ion-item>
+
+        <div class="operation-section">
+          <h4>Scan for Orphaned Images</h4>
+          <p class="section-description">
+            Analyze all images and stories in your remote database to identify unused images that can be safely removed.
+          </p>
+
+          <ion-button expand="block" color="primary" (click)="scanOrphanedImages()" [disabled]="isScanningOrphanedImages || !isRemoteAvailable">
+            <ion-icon name="scan-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isScanningOrphanedImages" slot="start"></ion-spinner>
+            {{ isScanningOrphanedImages ? 'Scanning...' : 'Scan Remote Database' }}
+          </ion-button>
+
+          <div *ngIf="isScanningOrphanedImages && orphanedImageScanProgress" class="progress-info">
+            <p>{{ orphanedImageScanProgress.message }}</p>
+            <ion-progress-bar [value]="orphanedImageScanProgress.total > 0 ? orphanedImageScanProgress.current / orphanedImageScanProgress.total : 0" color="primary"></ion-progress-bar>
+          </div>
+          <ion-progress-bar *ngIf="isScanningOrphanedImages && !orphanedImageScanProgress" type="indeterminate" color="primary"></ion-progress-bar>
+        </div>
+
+        <!-- Results Section -->
+        <div *ngIf="orphanedImages.length > 0" class="operation-section">
+          <h4>Found {{ orphanedImages.length }} Orphaned Image{{ orphanedImages.length !== 1 ? 's' : '' }}</h4>
+
+          <div class="action-buttons">
+            <ion-button fill="outline" size="small" (click)="selectAllOrphanedImages()">
+              <ion-icon name="checkbox-outline" slot="start"></ion-icon>
+              Select All
+            </ion-button>
+            <ion-button fill="outline" size="small" color="medium" (click)="deselectAllOrphanedImages()">
+              <ion-icon name="square-outline" slot="start"></ion-icon>
+              Deselect All
+            </ion-button>
+            <ion-button fill="solid" size="small" color="danger" (click)="showDeleteOrphanedImagesConfirmation()" [disabled]="selectedOrphanedImages.size === 0 || isDeletingOrphanedImages">
+              <ion-icon name="trash-outline" slot="start"></ion-icon>
+              <ion-spinner *ngIf="isDeletingOrphanedImages" slot="start"></ion-spinner>
+              Delete ({{ selectedOrphanedImages.size }})
+            </ion-button>
+          </div>
+
+          <ion-list class="image-list">
+            <ion-item *ngFor="let image of orphanedImages; trackBy: trackByOrphanedImage" button (click)="toggleOrphanedImageSelection(image.id)">
+              <ion-checkbox slot="start" [checked]="selectedOrphanedImages.has(image.id)"></ion-checkbox>
+              <ion-thumbnail slot="start">
+                <img [src]="'data:' + image.mimeType + ';base64,' + image.base64Data" [alt]="image.name">
+              </ion-thumbnail>
+              <ion-label>
+                <h3>{{ image.name }}</h3>
+                <p>{{ formatFileSize(image.size) }}</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+        </div>
+
+        <div *ngIf="orphanedImages.length === 0 && !isScanningOrphanedImages" class="empty-state">
+          <p>No orphaned images found or scan not yet performed.</p>
+        </div>
+
+        <div class="info-section">
+          <ion-icon name="warning-outline" color="warning"></ion-icon>
+          <ul>
+            <li>Scans remote database for complete accuracy</li>
+            <li>Deleted images will sync removal to local database</li>
+            <li>Images embedded in story content are identified by base64 data</li>
+            <li>This operation cannot be undone - verify before deleting</li>
+          </ul>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Database Statistics -->
+    <ion-accordion value="stats">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="stats-chart-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Database Statistics</h3>
+          <p>View storage and document counts</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="databaseStats ? 'success' : 'medium'">
+          {{ databaseStats ? databaseStats.totalStories + ' stories' : 'Ready' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <ion-item *ngIf="!isRemoteAvailable" lines="none" class="database-info warning">
+          <ion-icon name="cloud-offline-outline" slot="start" color="warning"></ion-icon>
+          <ion-label>
+            <h3>Remote Database Required</h3>
+            <p>Database statistics require a remote database connection.</p>
+          </ion-label>
+        </ion-item>
+
+        <div class="operation-section">
+          <h4>Load Remote Database Statistics</h4>
+          <p class="section-description">
+            Scan the remote database to get accurate statistics across all stories.
+          </p>
+
+          <ion-button expand="block" color="primary" (click)="loadDatabaseStats()" [disabled]="isLoadingStats || !isRemoteAvailable">
+            <ion-icon name="stats-chart-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isLoadingStats" slot="start"></ion-spinner>
+            {{ isLoadingStats ? 'Loading...' : 'Load Statistics' }}
+          </ion-button>
+
+          <div *ngIf="isLoadingStats && statsScanProgress" class="progress-info">
+            <p>{{ statsScanProgress.message }}</p>
+            <ion-progress-bar [value]="statsScanProgress.total > 0 ? statsScanProgress.current / statsScanProgress.total : 0" color="primary"></ion-progress-bar>
+          </div>
+        </div>
+
+        <div *ngIf="databaseStats" class="stats-grid">
+          <div class="stat-item">
+            <ion-text color="primary"><h3>{{ databaseStats.totalStories }}</h3></ion-text>
+            <ion-note>Stories</ion-note>
+          </div>
+          <div class="stat-item">
+            <ion-text color="primary"><h3>{{ databaseStats.totalImages }}</h3></ion-text>
+            <ion-note>Images</ion-note>
+          </div>
+          <div class="stat-item">
+            <ion-text color="warning"><h3>{{ databaseStats.orphanedImages }}</h3></ion-text>
+            <ion-note>Orphaned Images</ion-note>
+          </div>
+          <div class="stat-item">
+            <ion-text color="medium"><h3>{{ formatFileSize(databaseStats.databaseSizeEstimate) }}</h3></ion-text>
+            <ion-note>Total Size (approx.)</ion-note>
+          </div>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Duplicate Images -->
+    <ion-accordion value="duplicates">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="copy-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Duplicate Images</h3>
+          <p>Find and remove duplicate images</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="duplicateImages.length > 0 ? 'warning' : 'medium'">
+          {{ duplicateImages.length > 0 ? duplicateImages.length + ' groups' : 'Ready' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <ion-item *ngIf="!isRemoteAvailable" lines="none" class="database-info warning">
+          <ion-icon name="cloud-offline-outline" slot="start" color="warning"></ion-icon>
+          <ion-label>
+            <h3>Remote Database Required</h3>
+            <p>Duplicate image scanning requires a remote database connection.</p>
+          </ion-label>
+        </ion-item>
+
+        <ion-item *ngIf="isRemoteAvailable" lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Find Identical Images</h3>
+            <p>Scans for images with identical content but different IDs.</p>
+          </ion-label>
+        </ion-item>
+
+        <div class="operation-section">
+          <h4>Scan for Duplicates</h4>
+          <p class="section-description">
+            Analyze all images in your remote database to find duplicates that can be safely removed.
+          </p>
+
+          <ion-button expand="block" color="primary" (click)="scanDuplicateImages()" [disabled]="isScanningDuplicates || !isRemoteAvailable">
+            <ion-icon name="copy-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isScanningDuplicates" slot="start"></ion-spinner>
+            {{ isScanningDuplicates ? 'Scanning...' : 'Scan for Duplicates' }}
+          </ion-button>
+
+          <div *ngIf="isScanningDuplicates && duplicateScanProgress" class="progress-info">
+            <p>{{ duplicateScanProgress.message }}</p>
+            <ion-progress-bar [value]="duplicateScanProgress.total > 0 ? duplicateScanProgress.current / duplicateScanProgress.total : 0" color="primary"></ion-progress-bar>
+          </div>
+        </div>
+
+        <!-- Results Section -->
+        <div *ngIf="duplicateImages.length > 0" class="operation-section">
+          <h4>Found {{ duplicateImages.length }} Duplicate Group{{ duplicateImages.length !== 1 ? 's' : '' }}</h4>
+
+          <div class="action-buttons">
+            <ion-button fill="outline" size="small" (click)="selectAllDuplicates()">
+              <ion-icon name="checkbox-outline" slot="start"></ion-icon>
+              Select All
+            </ion-button>
+            <ion-button fill="outline" size="small" color="medium" (click)="deselectAllDuplicates()">
+              <ion-icon name="square-outline" slot="start"></ion-icon>
+              Deselect All
+            </ion-button>
+            <ion-button fill="solid" size="small" color="danger" (click)="showDeleteDuplicatesConfirmation()" [disabled]="selectedDuplicates.size === 0 || isDeletingDuplicates">
+              <ion-icon name="trash-outline" slot="start"></ion-icon>
+              <ion-spinner *ngIf="isDeletingDuplicates" slot="start"></ion-spinner>
+              Delete ({{ getTotalDuplicateCount() }})
+            </ion-button>
+          </div>
+
+          <ion-list class="image-list">
+            <ion-item *ngFor="let duplicate of duplicateImages; trackBy: trackByDuplicateImage" button (click)="toggleDuplicateSelection(duplicate.originalId)">
+              <ion-checkbox slot="start" [checked]="selectedDuplicates.has(duplicate.originalId)"></ion-checkbox>
+              <ion-thumbnail slot="start">
+                <img [src]="'data:image/jpeg;base64,' + duplicate.base64Data" [alt]="duplicate.name">
+              </ion-thumbnail>
+              <ion-label>
+                <h3>{{ duplicate.name }}</h3>
+                <p>
+                  {{ formatFileSize(duplicate.size) }} ·
+                  <ion-badge color="warning">{{ duplicate.duplicateIds.length }} duplicate{{ duplicate.duplicateIds.length !== 1 ? 's' : '' }}</ion-badge>
+                </p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+        </div>
+
+        <div *ngIf="duplicateImages.length === 0 && !isScanningDuplicates" class="empty-state">
+          <p>No duplicates found or scan not yet performed.</p>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Story Integrity -->
+    <ion-accordion value="integrity">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="search-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Story Integrity</h3>
+          <p>Check for damaged or incomplete stories</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="integrityCheckPerformed ? (integrityIssues.length > 0 ? 'warning' : 'success') : 'medium'">
+          {{ integrityCheckPerformed ? (integrityIssues.length > 0 ? integrityIssues.length + ' issues' : 'OK') : 'Ready' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <ion-item *ngIf="!isRemoteAvailable" lines="none" class="database-info warning">
+          <ion-icon name="cloud-offline-outline" slot="start" color="warning"></ion-icon>
+          <ion-label>
+            <h3>Remote Database Required</h3>
+            <p>Story integrity check requires a remote database connection.</p>
+          </ion-label>
+        </ion-item>
+
+        <ion-item *ngIf="isRemoteAvailable" lines="none" class="database-info">
+          <ion-icon name="information-circle-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>
+            <h3>Check for Issues</h3>
+            <p>Scans for damaged or incomplete stories in the remote database.</p>
+          </ion-label>
+        </ion-item>
+
+        <div class="operation-section">
+          <h4>Check Story Integrity</h4>
+          <p class="section-description">
+            Analyze all stories for missing chapters, empty scenes, or corrupt metadata.
+          </p>
+
+          <ion-button expand="block" color="primary" (click)="checkIntegrity()" [disabled]="isCheckingIntegrity || !isRemoteAvailable">
+            <ion-icon name="search-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isCheckingIntegrity" slot="start"></ion-spinner>
+            {{ isCheckingIntegrity ? 'Checking...' : 'Check Integrity' }}
+          </ion-button>
+
+          <div *ngIf="isCheckingIntegrity && integrityScanProgress" class="progress-info">
+            <p>{{ integrityScanProgress.message }}</p>
+            <ion-progress-bar [value]="integrityScanProgress.total > 0 ? integrityScanProgress.current / integrityScanProgress.total : 0" color="primary"></ion-progress-bar>
+          </div>
+        </div>
+
+        <!-- Results Section -->
+        <div *ngIf="integrityIssues.length > 0" class="operation-section">
+          <h4>Found {{ integrityIssues.length }} Issue{{ integrityIssues.length !== 1 ? 's' : '' }}</h4>
+
+          <ion-list class="integrity-list">
+            <ion-item *ngFor="let issue of integrityIssues; trackBy: trackByIntegrityIssue">
+              <ion-icon [name]="issue.severity === 'high' ? 'close-circle-outline' : 'warning-outline'" [color]="issue.severity === 'high' ? 'danger' : 'warning'" slot="start"></ion-icon>
+              <ion-label>
+                <h3>{{ issue.storyTitle }}</h3>
+                <p>{{ issue.description }}</p>
+                <ion-note>Severity: {{ issue.severity }}</ion-note>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+        </div>
+
+        <div *ngIf="integrityIssues.length === 0 && !isCheckingIntegrity && integrityCheckPerformed" class="empty-state success">
+          <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
+          <p>All stories are intact!</p>
+        </div>
+
+        <div *ngIf="!integrityCheckPerformed && !isCheckingIntegrity" class="empty-state">
+          <p>Check not yet performed.</p>
+        </div>
+      </div>
+    </ion-accordion>
+
+    <!-- Database Operations -->
+    <ion-accordion value="operations">
+      <ion-item slot="header" lines="full">
+        <ion-icon name="build-outline" slot="start"></ion-icon>
+        <ion-label>
+          <h3>Database Operations</h3>
+          <p>Compact and optimize database storage</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="compactResult || deepCleanResult ? 'success' : 'medium'">
+          {{ compactResult || deepCleanResult ? 'Optimized' : 'Ready' }}
+        </ion-badge>
+      </ion-item>
+      <div slot="content" class="accordion-content">
+        <div class="operation-section">
+          <h4>Compact Database</h4>
+          <p class="section-description">
+            Removes deleted data and reduces database size. This operates on the local database.
+          </p>
+
+          <ion-button expand="block" fill="outline" color="secondary" (click)="compactDatabase()" [disabled]="isCompacting">
+            <ion-icon name="refresh-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isCompacting" slot="start"></ion-spinner>
+            {{ isCompacting ? 'Compacting...' : 'Compact Database' }}
+          </ion-button>
+
+          <ion-progress-bar *ngIf="isCompacting" type="indeterminate" color="secondary"></ion-progress-bar>
+
+          <div *ngIf="compactResult" class="result-display">
+            <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
+            <div>
+              <h4>Compaction Complete</h4>
+              <p *ngIf="compactResult.saved > 0">
+                Freed {{ formatFileSize(compactResult.saved) }}
+                ({{ formatFileSize(compactResult.sizeBefore) }} → {{ formatFileSize(compactResult.sizeAfter) }})
+              </p>
+              <p *ngIf="compactResult.saved <= 0">
+                Storage unchanged at {{ formatFileSize(compactResult.sizeAfter) }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="operation-section deep-clean">
+          <h4>Deep Clean (Mobile-Safe)</h4>
+          <p class="section-description">
+            For large databases that crash during normal compaction. Deletes index databases
+            (they rebuild automatically) without loading the entire database into memory.
+          </p>
+
+          <ion-button expand="block" fill="outline" color="warning" (click)="deepCleanDatabase()" [disabled]="isDeepCleaning || isCompacting">
+            <ion-icon name="nuclear-outline" slot="start"></ion-icon>
+            <ion-spinner *ngIf="isDeepCleaning" slot="start"></ion-spinner>
+            {{ isDeepCleaning ? 'Deep cleaning...' : 'Deep Clean' }}
+          </ion-button>
+
+          <ion-progress-bar *ngIf="isDeepCleaning" type="indeterminate" color="warning"></ion-progress-bar>
+
+          <div *ngIf="deepCleanResult" class="result-display">
+            <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
+            <div>
+              <h4>Deep Clean Complete</h4>
+              <p *ngIf="deepCleanResult.saved > 0">
+                Freed {{ formatFileSize(deepCleanResult.saved) }}
+                ({{ formatFileSize(deepCleanResult.sizeBefore) }} → {{ formatFileSize(deepCleanResult.sizeAfter) }})
+              </p>
+              <p *ngIf="deepCleanResult.saved <= 0">
+                Deleted {{ deepCleanResult.deletedDatabases }} index databases
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+          <ul>
+            <li><strong>Compact:</strong> Removes deleted document revisions</li>
+            <li><strong>Deep Clean:</strong> Deletes index databases (mobile-safe)</li>
+            <li>Shows actual storage freed in MB/GB</li>
+            <li>Safe operations - do not delete any story data</li>
+          </ul>
+        </div>
+      </div>
+    </ion-accordion>
+
+  </ion-accordion-group>
+</div>

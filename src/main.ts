@@ -2,6 +2,27 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
 import { defineCustomElements } from '@ionic/core/loader';
+import { addIcons } from 'ionicons';
+import { register as registerSwiper } from 'swiper/element/bundle';
+import {
+  openrouterCustom,
+  claudeCustom,
+  ollamaCustom,
+  replicateCustom,
+  falCustom
+} from './app/core/custom-icons';
+
+// Register Swiper custom elements
+registerSwiper();
+
+// Register custom icons globally for use with ion-icon
+addIcons({
+  'openrouter-custom': openrouterCustom,
+  'claude-custom': claudeCustom,
+  'ollama-custom': ollamaCustom,
+  'replicate-custom': replicateCustom,
+  'fal-custom': falCustom
+});
 
 // Initialize Ionic with error handling for better browser compatibility
 try {

@@ -1,3 +1,10 @@
+export interface PortraitGalleryItem {
+  id: string;
+  base64: string;
+  createdAt: Date;
+  source: 'generated' | 'uploaded';
+}
+
 export interface CodexEntry {
   id: string;
   categoryId: string;
@@ -5,6 +12,9 @@ export interface CodexEntry {
   content: string;
   tags?: string[];
   imageUrl?: string;
+  portraitBase64?: string;
+  portraitGallery?: PortraitGalleryItem[];
+  activePortraitId?: string;
   metadata?: Record<string, unknown>;
   storyRole?: StoryRole | '';
   alwaysInclude?: boolean;

@@ -280,11 +280,19 @@ export class ClaudeApiService {
 
               try {
                 const parsed = JSON.parse(data);
-                
-                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                  const chunk = parsed.delta.text;
-                  accumulatedText += chunk;
-                  observer.next(chunk);
+
+                if (parsed.type === 'content_block_delta') {
+                  // Filter out thinking deltas from Claude extended thinking models
+                  if (parsed.delta?.type === 'thinking_delta') {
+                    // Skip thinking content - only emit actual output
+                    continue;
+                  }
+                  // Only emit text content (text_delta)
+                  if (parsed.delta?.text) {
+                    const chunk = parsed.delta.text;
+                    accumulatedText += chunk;
+                    observer.next(chunk);
+                  }
                 }
               } catch (e) {
                 console.error('Failed to parse SSE data:', e);

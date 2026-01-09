@@ -6,14 +6,26 @@
     "logLevel": "debug"
   },
   "/api/replicate": {
-    "target": "http://localhost:3001",
+    "target": "http://192.168.178.5:3080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  },
+  "/api/fal": {
+    "target": "http://192.168.178.5:3080",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  },
+  "/api/fal-models": {
+    "target": "http://192.168.178.5:3080",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/_db": {
-    "target": "https://creativewriter.qw05.de",
-    "secure": true,
+    "target": "http://192.168.178.5:3080",
+    "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },

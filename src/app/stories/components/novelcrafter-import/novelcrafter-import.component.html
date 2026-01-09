@@ -157,28 +157,34 @@
       </div>
 
       <!-- Import Actions -->
-      <div class="import-actions">
-        <button class="import-btn" (click)="confirmImport()">
+      <div class="import-actions cw-btn-group cw-btn-group--center">
+        <ion-button class="cw-btn-success" (click)="confirmImport()">
+          <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
           Import Story
-        </button>
-        <button class="cancel-btn" (click)="resetImport()">
+        </ion-button>
+        <ion-button class="cw-btn-ghost" (click)="resetImport()">
+          <ion-icon name="refresh-outline" slot="start"></ion-icon>
           Select Different Files
-        </button>
+        </ion-button>
       </div>
     </div>
 
     <!-- Import Success -->
     <div *ngIf="importSuccess()" class="import-success">
-      <div class="success-icon">✅</div>
+      <div class="success-icon">
+        <ion-icon name="checkmark-circle" color="success"></ion-icon>
+      </div>
       <h3>Import Successful!</h3>
       <p>Your NovelCrafter story has been imported successfully.</p>
-      <div class="success-actions">
-        <button class="primary-btn" (click)="goToStory()">
+      <div class="success-actions cw-btn-group cw-btn-group--center">
+        <ion-button class="cw-btn-primary" (click)="goToStory()">
+          <ion-icon name="book-outline" slot="start"></ion-icon>
           Open Imported Story
-        </button>
-        <button class="secondary-btn" (click)="goToStoryList()">
+        </ion-button>
+        <ion-button class="cw-btn-secondary" (click)="goToStoryList()">
+          <ion-icon name="list-outline" slot="start"></ion-icon>
           Back to Story List
-        </button>
+        </ion-button>
       </div>
     </div>
   </div>

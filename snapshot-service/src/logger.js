@@ -7,6 +7,40 @@ const config = require('./config');
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Safe JSON stringify that handles circular references
+ * Replaces circular refs with [Circular] marker
+ */
+function safeStringify(obj, indent = 0) {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    // Handle Error objects specially
+    if (value instanceof Error) {
+      return {
+        message: value.message,
+        name: value.name,
+        stack: value.stack,
+        // Include common HTTP error properties
+        statusCode: value.statusCode,
+        error: value.error,
+        reason: value.reason
+      };
+    }
+    // Skip problematic properties that cause circular refs
+    if (key === 'request' || key === 'socket' || key === 'agent' || key === 'connection') {
+      return '[Omitted]';
+    }
+    // Handle circular references
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return '[Circular]';
+      }
+      seen.add(value);
+    }
+    return value;
+  }, indent);
+}
+
 // Ensure log directory exists
 const logDir = path.dirname(config.LOG_FILE);
 if (!fs.existsSync(logDir)) {
@@ -32,7 +66,11 @@ const logger = winston.createLogger({
         winston.format.printf(({ level, message, timestamp, ...metadata }) => {
           let msg = `${timestamp} [${level}]: ${message}`;
           if (Object.keys(metadata).length > 0) {
-            msg += ` ${JSON.stringify(metadata)}`;
+            // Filter out internal winston metadata before stringifying
+            const { service, ...rest } = metadata;
+            if (Object.keys(rest).length > 0) {
+              msg += ` ${safeStringify(rest)}`;
+            }
           }
           return msg;
         })

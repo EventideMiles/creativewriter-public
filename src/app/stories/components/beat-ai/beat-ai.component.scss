@@ -1,11 +1,11 @@
     .beat-ai-container {
-      border: 2px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      background: rgba(42, 42, 42, 0.2);
-      backdrop-filter: blur(8px);
+      border: 2px solid var(--cw-border-default);
+      border-radius: var(--cw-radius-md);
+      background: var(--cw-bg-elevated);
+      backdrop-filter: blur(var(--cw-blur-md));
       margin: 1rem 0;
       overflow: visible; /* Changed from hidden to visible to allow dropdowns */
-      transition: all 0.3s ease;
+      transition: all var(--cw-transition-slow);
       max-width: 100%;
       -webkit-user-select: none;
       -moz-user-select: none;
@@ -39,17 +39,17 @@
     }
     
     .beat-ai-container.expanded {
-      border-color: #0d6efd;
-      box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+      border-color: var(--cw-border-focus);
+      box-shadow: var(--cw-shadow-focus);
     }
-    
+
     .beat-ai-container.collapsed {
-      border-color: rgba(255, 255, 255, 0.1);
+      border-color: var(--cw-border-subtle);
       box-shadow: none;
     }
 
     .beat-ai-container.generating {
-      border-color: #ffc107;
+      border-color: var(--cw-color-warning);
       animation: pulse 2s infinite;
     }
     
@@ -57,10 +57,15 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.8; }
     }
-    
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     .beat-prompt-section {
       padding: 0.5rem;
-      transition: all 0.3s ease;
+      transition: all var(--cw-transition-slow);
       /* Ensure dropdowns can overflow */
       overflow: visible;
     }
@@ -69,22 +74,15 @@
       padding-bottom: 0.25rem;
     }
 
+    // Collapse button uses cw-btn-glass-primary from design system
+    // with additional default state styling for visual distinction
     .collapse-btn {
       background: linear-gradient(
         135deg,
-        rgba(8, 126, 254, 0.12) 0%,
-        rgba(13, 110, 253, 0.05) 100%
+        rgba(71, 118, 230, 0.12) 0%,
+        rgba(71, 118, 230, 0.05) 100%
       );
-      border-color: rgba(13, 110, 253, 0.3);
-    }
-
-    .collapse-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(8, 126, 254, 0.18) 0%,
-        rgba(13, 110, 253, 0.08) 100%
-      );
-      border-color: rgba(13, 110, 253, 0.4);
+      border-color: var(--cw-border-accent);
     }
     
     .beat-header {
@@ -98,7 +96,7 @@
       font-size: 1.2rem;
       display: flex;
       align-items: center;
-      color: #8bb4f8;
+      color: var(--cw-color-primary-light);
     }
     
     .beat-icon ion-icon {
@@ -106,8 +104,8 @@
     }
     
     .beat-title {
-      font-weight: 600;
-      color: #f8f9fa;
+      font-weight: var(--cw-font-weight-semibold);
+      color: var(--cw-text-primary);
       flex: 1;
     }
 
@@ -129,202 +127,11 @@
 
     .beat-actions {
       display: flex;
-      gap: 0.5rem;
-    }
-    
-    .action-btn {
-      background: linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.04) 0%,
-        rgba(255, 255, 255, 0.02) 50%,
-        rgba(255, 255, 255, 0.03) 100%
-      );
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 0;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      color: rgba(255, 255, 255, 0.9);
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      position: relative;
-      overflow: hidden;
-      width: 36px;
-      height: 36px;
-      min-width: 36px;
-      min-height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      -webkit-touch-callout: none;
-      -webkit-text-size-adjust: none;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    
-    .action-btn::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(
-        circle at 30% 30%,
-        rgba(255, 255, 255, 0.3) 0%,
-        rgba(255, 255, 255, 0.1) 40%,
-        transparent 70%
-      );
-      opacity: 0.6;
-      transition: all 0.4s ease;
-      pointer-events: none;
-    }
-    
-    
-    .action-btn:hover::before {
-      opacity: 0.8;
-      transform: scale(1.1);
-    }
-    
-    .action-btn ion-icon {
-      font-size: 0.9rem;
-      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
-      transition: all 0.3s ease;
-      z-index: 2;
-      position: relative;
-    }
-    
-    .action-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.06) 0%,
-        rgba(255, 255, 255, 0.03) 50%,
-        rgba(255, 255, 255, 0.05) 100%
-      );
-      border-color: rgba(255, 255, 255, 0.12);
-      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
-    }
-    
-    .edit-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(71, 118, 230, 0.2) 0%,
-        rgba(139, 180, 248, 0.1) 100%
-      );
-      border-color: rgba(139, 180, 248, 0.4);
-      color: #a8c7ff;
-      box-shadow: 0 4px 16px rgba(71, 118, 230, 0.25);
-    }
-    
-    .regenerate-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(64, 192, 87, 0.2) 0%,
-        rgba(81, 207, 102, 0.1) 100%
-      );
-      border-color: rgba(81, 207, 102, 0.4);
-      color: #51cf66;
-      box-shadow: 0 4px 16px rgba(64, 192, 87, 0.25);
-    }
-    
-    .regenerate-btn:hover ion-icon {
-      transform: rotate(180deg);
-    }
-    
-    .delete-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(255, 107, 107, 0.2) 0%,
-        rgba(220, 53, 69, 0.1) 100%
-      );
-      border-color: rgba(255, 107, 107, 0.4);
-      color: #ff6b6b;
-      box-shadow: 0 4px 16px rgba(220, 53, 69, 0.25);
+      gap: var(--cw-space-sm);
     }
 
-    .remove-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(255, 159, 64, 0.2) 0%,
-        rgba(255, 193, 7, 0.1) 100%
-      );
-      border-color: rgba(255, 159, 64, 0.4);
-      color: #ffa940;
-      box-shadow: 0 4px 16px rgba(255, 159, 64, 0.25);
-    }
-    
-    .context-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(139, 180, 248, 0.2) 0%,
-        rgba(71, 118, 230, 0.1) 100%
-      );
-      border-color: rgba(139, 180, 248, 0.4);
-      color: #a8c7ff;
-      box-shadow: 0 4px 16px rgba(139, 180, 248, 0.25);
-    }
-    
-    .outline-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(81, 207, 102, 0.2) 0%,
-        rgba(64, 192, 87, 0.1) 100%
-      );
-      border-color: rgba(81, 207, 102, 0.4);
-      color: #51cf66;
-      box-shadow: 0 4px 16px rgba(64, 192, 87, 0.25);
-    }
-    
-    .outline-btn.active {
-      background: rgba(81, 207, 102, 0.2);
-      border-color: rgba(81, 207, 102, 0.4);
-      color: #51cf66;
-      box-shadow: 0 2px 8px rgba(64, 192, 87, 0.3);
-    }
-
-    /* Button Group Styles */
-    .button-group {
-      display: flex;
-      gap: 0;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.04) 0%,
-        rgba(255, 255, 255, 0.02) 50%,
-        rgba(255, 255, 255, 0.03) 100%
-      );
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .button-group .action-btn {
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
-      background: transparent;
-    }
-
-    .button-group .action-btn.group-left {
-      border-right: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 0;
-    }
-
-    .button-group .action-btn.group-right {
-      border-radius: 0;
-    }
-
-    .button-group:hover {
-      border-color: rgba(255, 255, 255, 0.12);
-      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
-    }
-
+    // Action button styles now come from the design system cw-btn-glass-* classes
+    // Component-specific mobile responsive adjustments:
     @media (max-width: 768px) {
       .beat-actions {
         gap: 0.35rem;
@@ -332,31 +139,30 @@
         flex-wrap: wrap;
       }
 
-      .action-btn {
+      .cw-btn-glass,
+      .cw-btn-glass-primary,
+      .cw-btn-glass-danger,
+      .cw-btn-glass-success,
+      .cw-btn-glass-warning {
         width: 34px;
         height: 34px;
         min-width: 34px;
         min-height: 34px;
-        border-radius: 10px;
       }
 
-      .action-btn ion-icon {
-        font-size: 0.95rem;
-      }
-
-      .button-group {
-        border-radius: 10px;
+      .cw-btn-glass-group {
+        border-radius: var(--cw-radius-md);
       }
     }
 
     .context-chips {
-      padding: 8px;
+      padding: var(--cw-space-sm);
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      background: rgba(45, 45, 45, 0.3);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(8px);
+      gap: var(--cw-space-sm);
+      background: var(--cw-bg-elevated);
+      border-bottom: 1px solid var(--cw-border-subtle);
+      backdrop-filter: blur(var(--cw-blur-md));
       margin-top: 0.5rem;
     }
 
@@ -368,7 +174,7 @@
     .context-chips ion-chip ion-icon {
       cursor: pointer;
       opacity: 0.7;
-      transition: opacity 0.2s;
+      transition: opacity var(--cw-transition-normal);
     }
 
     .context-chips ion-chip ion-icon:hover {
@@ -387,7 +193,114 @@
     .context-chips ion-chip.truncated-scene ion-label {
       color: rgba(255, 150, 150, 0.95);
     }
-    
+
+    // Staging Notes Section
+    .staging-notes-section {
+      margin: 0.5rem 0;
+      border: 1px solid var(--cw-border-subtle);
+      border-radius: var(--cw-radius-sm);
+      overflow: hidden;
+    }
+
+    .staging-notes-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--cw-bg-elevated);
+      cursor: pointer;
+      user-select: none;
+      transition: background var(--cw-transition-fast);
+
+      &:hover {
+        background: var(--cw-bg-card);
+      }
+
+      .collapse-icon {
+        font-size: 0.875rem;
+        color: var(--cw-text-muted);
+      }
+
+      .staging-notes-label {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--cw-text-secondary);
+      }
+
+      .staging-notes-generate-btn {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        ion-icon {
+          font-size: 0.875rem;
+
+          &.spinning {
+            animation: spin 1s linear infinite;
+          }
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+
+      .info-icon {
+        font-size: 0.875rem;
+        color: var(--cw-text-muted);
+        margin-left: auto;
+      }
+
+      .staging-notes-chip {
+        margin-left: 0.5rem;
+        height: 1.25rem;
+        font-size: 0.6875rem;
+      }
+    }
+
+    .staging-notes-content {
+      padding: 0.75rem;
+      background: var(--cw-bg-card);
+
+      .staging-notes-textarea {
+        width: 100%;
+        background: var(--cw-bg-elevated);
+        color: var(--beat-ai-text-color, var(--cw-text-secondary));
+        border: 1px solid var(--cw-border-subtle);
+        border-radius: var(--cw-radius-sm);
+        padding: 0.6rem;
+        // Match the main prompt input font styling exactly
+        font-family: inherit;
+        font-size: var(--cw-font-size-sm);
+        line-height: 1.2;
+        resize: vertical;
+        min-height: 80px;
+        transition: border-color var(--cw-transition-fast);
+
+        &::placeholder {
+          color: var(--cw-text-muted);
+        }
+
+        &:focus {
+          outline: none;
+          border-color: var(--cw-border-focus);
+        }
+      }
+
+      .staging-notes-hint {
+        margin-top: 0.375rem;
+        font-size: 0.6875rem;
+        color: var(--cw-text-muted);
+        font-style: italic;
+      }
+    }
+
     .prompt-input-container {
       margin-top: 0.1rem;
       /* Ensure dropdowns don't get clipped */
@@ -396,19 +309,19 @@
     
     .prompt-input.prosemirror-container {
       width: 100%;
-      background: rgba(20, 20, 20, 0.1);
+      background: var(--cw-bg-card);
       backdrop-filter: blur(3px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
+      border: 1px solid var(--cw-border-subtle);
+      border-radius: var(--cw-radius-sm);
       padding: 0;
-      color: var(--beat-ai-text-color, #e0e0e0);
+      color: var(--beat-ai-text-color, var(--cw-text-secondary));
       font-family: inherit;
-      font-size: 0.9rem;
+      font-size: var(--cw-font-size-sm);
       line-height: 1.2;
       min-height: auto;
       max-height: 300px;
       overflow-y: auto;
-      transition: all 0.15s ease;
+      transition: all var(--cw-transition-fast);
       box-sizing: border-box;
       cursor: text;
       /* Isolate from parent editor */
@@ -420,11 +333,11 @@
       -ms-user-select: text;
       user-select: text;
     }
-    
+
     .prompt-input.prosemirror-container:focus-within {
       outline: none;
-      border-color: #0d6efd;
-      box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+      border-color: var(--cw-border-focus);
+      box-shadow: var(--cw-shadow-focus);
     }
     
     .prompt-input.prosemirror-container :global(.ProseMirror) {
@@ -433,13 +346,13 @@
       min-height: auto;
       background: rgba(15, 15, 15, 0.1);
       backdrop-filter: blur(2px);
-      color: var(--beat-ai-text-color, #e0e0e0) !important;
-      font-size: 0.9rem;
+      color: var(--beat-ai-text-color, var(--cw-text-secondary)) !important;
+      font-size: var(--cw-font-size-sm);
       line-height: 1.2;
       font-family: inherit;
       width: 100%;
       box-sizing: border-box;
-      border-radius: 4px;
+      border-radius: var(--cw-radius-xs);
     }
     
     .prompt-input.prosemirror-container :global(.ProseMirror *) {
@@ -461,37 +374,16 @@
       color: initial !important;
       cursor: pointer !important;
     }
-    
-    /* Specific colors for action buttons */
-    .action-btn {
+
+    // Glass button text color override for this component
+    .cw-btn-glass,
+    .cw-btn-glass-primary,
+    .cw-btn-glass-danger,
+    .cw-btn-glass-success,
+    .cw-btn-glass-warning {
       color: rgba(255, 255, 255, 0.85) !important;
     }
-    
-    .action-btn ion-icon {
-      color: inherit !important;
-    }
-    
-    .edit-btn:hover {
-      color: #a8c7ff !important;
-    }
-    
-    .regenerate-btn:hover {
-      color: #51cf66 !important;
-    }
-    
-    .delete-btn:hover {
-      color: #ff6b6b !important;
-    }
-    
-    .context-btn:hover {
-      color: #a8c7ff !important;
-    }
-    
-    .outline-btn:hover {
-      color: #51cf66 !important;
-    }
-    
-    
+
     /* Ensure badges don't inherit text color */
     .beat-type-badge,
     .model-badge {
@@ -499,28 +391,28 @@
     }
     
     .beat-type-badge.story-beat {
-      color: #4dabf7 !important;
+      color: var(--cw-color-info) !important;
     }
-    
+
     .beat-type-badge.scene-beat {
-      color: #51cf66 !important;
+      color: var(--cw-color-success) !important;
     }
-    
+
     .model-badge {
-      color: #ffc107 !important;
+      color: var(--cw-color-warning) !important;
     }
     
     .prompt-input.prosemirror-container :global(.ProseMirror[data-placeholder]:empty::before) {
       content: attr(data-placeholder);
-      color: #6c757d;
+      color: var(--cw-text-disabled);
       pointer-events: none;
       position: absolute;
     }
     
     .prompt-input.prosemirror-container :global(.ProseMirror p) {
       margin: 0;
-      color: var(--beat-ai-text-color, #e0e0e0) !important;
-      font-size: 0.9rem;
+      color: var(--beat-ai-text-color, var(--cw-text-secondary)) !important;
+      font-size: var(--cw-font-size-sm);
       line-height: 1.2;
     }
     
@@ -535,11 +427,11 @@
     }
     
     .prompt-input.prosemirror-container :global(.codex-highlight-title) {
-      text-decoration-color: #4dabf7;
+      text-decoration-color: var(--cw-color-info);
     }
-    
+
     .prompt-input.prosemirror-container :global(.codex-highlight-tag) {
-      text-decoration-color: #51cf66;
+      text-decoration-color: var(--cw-color-success);
     }
     
     .prompt-input.prosemirror-container :global(.simple-text-editor) {
@@ -585,7 +477,7 @@
     }
     
     .favorite-models {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       gap: 0.4rem;
       padding: 0.35rem 0.5rem;
@@ -601,15 +493,55 @@
       grid-column: 1 / -1;
       margin-bottom: 0.4rem;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+      max-width: 100%;
+      overflow: hidden;
     }
 
     .favorite-icon {
       font-size: 0.9rem;
-      color: #ffd43b;
+      color: var(--cw-color-accent);
       opacity: 0.8;
       flex: 0 0 auto;
       filter: drop-shadow(0 1px 2px rgba(255, 212, 59, 0.2));
       margin-right: 0.15rem;
+    }
+
+    .scroll-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--cw-text-secondary);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: var(--cw-text-primary);
+      }
+
+      &.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      ion-icon {
+        font-size: 14px;
+      }
+    }
+
+    .scroll-arrow-left {
+      margin-right: 0.25rem;
+    }
+
+    .scroll-arrow-right {
+      margin-left: 0.25rem;
     }
 
     .favorite-buttons {
@@ -617,7 +549,8 @@
       align-items: stretch;
       gap: 0;
       padding: 0;
-      flex: 0 1 auto;
+      flex: 1 1 0;
+      min-width: 0;
       border-radius: 8px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -625,7 +558,6 @@
       border: 1px solid rgba(255, 255, 255, 0.12);
       background: rgba(30, 30, 38, 0.4);
       box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
-      max-width: 100%;
     }
 
     .favorite-buttons::-webkit-scrollbar {
@@ -694,7 +626,7 @@
         rgba(77, 171, 247, 0.3) 0%,
         rgba(77, 171, 247, 0.25) 100%
       );
-      color: #4dabf7;
+      color: var(--cw-color-info);
       box-shadow:
         inset 0 0 0 1px rgba(77, 171, 247, 0.4),
         inset 0 2px 4px rgba(77, 171, 247, 0.2);
@@ -723,6 +655,7 @@
     .model-short-name {
       font-weight: 600;
       letter-spacing: 0.01em;
+      color: var(--cw-text-primary);
     }
     
     .favorite-toggle {
@@ -754,31 +687,31 @@
     .custom-word-count {
       width: 100%;
       padding: 0.5rem;
-      background: #1a1a1a;
-      border: 1px solid #404040;
-      border-radius: 6px;
-      color: #f8f9fa;
-      font-size: 0.9rem;
-      transition: border-color 0.2s;
+      background: var(--cw-bg-base);
+      border: 1px solid var(--cw-border-input);
+      border-radius: var(--cw-radius-sm);
+      color: var(--cw-text-primary);
+      font-size: var(--cw-font-size-sm);
+      transition: border-color var(--cw-transition-normal);
     }
-    
+
     .custom-word-count:focus {
       outline: none;
-      border-color: #0d6efd;
+      border-color: var(--cw-border-focus);
     }
-    
+
     .custom-word-count::placeholder {
-      color: #6c757d;
+      color: var(--cw-text-disabled);
     }
     
     .model-name {
       display: block;
-      font-weight: 500;
+      font-weight: var(--cw-font-weight-medium);
     }
-    
+
     .model-cost {
-      color: #28a745;
-      font-weight: 500;
+      color: var(--cw-color-success-darker);
+      font-weight: var(--cw-font-weight-medium);
     }
     
     .model-option-inline {
@@ -786,7 +719,11 @@
       align-items: center;
       gap: 0.5rem;
     }
-    
+
+    .model-label {
+      color: var(--cw-text-secondary);
+    }
+
     .provider-icon-inline {
       font-size: 1rem;
       width: 1rem;
@@ -826,13 +763,13 @@
     }
     
     .beat-type-label {
-      font-weight: 500;
-      color: #f8f9fa;
+      font-weight: var(--cw-font-weight-medium);
+      color: var(--cw-text-primary);
     }
-    
+
     .beat-type-description {
       font-size: 0.8rem;
-      color: #adb5bd;
+      color: var(--cw-text-muted);
       font-style: italic;
     }
 
@@ -845,217 +782,121 @@
     }
     
     .beat-type-badge {
-      font-size: 0.75rem;
+      font-size: var(--cw-font-size-xs);
       padding: 0.25rem 0.5rem;
-      border-radius: 12px;
-      font-weight: 500;
+      border-radius: var(--cw-radius-lg);
+      font-weight: var(--cw-font-weight-medium);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    
+
     .beat-type-badge.story-beat {
-      background: rgba(13, 110, 253, 0.2);
-      color: #4dabf7;
-      border: 1px solid rgba(13, 110, 253, 0.3);
+      background: rgba(77, 171, 247, 0.2);
+      color: var(--cw-color-info);
+      border: 1px solid rgba(77, 171, 247, 0.3);
     }
-    
+
     .beat-type-badge.scene-beat {
-      background: rgba(40, 167, 69, 0.2);
-      color: #51cf66;
-      border: 1px solid rgba(40, 167, 69, 0.3);
+      background: rgba(81, 207, 102, 0.2);
+      color: var(--cw-color-success);
+      border: 1px solid rgba(81, 207, 102, 0.3);
     }
 
     .model-badge {
-      font-size: 0.75rem;
+      font-size: var(--cw-font-size-xs);
       padding: 0.25rem 0.5rem;
-      border-radius: 12px;
-      font-weight: 500;
+      border-radius: var(--cw-radius-lg);
+      font-weight: var(--cw-font-weight-medium);
       background: rgba(255, 193, 7, 0.2);
-      color: #ffc107;
+      color: var(--cw-color-warning);
       border: 1px solid rgba(255, 193, 7, 0.3);
       cursor: help;
     }
 
     .prompt-actions {
       display: flex;
-      gap: 0.75rem;
-      margin-top: 0.75rem;
+      gap: var(--cw-space-sm);
+      margin-top: var(--cw-space-sm);
       justify-content: flex-end;
       flex-wrap: wrap;
-    }
-    
-    .generate-btn, .cancel-btn {
-      padding: 0.5rem 1rem;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 20px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      backdrop-filter: blur(24px) saturate(200%);
-      -webkit-backdrop-filter: blur(24px) saturate(200%);
-      position: relative;
-      overflow: hidden;
-      min-width: 90px;
-      text-align: center;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    }
-    
-    .generate-btn::before, .cancel-btn::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(
-        circle at 30% 20%,
-        rgba(255, 255, 255, 0.3) 0%,
-        rgba(255, 255, 255, 0.1) 35%,
-        transparent 60%
-      );
-      opacity: 0.7;
-      transition: all 0.4s ease;
-      pointer-events: none;
-    }
-    
-    
-    .generate-btn.primary {
-      background: linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.04) 0%,
-        rgba(255, 255, 255, 0.02) 50%,
-        rgba(255, 255, 255, 0.03) 100%
-      );
-      color: rgba(255, 255, 255, 0.85);
-      
-      ion-icon {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 1rem;
+
+      // Make lower action buttons wider for easier touch targets
+      .cw-btn-glass,
+      .cw-btn-glass-primary,
+      .cw-btn-glass-success,
+      .cw-btn-glass-warning {
+        width: 72px;
+        height: 44px;
+        min-width: 72px;
+        min-height: 44px;
+
+        ion-icon {
+          font-size: 1.1rem;
+        }
       }
     }
-    
-    .generate-btn.secondary {
+
+    // Primary Generate button - more prominent color as main CTA
+    .generate-btn-primary {
+      // Stronger color tinting
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.04) 0%,
-        rgba(255, 255, 255, 0.02) 50%,
-        rgba(255, 255, 255, 0.03) 100%
-      );
-      color: rgba(255, 255, 255, 0.75);
-      
+        rgba(64, 192, 87, 0.25) 0%,
+        rgba(81, 207, 102, 0.15) 100%
+      ) !important;
+      border-color: rgba(81, 207, 102, 0.4) !important;
+
+      // Subtle glow effect
+      box-shadow: 0 0 12px rgba(64, 192, 87, 0.3);
+
       ion-icon {
-        color: rgba(255, 255, 255, 0.85);
-        font-size: 1rem;
+        font-size: 1.2rem;
       }
-    }
-    
-    .generate-btn.primary:hover:not(:disabled) {
-      background: linear-gradient(
-        135deg,
-        rgba(64, 192, 87, 0.12) 0%,
-        rgba(81, 207, 102, 0.06) 100%
-      );
-      border-color: rgba(81, 207, 102, 0.3);
-      color: rgba(255, 255, 255, 0.95);
-      box-shadow: 
-        0 4px 20px rgba(64, 192, 87, 0.4),
-        0 0 30px rgba(81, 207, 102, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-        
-      ion-icon {
-        color: #ffffff;
+
+      @media (hover: hover) {
+        &:hover {
+          box-shadow: 0 0 20px rgba(64, 192, 87, 0.5);
+        }
       }
-    }
-    
-    .generate-btn.primary:hover:not(:disabled)::before {
-      opacity: 0.9;
-      transform: scale(1.1);
-    }
-    
-    .generate-btn.secondary:hover:not(:disabled) {
-      background: linear-gradient(
-        135deg,
-        rgba(255, 193, 7, 0.08) 0%,
-        rgba(255, 235, 59, 0.04) 100%
-      );
-      border-color: rgba(255, 193, 7, 0.25);
-      color: rgba(255, 255, 255, 0.95);
-      box-shadow: 
-        0 3px 16px rgba(255, 193, 7, 0.3),
-        0 0 25px rgba(255, 235, 59, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15);
-        
-      ion-icon {
-        color: #ffffff;
-      }
-    }
-    
-    .generate-btn.secondary:hover:not(:disabled)::before {
-      opacity: 0.9;
-      transform: scale(1.1);
-    }
-    
-    .generate-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none;
-      backdrop-filter: blur(8px);
-    }
-    
-    .cancel-btn {
-      background: linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.04) 0%,
-        rgba(255, 255, 255, 0.02) 50%,
-        rgba(255, 255, 255, 0.03) 100%
-      );
-      color: rgba(255, 255, 255, 0.7);
-    }
-    
-    .cancel-btn:hover {
-      background: linear-gradient(
-        135deg,
-        rgba(220, 53, 69, 0.08) 0%,
-        rgba(255, 107, 107, 0.04) 100%
-      );
-      border-color: rgba(220, 53, 69, 0.25);
-      color: rgba(255, 255, 255, 0.95);
-      box-shadow: 
-        0 3px 16px rgba(220, 53, 69, 0.3),
-        0 0 25px rgba(255, 107, 107, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    }
-    
-    .cancel-btn:hover::before {
-      opacity: 0.9;
-      transform: scale(1.1);
     }
     
     
     .prompt-display {
       margin-top: 0.25rem;
-      background: rgba(20, 20, 20, 0.2);
+      background: var(--cw-bg-card);
       backdrop-filter: blur(3px);
       padding: 0.5rem;
-      border-radius: 4px;
+      border-radius: var(--cw-radius-xs);
     }
-    
+
     .prompt-text {
-      color: var(--beat-ai-text-color, #adb5bd);
+      color: var(--beat-ai-text-color, var(--cw-text-muted));
       font-style: italic;
-      font-size: 0.9rem;
-      line-height: 1.4;
+      font-size: var(--cw-font-size-sm);
+      line-height: var(--cw-line-height-relaxed);
     }
     
     .generation-status {
       padding: 0.5rem 1rem;
-      background: rgba(36, 36, 36, 0.2);
+      background: var(--cw-bg-elevated);
       backdrop-filter: blur(5px);
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      border-top: 1px solid var(--cw-border-default);
       display: flex;
       align-items: center;
       justify-content: space-between;
+
+      // Match stop button size to other action buttons
+      .cw-btn-glass-danger {
+        width: 72px;
+        height: 44px;
+        min-width: 72px;
+        min-height: 44px;
+
+        ion-icon {
+          font-size: 1.1rem;
+          filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+        }
+      }
     }
     
     .generation-indicator {
@@ -1064,69 +905,24 @@
       gap: 0.5rem;
     }
     
-    .stop-btn {
-      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-      color: white;
-      border: 1px solid rgba(220, 53, 69, 0.3);
-      padding: 0.6rem 1.25rem;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      box-shadow: 
-        0 2px 8px rgba(220, 53, 69, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .stop-btn::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(circle at center, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-    
-    .stop-btn:hover {
-      background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
-      transform: translateY(-2px);
-      box-shadow: 
-        0 4px 16px rgba(220, 53, 69, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-    
-    .stop-btn:hover::before {
-      opacity: 1;
-    }
     
     .generating-text {
-      color: #ffc107;
-      font-size: 0.9rem;
-      font-weight: 500;
+      color: var(--cw-color-warning);
+      font-size: var(--cw-font-size-sm);
+      font-weight: var(--cw-font-weight-medium);
     }
-    
+
     .typing-indicator {
       display: inline-flex;
       gap: 2px;
       margin-left: 4px;
     }
-    
+
     .typing-indicator span {
       width: 4px;
       height: 4px;
-      background: #0d6efd;
-      border-radius: 50%;
+      background: var(--cw-border-focus);
+      border-radius: var(--cw-radius-full);
       animation: typing 1.4s infinite;
     }
     
@@ -1152,9 +948,9 @@
     /* Custom ng-select styling */
     :global(.model-select .ng-select-container) {
       min-height: 44px !important; /* iOS minimum touch target */
-      background: #1a1a1a !important;
-      border: 1px solid #404040 !important;
-      border-radius: 4px !important;
+      background: var(--cw-bg-base) !important;
+      border: 1px solid var(--cw-border-input) !important;
+      border-radius: var(--cw-radius-xs) !important;
     }
     
     :global(.model-select .ng-select-container .ng-value-container) {
@@ -1163,29 +959,29 @@
     }
     
     :global(.model-select .ng-select-container .ng-value-container .ng-input > input) {
-      color: #e0e0e0 !important;
+      color: var(--cw-text-secondary) !important;
       background: transparent !important;
     }
-    
+
     :global(.model-select .ng-select-container .ng-value-container .ng-value) {
-      color: #e0e0e0 !important;
+      color: var(--cw-text-secondary) !important;
       background: transparent !important;
     }
-    
+
     :global(.model-select .ng-select-container .ng-value-container .ng-placeholder) {
-      color: #6c757d !important;
+      color: var(--cw-text-disabled) !important;
     }
-    
+
     :global(.model-select.ng-select-focused .ng-select-container) {
-      border-color: #0d6efd !important;
-      box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25) !important;
+      border-color: var(--cw-border-focus) !important;
+      box-shadow: var(--cw-shadow-focus) !important;
     }
-    
+
     :global(.model-select .ng-dropdown-panel) {
-      background: #2d2d2d !important;
-      border: 1px solid #404040 !important;
-      border-radius: 4px !important;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+      background: var(--cw-bg-input) !important;
+      border: 1px solid var(--cw-border-input) !important;
+      border-radius: var(--cw-radius-xs) !important;
+      box-shadow: var(--cw-shadow-lg) !important;
       /* Increased z-index to appear above ProseMirror editor and other elements */
       z-index: 99999 !important;
       /* Mobile touch improvements */
@@ -1194,25 +990,25 @@
       pointer-events: auto !important;
       touch-action: manipulation !important;
     }
-    
+
     :global(.model-select .ng-dropdown-panel .ng-dropdown-panel-items .ng-option) {
-      color: #e0e0e0 !important;
-      background: #2d2d2d !important;
+      color: var(--cw-text-secondary) !important;
+      background: var(--cw-bg-input) !important;
       padding: 0.75rem !important; /* Increased for better touch targets on mobile */
-      font-size: 0.9rem !important;
+      font-size: var(--cw-font-size-sm) !important;
       min-height: 44px !important; /* iOS minimum touch target size */
       cursor: pointer !important;
       /* Mobile touch improvements */
       -webkit-tap-highlight-color: rgba(13, 110, 253, 0.2);
       touch-action: manipulation;
     }
-    
+
     :global(.model-select .ng-dropdown-panel .ng-dropdown-panel-items .ng-option.ng-option-highlighted) {
-      background: #383838 !important;
+      background: var(--cw-bg-elevated) !important;
     }
-    
+
     :global(.model-select .ng-dropdown-panel .ng-dropdown-panel-items .ng-option.ng-option-selected) {
-      background: #0d6efd !important;
+      background: var(--cw-border-focus) !important;
     }
 
     /* Mobile optimizations for Beat AI */
@@ -1303,29 +1099,41 @@
       .prompt-actions {
         margin-top: 0.4rem;
         gap: 0.25rem;
-      }
 
-      .generate-btn, .cancel-btn {
-        padding: 0.6rem 1.25rem;
-        font-size: 0.85rem;
-        min-width: 100px;
-        border-radius: 20px;
-      }
+        // All prompt action buttons wider for mobile
+        .cw-btn-glass,
+        .cw-btn-glass-primary,
+        .cw-btn-glass-success,
+        .cw-btn-glass-warning {
+          width: 60px;
+          height: 40px;
+          min-width: 60px;
+          min-height: 40px;
 
+          ion-icon {
+            font-size: 1rem;
+          }
+        }
+      }
 
       .generation-status {
         padding: 0.4rem 0.75rem;
         flex-direction: column;
         gap: 0.4rem;
         align-items: stretch;
-      }
 
-      .stop-btn {
-        padding: 0.5rem 1rem;
-        font-size: 0.8rem;
-        align-self: center;
-        min-width: 100px;
-        border-radius: 18px;
+        // Match stop button to other mobile action buttons
+        .cw-btn-glass-danger {
+          align-self: center;
+          width: 60px;
+          height: 40px;
+          min-width: 60px;
+          min-height: 40px;
+
+          ion-icon {
+            font-size: 1rem;
+          }
+        }
       }
     }
 
@@ -1351,31 +1159,48 @@
         flex-wrap: wrap;
       }
 
-      .action-btn {
-        /* Balanced size for mobile accessibility */
-        width: 38px;
-        height: 38px;
-        min-width: 38px;
-        min-height: 38px;
-        border-radius: 12px;
-      }
-
-      .action-btn ion-icon {
-        font-size: 0.95rem;
-      }
-
-      .button-group {
-        border-radius: 12px;
+      // Glass buttons already have mobile responsive sizing defined above
+      .cw-btn-glass,
+      .cw-btn-glass-primary,
+      .cw-btn-glass-danger,
+      .cw-btn-glass-success,
+      .cw-btn-glass-warning {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
       }
 
       .prompt-actions {
         justify-content: center;
+
+        // All prompt action buttons wider for small mobile
+        .cw-btn-glass,
+        .cw-btn-glass-primary,
+        .cw-btn-glass-success,
+        .cw-btn-glass-warning {
+          width: 52px;
+          height: 36px;
+          min-width: 52px;
+          min-height: 36px;
+
+          ion-icon {
+            font-size: 0.95rem;
+          }
+        }
       }
 
-      .generate-btn, .cancel-btn {
-        flex: 1;
-        min-width: auto;
-        max-width: 120px;
-      }
+      .generation-status {
+        // Match stop button to small mobile action buttons
+        .cw-btn-glass-danger {
+          width: 52px;
+          height: 36px;
+          min-width: 52px;
+          min-height: 36px;
 
+          ion-icon {
+            font-size: 0.95rem;
+          }
+        }
+      }
     }

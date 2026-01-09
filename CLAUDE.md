@@ -1,20 +1,30 @@
 **CRITICAL**
 - BEFORE DOING ANYTHING: Switch to main branch and pull from git remote!!!!!!!!
-- ALWAYS: After completing a task - review your changes with a subagent - address the recommendation - commit and push the changes.
+- RESPECT THE WORKFLOW BELOW!!!
 - NEVER: leave uncommitted or unpushed changes - always maintain a consistent and backed-up repository state
-- ALWAYS: Before declaring a task as complete test if the app builds using `npm run build` AND run the tests!
-- ALWAYS: Before declaring a task as complete, test if the app has linting errors using `npm run lint`!
-- Keep the App modular!
+- Keep the App modular!!!
 - ALWAYS: Consider if a web research for best practices in 2025 could be useful.
 - ALWAYS: Consider if a web research for existing framework components (angular, ionic) that cover the requirements
 - !!!ALWAYS work on the main branch in the private repository!!!!
 - NEVER MERGE TO release branch on your own!
 - WHEN CREATING NEW COMPONENTS: They shall follow a common design pattern to put each component into a seperate foldern, split them into template, typescript and css files!
-- After finising a task propose a next step to perform.
+---
+
+**WORKFLOW**
+- After completing a task do two subsequent reviews:
+  - First: review your changes with a subagent that focusses on the big picture, how the new implementation is used and which implications arise
+  - Second: review your changes with a subagent the default way
+  - Adress findings and ask back if anything unclear.
+
+- Before declaring a task as complete:
+  - test if the app builds using `npm run build` AND run the tests `npm test -- --no-watch`!
+  - test if the app has linting errors using `npm run lint`!
+
 - ALWAYS: After changing backend code (`backend/src/index.ts`), deploy to both dev AND production:
   - `cd backend && npx wrangler deploy --env dev` (dev environment)
   - `cd backend && npx wrangler deploy` (production environment)
----
+
+- After finising a task propose a next step to perform.
 
 # Repository Guidelines
 
@@ -30,7 +40,7 @@
 - `npm start`: Run Angular dev server on `http://localhost:4200`.
 - `npm run build`: Production build to `dist/`.
 - `npm run watch`: Development build with watch.
-- `npm test`: Run unit tests with Karma/Jasmine.
+- `npm test -- --no-watch`: Run unit tests with Karma/Jasmine (use `--no-watch` to auto-close browser).
 - `npm run lint`: Lint TypeScript and templates via ESLint + angular-eslint.
 - Docker (optional local stack): `docker compose up -d` (ensure data volumes exist per README).
 
@@ -65,6 +75,30 @@
   - Sync process (.github/workflows/sync-public.yml): Filters out private files (.claude/, .vscode/, docs/), replaces docker-compose with public version, force-pushes to public repo main branch, creates GitHub Release with
   timestamp-based version (format: v1.4.YYYYMMDDHHMM).
   - Public repo (creativewriter-public): Release triggers .github/workflows/docker-public-images.yml which builds multi-platform Docker images and publishes to GHCR with tags: version, stable, latest.
-- Always use context7 when I need code generation, setup or configuration steps, or
-library/API documentation. This means you should automatically use the Context7 MCP
-tools to resolve library id and get library docs without me having to explicitly ask.
+## Context7 Documentation Retrieval
+- ALWAYS use Context7 MCP server to retrieve code samples and documentation before implementing features
+- Use `resolve-library-id` to find the correct library, then `query-docs` to get relevant documentation
+- Key library IDs for this project:
+  - `/prosemirror/website` - ProseMirror guide, examples, API (220+ snippets)
+  - `/prosemirror/prosemirror-view` - EditorView, NodeViews, decorations
+  - `/prosemirror/prosemirror-model` - Schema, nodes, marks, fragments
+  - `/prosemirror/prosemirror-state` - EditorState, transactions, plugins
+  - `/angular/angular` - Angular framework documentation
+  - `/ionic-team/ionic-framework` - Ionic components and APIs
+- Automatically use Context7 for code generation, setup steps, or library/API documentation without being explicitly asked
+
+## MCP Server Usage Transparency
+- ALWAYS inform the user when consulting external documentation via MCP servers (Context7, WebSearch, etc.)
+- When using Context7, explicitly state:
+  - "Consulting Context7 for [library] documentation..."
+  - Which library ID was queried
+  - A brief summary of what documentation was retrieved
+- When using WebSearch for best practices or framework research, state:
+  - "Researching [topic] via web search..."
+  - Key sources consulted
+- Format MCP consultations visibly, e.g.:
+  ```
+  📚 Context7: Querying /prosemirror/prosemirror-view for NodeView implementation patterns...
+  ```
+- After retrieving documentation, summarize the relevant findings before applying them
+- If Context7 or other MCP servers are unavailable, inform the user and proceed with existing knowledge

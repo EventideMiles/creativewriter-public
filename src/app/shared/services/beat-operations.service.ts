@@ -364,10 +364,11 @@ export class BeatOperationsService {
       }
     });
 
-    // For scene beats, extract text after beat for bridging context (before any deletion)
-    // This helps the AI generate content that connects to what follows
-    let textAfterBeatForBridging: string | undefined;
-    if (event.beatType === 'scene') {
+    // For scene beats, use textAfterBeat for bridging context
+    // Prefer the value passed from the component for consistency with preview
+    // Only fall back to local extraction if not provided
+    let textAfterBeatForBridging: string | undefined = event.textAfterBeat;
+    if (event.beatType === 'scene' && !textAfterBeatForBridging) {
       const afterText = this.getTextAfterBeat(editorView, event.beatId);
       if (afterText && afterText.trim().length > 0) {
         textAfterBeatForBridging = afterText;
@@ -386,7 +387,8 @@ export class BeatOperationsService {
       customContext: event.customContext,
       action: event.action === 'rewrite' ? 'rewrite' : 'generate',
       existingText: event.existingText,
-      textAfterBeat: textAfterBeatForBridging
+      textAfterBeat: textAfterBeatForBridging,
+      stagingNotes: event.stagingNotes
     }).subscribe({
       next: (finalContent) => {
         // Final content received - ensure beat node is updated
@@ -416,6 +418,7 @@ export class BeatOperationsService {
 
   /**
    * Switch beat to a different version from history
+   * Uses transaction-like behavior with rollback on failure
    */
   async switchBeatVersion(
     editorView: EditorView | null,
@@ -427,7 +430,7 @@ export class BeatOperationsService {
       throw new Error('Editor not initialized');
     }
 
-    // 1. Get version content from history
+    // 1. Get version content from history (read-only, no rollback needed)
     const history = await this.beatHistoryService.getHistory(beatId);
     if (!history) {
       throw new Error(`No history found for beat ${beatId}`);
@@ -438,50 +441,102 @@ export class BeatOperationsService {
       throw new Error(`Version ${versionId} not found in history`);
     }
 
-    // 2. Delete current content after beat
-    const deleteSuccess = this.deleteContentAfterBeat(editorView, beatId, getHTMLContent);
-    if (!deleteSuccess) {
-      console.warn('[BeatOperations] Failed to delete content, continuing anyway');
-    }
-
-    // 3. Insert version content
+    // 2. Capture current state BEFORE modifications for potential rollback
+    const previousContent = this.getTextAfterBeat(editorView, beatId);
     const beatPos = this.findBeatNodePosition(editorView, beatId);
     if (beatPos === null) {
       throw new Error(`Beat node ${beatId} not found`);
     }
-
     const beatNode = editorView.state.doc.nodeAt(beatPos);
     if (!beatNode) {
       throw new Error(`Beat node ${beatId} not found in document`);
     }
+    const previousPrompt = beatNode.attrs['prompt'] || '';
+    const previousVersionId = beatNode.attrs['currentVersionId'] || '';
 
-    const afterBeatPos = beatPos + beatNode.nodeSize;
+    try {
+      // 3. Delete current content after beat
+      const deleteSuccess = this.deleteContentAfterBeat(editorView, beatId, getHTMLContent);
+      if (!deleteSuccess) {
+        console.warn('[BeatOperations] Failed to delete content, continuing anyway');
+      }
 
-    // Convert plain text content to HTML format, preserving newlines as paragraphs
-    const htmlContent = convertTextToHtml(version.content);
+      // 4. Insert version content
+      const updatedBeatPos = this.findBeatNodePosition(editorView, beatId);
+      if (updatedBeatPos === null) {
+        throw new Error(`Beat node ${beatId} not found after delete`);
+      }
+      const updatedBeatNode = editorView.state.doc.nodeAt(updatedBeatPos);
+      if (!updatedBeatNode) {
+        throw new Error(`Beat node ${beatId} not found in document after delete`);
+      }
+      const afterBeatPos = updatedBeatPos + updatedBeatNode.nodeSize;
 
-    // Insert the version content as HTML
-    this.insertHtmlContent(editorView, beatId, htmlContent, afterBeatPos);
+      // Convert plain text content to HTML format, preserving newlines as paragraphs
+      const htmlContent = convertTextToHtml(version.content);
 
-    // 4. Update beat node attributes
-    this.updateBeatNode(editorView, beatId, {
-      currentVersionId: versionId,
-      hasHistory: true
-    });
+      // Insert the version content as HTML
+      this.insertHtmlContent(editorView, beatId, htmlContent, afterBeatPos);
 
-    // 5. Mark version as current in history
-    await this.beatHistoryService.setCurrentVersion(beatId, versionId);
+      // 5. Update beat node attributes
+      // For rewrite versions, do NOT update the prompt - it contains the rewrite instruction,
+      // not the original beat prompt. We only want to restore the content.
+      const beatNodeUpdate: Record<string, unknown> = {
+        currentVersionId: versionId,
+        hasHistory: true,
+        stagingNotes: version.stagingNotes || undefined
+      };
+      if (version.action !== 'rewrite') {
+        beatNodeUpdate['prompt'] = version.prompt;
+      }
+      this.updateBeatNode(editorView, beatId, beatNodeUpdate);
 
-    // Emit content update
-    const content = getHTMLContent();
-    this.contentUpdate$.next(content);
+      // 6. Mark version as current in history
+      await this.beatHistoryService.setCurrentVersion(beatId, versionId);
 
-    // Refresh prompt manager
-    setTimeout(() => {
-      this.promptManager.refresh().catch(error => {
-        console.error('Error refreshing prompt manager:', error);
-      });
-    }, 500);
+      // Emit content update
+      const content = getHTMLContent();
+      this.contentUpdate$.next(content);
+
+      // Refresh prompt manager
+      setTimeout(() => {
+        this.promptManager.refresh().catch(error => {
+          console.error('Error refreshing prompt manager:', error);
+        });
+      }, 500);
+    } catch (error) {
+      // ROLLBACK: Attempt to restore previous state
+      console.error('[BeatOperations] Version switch failed, attempting rollback:', error);
+      try {
+        // Delete any partial content that may have been inserted
+        this.deleteContentAfterBeat(editorView, beatId, getHTMLContent);
+
+        // Restore previous content if it existed
+        if (previousContent && previousContent.trim().length > 0) {
+          const rollbackBeatPos = this.findBeatNodePosition(editorView, beatId);
+          if (rollbackBeatPos !== null) {
+            const rollbackBeatNode = editorView.state.doc.nodeAt(rollbackBeatPos);
+            if (rollbackBeatNode) {
+              const rollbackAfterPos = rollbackBeatPos + rollbackBeatNode.nodeSize;
+              const rollbackHtml = convertTextToHtml(previousContent);
+              this.insertHtmlContent(editorView, beatId, rollbackHtml, rollbackAfterPos);
+            }
+          }
+        }
+
+        // Restore previous beat node attributes
+        this.updateBeatNode(editorView, beatId, {
+          prompt: previousPrompt,
+          currentVersionId: previousVersionId || undefined,
+          hasHistory: true
+        });
+
+        console.info('[BeatOperations] Rollback completed successfully');
+      } catch (rollbackError) {
+        console.error('[BeatOperations] Rollback also failed:', rollbackError);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -812,21 +867,24 @@ export class BeatOperationsService {
     content: string,
     beatType: 'story' | 'scene'
   ): Promise<void> {
-    // Check if this content already exists in history to avoid duplicates
+    // Check if this content already exists in ANY version to avoid duplicates
     const existingHistory = await this.beatHistoryService.getHistory(beatId);
     if (existingHistory) {
-      // Check if the most recent version has the same content
-      const sortedVersions = [...existingHistory.versions].sort(
-        (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
+      // Normalize content for comparison (trim whitespace)
+      const normalizedContent = content.trim();
+      // Check ALL versions for duplicate content, not just the most recent
+      const isDuplicate = existingHistory.versions.some(
+        v => v.content.trim() === normalizedContent
       );
-      if (sortedVersions.length > 0) {
-        const latestVersion = sortedVersions[0];
-        // Normalize content for comparison (trim whitespace)
-        if (latestVersion.content.trim() === content.trim()) {
-          return;
-        }
+      if (isDuplicate) {
+        console.info('[BeatOperations] Skipping duplicate content in history');
+        return;
       }
     }
+
+    // Strip HTML tags for accurate word count
+    const textContent = content.replace(/<[^>]*>/g, '').trim();
+    const wordCount = textContent ? textContent.split(/\s+/).length : 0;
 
     // Save the existing content as a previous version
     await this.beatHistoryService.saveVersion(beatId, storyId, {
@@ -834,7 +892,7 @@ export class BeatOperationsService {
       prompt: '(previous content)',
       model: 'manual',
       beatType,
-      wordCount: content.split(/\s+/).length,
+      wordCount,
       generatedAt: new Date(),
       characterCount: content.length,
       isCurrent: false,

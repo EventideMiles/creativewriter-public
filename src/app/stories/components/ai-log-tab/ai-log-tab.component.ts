@@ -16,6 +16,7 @@ import {
   shieldOutline, stopCircleOutline, codeOutline, logoGoogle, libraryOutline, hardwareChip
 } from 'ionicons/icons';
 import { AIRequestLoggerService, AIRequestLog } from '../../../core/services/ai-request-logger.service';
+import { DialogService } from '../../../core/services/dialog.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -32,6 +33,7 @@ import { Subscription } from 'rxjs';
 })
 export class AILogTabComponent implements OnInit, OnDestroy {
   private loggerService = inject(AIRequestLoggerService);
+  private dialogService = inject(DialogService);
 
   logs: AIRequestLog[] = [];
   expandedLogs = new Set<string>();
@@ -69,8 +71,13 @@ export class AILogTabComponent implements OnInit, OnDestroy {
     }
   }
 
-  clearLogs(): void {
-    if (confirm('Do you really want to delete all AI logs?')) {
+  async clearLogs(): Promise<void> {
+    const confirmed = await this.dialogService.confirmDestructive({
+      header: 'Clear AI Logs',
+      message: 'Do you really want to delete all AI logs?',
+      confirmText: 'Clear Logs'
+    });
+    if (confirmed) {
       this.loggerService.clearLogs();
       this.expandedLogs.clear();
     }

@@ -3,19 +3,19 @@
   <div class="modal-content" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" role="dialog" aria-modal="true">
     <div class="modal-header">
       <h3>Prompt Preview</h3>
-      <button (click)="onClose()" class="close-btn">×</button>
+      <ion-button fill="clear" class="cw-btn-icon" (click)="onClose()">
+        <ion-icon name="close" slot="icon-only"></ion-icon>
+      </ion-button>
     </div>
     <div class="modal-body">
-      <code-editor 
-        class="code-editor"
-        [ngModel]="content"
-        [readonly]="true"
-        [extensions]="editorExtensions">
-      </code-editor>
+      <div #editorContainer class="code-editor"></div>
     </div>
-    <div class="modal-footer">
-      <button (click)="onClose()" class="btn-secondary">Close</button>
-      <button (click)="onGenerate()" class="btn-primary">Generate now</button>
+    <div class="modal-footer cw-btn-group cw-btn-group--end">
+      <ion-button class="cw-btn-ghost" (click)="onClose()">Close</ion-button>
+      <ion-button class="cw-btn-primary" (click)="onCopy()">
+        <ion-icon [name]="copyIcon" slot="start"></ion-icon>
+        {{ copyButtonText }}
+      </ion-button>
     </div>
   </div>
 </div>

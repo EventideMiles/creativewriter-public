@@ -10,6 +10,10 @@
 /* ng-select CSS */
 @import '@ng-select/ng-select/themes/default.theme.css';
 
+/* CreativeWriter Design System */
+@import 'app/shared/styles/_design-tokens.scss';
+@import 'app/shared/styles/_buttons.scss';
+
 /* Token Info Popover */
 @import 'app/shared/styles/token-info-popover.scss';
 
@@ -948,4 +952,24 @@ ion-card-content {
   ion-footer {
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
   }
+}
+
+/* Codex Highlighting - ProseMirror Decorations */
+.codex-highlight {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: help;
+
+  &.codex-title {
+    text-decoration-color: var(--cw-color-info, #4dabf7);
+  }
+
+  &.codex-tag {
+    text-decoration-color: var(--cw-color-success, #51cf66);
+  }
+}
+
+/* Direct Speech Highlighting - quotes in dialogue */
+.direct-speech-highlight {
+  color: var(--cw-direct-speech-color, #7c3aed);
 }

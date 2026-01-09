@@ -81,7 +81,7 @@ export async function getBeatGenerationTemplate(language: StoryLanguage = 'en'):
   <narrative_parameters>
     {pointOfView}
     <word_count>{wordCount} words (±50 words acceptable)</word_count>
-    <tense>Match the established tense (typically past tense)</tense>
+    <tense>{tense}</tense>
   </narrative_parameters>
 
   <beat_requirements>
@@ -91,7 +91,6 @@ export async function getBeatGenerationTemplate(language: StoryLanguage = 'en'):
   <style_guidance>
     - Match the exact tone and narrative voice of the current scene
     - Maintain the established balance of dialogue, action, and introspection
-    - {writingStyle}
     - End on a moment of significance, decision point, or natural transition
   </style_guidance>
 
@@ -109,4 +108,33 @@ export async function getBeatGenerationTemplate(language: StoryLanguage = 'en'):
 
 Generate the beat now:</message>
 </messages>`;
+}
+
+// Cache for loaded default beat rules
+const beatRulesCache = new Map<StoryLanguage, string>();
+
+export async function getDefaultBeatRules(language: StoryLanguage = 'en'): Promise<string> {
+  // Check cache first
+  if (beatRulesCache.has(language)) {
+    return beatRulesCache.get(language)!;
+  }
+
+  try {
+    const response = await fetch(`assets/templates/default-beat-rules-${language}.txt`);
+    if (response.ok) {
+      const rules = await response.text();
+      beatRulesCache.set(language, rules.trim());
+      return rules.trim();
+    }
+  } catch (error) {
+    console.warn(`Failed to load default beat rules for language ${language}:`, error);
+  }
+
+  // Fallback to English
+  if (language !== 'en') {
+    return getDefaultBeatRules('en');
+  }
+
+  // Hard fallback - empty string (maintains backward compatibility)
+  return '';
 }

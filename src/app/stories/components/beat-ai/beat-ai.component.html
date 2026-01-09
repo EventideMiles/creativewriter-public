@@ -12,59 +12,53 @@
           </ion-chip>
           <div class="beat-actions">
             <button
-              class="action-btn collapse-btn"
+              class="cw-btn-glass-primary collapse-btn"
               (click)="toggleCollapsed($event)"
-              [attr.title]="beatData.isCollapsed ? 'Expand prompt' : 'Collapse prompt'">
-              <ion-icon [name]="beatData.isCollapsed ? 'chevron-down' : 'chevron-up'"></ion-icon>
+              [attr.title]="beatData.isCollapsed ? 'Expand prompt' : 'Collapse prompt'"
+              [attr.aria-label]="beatData.isCollapsed ? 'Expand prompt' : 'Collapse prompt'"
+              [attr.aria-expanded]="!beatData.isCollapsed">
+              <ion-icon [name]="beatData.isCollapsed ? 'chevron-down' : 'chevron-up'" aria-hidden="true"></ion-icon>
             </button>
-            <div class="button-group" *ngIf="!beatData.isCollapsed">
+            <div class="cw-btn-glass-group" *ngIf="!beatData.isCollapsed">
               <button
-                class="action-btn context-btn group-left"
+                class="cw-btn-glass-primary"
                 (click)="showSceneSelector = true; $event.stopPropagation()"
-                title="Select context">
-                <ion-icon name="add-outline"></ion-icon>
+                title="Select context"
+                aria-label="Select context">
+                <ion-icon name="add-outline" aria-hidden="true"></ion-icon>
               </button>
               <button
-                class="action-btn outline-btn group-right"
+                class="cw-btn-glass-success"
                 [class.active]="includeStoryOutline"
                 (click)="toggleStoryOutline(); $event.stopPropagation()"
-                title="Include/exclude story overview">
-                <ion-icon name="reader-outline"></ion-icon>
-              </button>
-            </div>
-            <div class="button-group" *ngIf="beatData.generatedContent && !beatData.isGenerating">
-              <button
-                class="action-btn regenerate-btn group-left"
-                (click)="regenerateContent(); $event.stopPropagation()"
-                title="Regenerate">
-                <ion-icon name="refresh-outline"></ion-icon>
-              </button>
-              <button
-                class="action-btn rewrite-btn group-right"
-                (click)="rewriteContent(); $event.stopPropagation()"
-                title="Rewrite with custom prompt">
-                <ion-icon name="create-outline"></ion-icon>
+                title="Include/exclude story overview"
+                aria-label="Include/exclude story overview"
+                [attr.aria-pressed]="includeStoryOutline">
+                <ion-icon name="reader-outline" aria-hidden="true"></ion-icon>
               </button>
             </div>
             <button
               *ngIf="beatData.hasHistory"
-              class="action-btn history-btn"
+              class="cw-btn-glass-primary"
               (click)="openVersionHistory(); $event.stopPropagation()"
-              title="Version History">
-              <ion-icon name="time-outline"></ion-icon>
+              title="Version History"
+              aria-label="Version History">
+              <ion-icon name="time-outline" aria-hidden="true"></ion-icon>
             </button>
-            <div class="button-group">
+            <div class="cw-btn-glass-group">
               <button
-                class="action-btn delete-btn group-left"
+                class="cw-btn-glass-danger"
                 (click)="deleteContentAfterBeat(); $event.stopPropagation()"
-                title="Delete text until next beat or scene end">
-                <ion-icon name="trash-outline"></ion-icon>
+                title="Delete text until next beat or scene end"
+                aria-label="Delete text until next beat or scene end">
+                <ion-icon name="trash-outline" aria-hidden="true"></ion-icon>
               </button>
               <button
-                class="action-btn remove-btn group-right"
+                class="cw-btn-glass-danger"
                 (click)="removeBeat($event)"
-                title="Remove this beat input">
-                <ion-icon name="close-circle-outline"></ion-icon>
+                title="Remove this beat input"
+                aria-label="Remove this beat input">
+                <ion-icon name="close-circle-outline" aria-hidden="true"></ion-icon>
               </button>
             </div>
           </div>
@@ -91,7 +85,44 @@
             </ion-icon>
           </ion-chip>
         </div>
-        
+
+        <!-- Staging Notes Section -->
+        <div class="staging-notes-section" *ngIf="!beatData.isCollapsed">
+          <div class="staging-notes-header" (click)="toggleStagingNotes()" (keydown.enter)="toggleStagingNotes()" tabindex="0" role="button" [attr.aria-expanded]="isStagingNotesExpanded">
+            <ion-icon [name]="isStagingNotesExpanded ? 'chevron-up' : 'chevron-down'" class="collapse-icon"></ion-icon>
+            <span class="staging-notes-label">Staging Notes</span>
+            <button
+              class="cw-btn-glass-primary staging-notes-generate-btn"
+              (click)="generateStagingNotes(); $event.stopPropagation()"
+              (keydown.enter)="generateStagingNotes(); $event.stopPropagation()"
+              [disabled]="isGeneratingStagingNotes"
+              title="Generate staging notes from scene content"
+              tabindex="0">
+              <ion-icon *ngIf="!isGeneratingStagingNotes" name="sparkles-outline"></ion-icon>
+              <ion-icon *ngIf="isGeneratingStagingNotes" name="sync-outline" class="spinning"></ion-icon>
+            </button>
+            <ion-icon name="information-circle-outline"
+                      class="info-icon"
+                      title="Meta-context for physical consistency (character positions, object placements, scene setup)">
+            </ion-icon>
+            <ion-chip *ngIf="currentStagingNotes.trim()" size="small" color="tertiary" class="staging-notes-chip">
+              {{ currentStagingNotes.length }} chars
+            </ion-chip>
+          </div>
+          <div class="staging-notes-content" *ngIf="isStagingNotesExpanded">
+            <textarea
+              [(ngModel)]="currentStagingNotes"
+              (input)="onStagingNotesChange()"
+              placeholder="Describe scene setup, character positions, object locations, or other physical/contextual details that should influence the generated text..."
+              rows="4"
+              class="staging-notes-textarea">
+            </textarea>
+            <div class="staging-notes-hint">
+              These notes provide physical and contextual context without being written into the story.
+            </div>
+          </div>
+        </div>
+
         <div class="prompt-input-container" *ngIf="!beatData.isCollapsed">
           <div
             #promptInput
@@ -104,7 +135,15 @@
               <!-- Favorite Models Quick Access -->
               <div class="favorite-models" *ngIf="favoriteModels.length > 0">
                 <ion-icon name="star-outline" class="favorite-icon" aria-hidden="true"></ion-icon>
-                <div class="favorite-buttons" role="list">
+                <button type="button"
+                        class="scroll-arrow scroll-arrow-left"
+                        (click)="scrollFavorites('left')"
+                        [class.hidden]="!canScrollLeft"
+                        [disabled]="!canScrollLeft"
+                        aria-label="Scroll left">
+                  <ion-icon name="chevron-back-outline"></ion-icon>
+                </button>
+                <div class="favorite-buttons" role="list" #favoriteButtonsContainer (scroll)="onFavoritesScroll()">
                   <button *ngFor="let model of favoriteModels"
                           type="button"
                           class="favorite-btn"
@@ -115,15 +154,28 @@
                           [attr.aria-label]="'Select ' + model.label"
                           [attr.aria-pressed]="selectedModel === model.id">
                     <span class="favorite-btn-content">
-                      <app-openrouter-icon *ngIf="model.provider === 'openrouter'" size="14" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
-                      <ion-icon *ngIf="model.provider !== 'openrouter'" [name]="getProviderIcon(model.provider)" class="provider-icon-inline" [class.gemini]="model.provider === 'gemini'"></ion-icon>
+                      <app-provider-icon
+                        [provider]="model.provider"
+                        [size]="14"
+                        class="provider-icon-inline"
+                        [class.openrouter]="model.provider === 'openrouter'"
+                        [class.gemini]="model.provider === 'gemini'">
+                      </app-provider-icon>
                       <span class="model-short-name">{{ model.label }}</span>
                     </span>
                   </button>
                 </div>
+                <button type="button"
+                        class="scroll-arrow scroll-arrow-right"
+                        (click)="scrollFavorites('right')"
+                        [class.hidden]="!canScrollRight"
+                        [disabled]="!canScrollRight"
+                        aria-label="Scroll right">
+                  <ion-icon name="chevron-forward-outline"></ion-icon>
+                </button>
               </div>
               <div class="option-group">
-                <ng-select [(ngModel)]="selectedBeatType"
+                <ng-select [(ngModel)]="beatData.beatType"
                            [items]="beatTypeOptions"
                            bindLabel="label"
                            bindValue="value"
@@ -173,11 +225,16 @@
                            (change)="onModelChange()">
                   <ng-template ng-label-tmp let-item="item">
                     <div class="model-option-inline">
-                      <app-openrouter-icon *ngIf="item.provider === 'openrouter'" size="16" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
-                      <app-claude-icon *ngIf="item.provider === 'claude'" size="16" color="#C15F3C" class="provider-icon-inline claude"></app-claude-icon>
-                      <app-replicate-icon *ngIf="item.provider === 'replicate'" size="16" color="#9c27b0" class="provider-icon-inline replicate"></app-replicate-icon>
-                      <app-ollama-icon *ngIf="item.provider === 'ollama'" size="16" color="#ff9800" class="provider-icon-inline ollama"></app-ollama-icon>
-                      <ion-icon *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude' && item.provider !== 'replicate' && item.provider !== 'ollama'" [name]="getProviderIcon(item.provider)" class="provider-icon-inline" [class.gemini]="item.provider === 'gemini'"></ion-icon>
+                      <app-provider-icon
+                        [provider]="item.provider"
+                        [size]="16"
+                        class="provider-icon-inline"
+                        [class.openrouter]="item.provider === 'openrouter'"
+                        [class.claude]="item.provider === 'claude'"
+                        [class.replicate]="item.provider === 'replicate'"
+                        [class.ollama]="item.provider === 'ollama'"
+                        [class.gemini]="item.provider === 'gemini'">
+                      </app-provider-icon>
                       <span class="model-label">{{ item.label }}</span>
                       <button class="favorite-toggle"
                               (click)="toggleFavorite($event, item)"
@@ -189,11 +246,16 @@
                   </ng-template>
                   <ng-template ng-option-tmp let-item="item">
                     <div class="model-option-inline">
-                      <app-openrouter-icon *ngIf="item.provider === 'openrouter'" size="16" color="#6467f2" class="provider-icon-inline openrouter"></app-openrouter-icon>
-                      <app-claude-icon *ngIf="item.provider === 'claude'" size="16" color="#C15F3C" class="provider-icon-inline claude"></app-claude-icon>
-                      <app-replicate-icon *ngIf="item.provider === 'replicate'" size="16" color="#9c27b0" class="provider-icon-inline replicate"></app-replicate-icon>
-                      <app-ollama-icon *ngIf="item.provider === 'ollama'" size="16" color="#ff9800" class="provider-icon-inline ollama"></app-ollama-icon>
-                      <ion-icon *ngIf="item.provider !== 'openrouter' && item.provider !== 'claude' && item.provider !== 'replicate' && item.provider !== 'ollama'" [name]="getProviderIcon(item.provider)" class="provider-icon-inline" [class.gemini]="item.provider === 'gemini'"></ion-icon>
+                      <app-provider-icon
+                        [provider]="item.provider"
+                        [size]="16"
+                        class="provider-icon-inline"
+                        [class.openrouter]="item.provider === 'openrouter'"
+                        [class.claude]="item.provider === 'claude'"
+                        [class.replicate]="item.provider === 'replicate'"
+                        [class.ollama]="item.provider === 'ollama'"
+                        [class.gemini]="item.provider === 'gemini'">
+                      </app-provider-icon>
                       <span class="model-label">{{ item.label }}</span>
                       <button class="favorite-toggle"
                               (click)="toggleFavorite($event, item)"
@@ -209,26 +271,45 @@
           </div>
 
           <div class="prompt-actions" *ngIf="!beatData.isCollapsed">
-            <button 
-              class="generate-btn primary"
+            <button
+              class="cw-btn-glass-success generate-btn-primary"
               (click)="generateContent(); $event.stopPropagation()"
               [disabled]="!currentPrompt.trim() || beatData.isGenerating || !selectedModel || isSaving"
-              title="Generate content">
-              <ion-icon name="color-wand-outline" style="color: #28a745;"></ion-icon>
+              title="Generate content"
+              aria-label="Generate content">
+              <ion-icon name="color-wand-outline" aria-hidden="true"></ion-icon>
             </button>
-            <button 
-              class="generate-btn primary"
+            <button
+              *ngIf="beatData.generatedContent && !beatData.isGenerating"
+              class="cw-btn-glass-success"
+              (click)="regenerateContent(); $event.stopPropagation()"
+              title="Regenerate"
+              aria-label="Regenerate content">
+              <ion-icon name="refresh-outline" aria-hidden="true"></ion-icon>
+            </button>
+            <button
+              *ngIf="beatData.generatedContent && !beatData.isGenerating"
+              class="cw-btn-glass-primary"
+              (click)="rewriteContent(); $event.stopPropagation()"
+              title="Rewrite with custom prompt"
+              aria-label="Rewrite with custom prompt">
+              <ion-icon name="create-outline" aria-hidden="true"></ion-icon>
+            </button>
+            <button
+              class="cw-btn-glass-primary"
               (click)="showPromptPreview(); $event.stopPropagation()"
               [disabled]="!currentPrompt.trim() || isSaving"
-              title="Show prompt preview">
-              <ion-icon name="eye-outline" style="color: #ffc107;"></ion-icon>
+              title="Show prompt preview"
+              aria-label="Show prompt preview">
+              <ion-icon name="eye-outline" aria-hidden="true"></ion-icon>
             </button>
-            <button 
-              class="generate-btn secondary"
+            <button
+              class="cw-btn-glass-warning"
               (click)="showTokenInfo(); $event.stopPropagation()"
               [disabled]="!currentPrompt.trim() || !selectedModel"
-              title="Token-Analyse anzeigen">
-              <ion-icon name="analytics-outline"></ion-icon>
+              title="Show token analysis"
+              aria-label="Show token analysis">
+              <ion-icon name="analytics-outline" aria-hidden="true"></ion-icon>
             </button>
           </div>
         </div>
@@ -237,16 +318,17 @@
       <!-- Generation Status -->
       <div class="generation-status" *ngIf="beatData.isGenerating">
         <div class="generation-indicator">
-          <span class="generating-text">Text wird gestreamt...</span>
+          <span class="generating-text">Streaming text...</span>
           <div class="typing-indicator">
             <span></span><span></span><span></span>
           </div>
         </div>
-        <button 
-          class="stop-btn"
+        <button
+          class="cw-btn-glass-danger"
           (click)="stopGeneration(); $event.stopPropagation()"
-          title="Stop generation">
-          ⏹️ Stop
+          title="Stop generation"
+          aria-label="Stop generation">
+          <ion-icon name="stop-outline" aria-hidden="true"></ion-icon>
         </button>
       </div>
     </div>

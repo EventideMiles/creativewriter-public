@@ -4,7 +4,7 @@ import { EditorView, NodeView } from 'prosemirror-view';
 export class ResizableImageNodeView implements NodeView {
   dom!: HTMLElement;
   contentDOM?: HTMLElement;
-  
+
   private img!: HTMLImageElement;
   private wrapper!: HTMLDivElement;
   private resizeHandles: HTMLDivElement[] = [];
@@ -14,6 +14,13 @@ export class ResizableImageNodeView implements NodeView {
   private startWidth = 0;
   private startHeight = 0;
   private aspectRatio = 1;
+
+  // Event handler references for proper cleanup
+  private handleMouseEnter: (() => void) | null = null;
+  private handleMouseLeave: (() => void) | null = null;
+  private handleDragStart: ((e: Event) => void) | null = null;
+  private activeResizeMove: ((e: MouseEvent | TouchEvent) => void) | null = null;
+  private activeResizeEnd: (() => void) | null = null;
 
   constructor(
     private node: ProseMirrorNode,
@@ -116,56 +123,59 @@ export class ResizableImageNodeView implements NodeView {
   }
 
   private addEventListeners(): void {
-    // Show/hide resize handles on hover
-    this.wrapper.addEventListener('mouseenter', () => {
+    // Show/hide resize handles on hover - store references for cleanup
+    this.handleMouseEnter = () => {
       if (!this.isResizing) {
         this.resizeHandles.forEach(handle => {
           handle.style.opacity = '1';
         });
       }
-    });
+    };
+    this.wrapper.addEventListener('mouseenter', this.handleMouseEnter);
 
-    this.wrapper.addEventListener('mouseleave', () => {
+    this.handleMouseLeave = () => {
       if (!this.isResizing) {
         this.resizeHandles.forEach(handle => {
           handle.style.opacity = '0';
         });
       }
-    });
+    };
+    this.wrapper.addEventListener('mouseleave', this.handleMouseLeave);
 
-    // Prevent default drag behavior on image
-    this.img.addEventListener('dragstart', (e) => {
+    // Prevent default drag behavior on image - store reference for cleanup
+    this.handleDragStart = (e: Event) => {
       e.preventDefault();
-    });
+    };
+    this.img.addEventListener('dragstart', this.handleDragStart);
   }
 
   private startResize(e: MouseEvent | TouchEvent, handleClass: string): void {
     e.preventDefault();
     e.stopPropagation();
-    
+
     this.isResizing = true;
-    
+
     const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
     const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
-    
+
     this.startX = clientX;
     this.startY = clientY;
     this.startWidth = this.img.offsetWidth;
     this.startHeight = this.img.offsetHeight;
-    
+
     // Show all handles during resize
     this.resizeHandles.forEach(handle => {
       handle.style.opacity = '1';
     });
-    
-    // Add document event listeners
-    const handleMove = (e: MouseEvent | TouchEvent) => this.handleResize(e, handleClass);
-    const handleEnd = () => this.endResize(handleMove, handleEnd);
-    
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleEnd);
-    document.addEventListener('touchmove', handleMove, { passive: false });
-    document.addEventListener('touchend', handleEnd);
+
+    // Add document event listeners - store references for cleanup
+    this.activeResizeMove = (e: MouseEvent | TouchEvent) => this.handleResize(e, handleClass);
+    this.activeResizeEnd = () => this.endResize();
+
+    document.addEventListener('mousemove', this.activeResizeMove);
+    document.addEventListener('mouseup', this.activeResizeEnd);
+    document.addEventListener('touchmove', this.activeResizeMove, { passive: false });
+    document.addEventListener('touchend', this.activeResizeEnd);
   }
 
   private handleResize(e: MouseEvent | TouchEvent, handleClass: string): void {
@@ -221,26 +231,32 @@ export class ResizableImageNodeView implements NodeView {
     this.img.style.height = newHeight + 'px';
   }
 
-  private endResize(handleMove: (e: MouseEvent | TouchEvent) => void, handleEnd: () => void): void {
+  private endResize(): void {
     if (!this.isResizing) return;
-    
+
     this.isResizing = false;
-    
-    // Remove event listeners
-    document.removeEventListener('mousemove', handleMove);
-    document.removeEventListener('mouseup', handleEnd);
-    document.removeEventListener('touchmove', handleMove);
-    document.removeEventListener('touchend', handleEnd);
-    
+
+    // Remove event listeners using stored references
+    if (this.activeResizeMove) {
+      document.removeEventListener('mousemove', this.activeResizeMove);
+      document.removeEventListener('touchmove', this.activeResizeMove);
+    }
+    if (this.activeResizeEnd) {
+      document.removeEventListener('mouseup', this.activeResizeEnd);
+      document.removeEventListener('touchend', this.activeResizeEnd);
+    }
+    this.activeResizeMove = null;
+    this.activeResizeEnd = null;
+
     // Hide handles
     this.resizeHandles.forEach(handle => {
       handle.style.opacity = '0';
     });
-    
+
     // Update the ProseMirror node with new dimensions
     const finalWidth = this.img.offsetWidth;
     const finalHeight = this.img.offsetHeight;
-    
+
     this.updateNodeSize(finalWidth, finalHeight);
   }
 
@@ -282,7 +298,35 @@ export class ResizableImageNodeView implements NodeView {
   }
 
   destroy(): void {
-    // Clean up event listeners
+    // Clean up wrapper event listeners
+    if (this.handleMouseEnter) {
+      this.wrapper.removeEventListener('mouseenter', this.handleMouseEnter);
+      this.handleMouseEnter = null;
+    }
+    if (this.handleMouseLeave) {
+      this.wrapper.removeEventListener('mouseleave', this.handleMouseLeave);
+      this.handleMouseLeave = null;
+    }
+
+    // Clean up image event listener
+    if (this.handleDragStart) {
+      this.img.removeEventListener('dragstart', this.handleDragStart);
+      this.handleDragStart = null;
+    }
+
+    // Clean up any active resize handlers from document (in case destroyed while resizing)
+    if (this.activeResizeMove) {
+      document.removeEventListener('mousemove', this.activeResizeMove);
+      document.removeEventListener('touchmove', this.activeResizeMove);
+      this.activeResizeMove = null;
+    }
+    if (this.activeResizeEnd) {
+      document.removeEventListener('mouseup', this.activeResizeEnd);
+      document.removeEventListener('touchend', this.activeResizeEnd);
+      this.activeResizeEnd = null;
+    }
+
+    // Clean up resize handles
     this.resizeHandles.forEach(handle => {
       handle.remove();
     });

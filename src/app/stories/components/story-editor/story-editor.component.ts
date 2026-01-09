@@ -4,14 +4,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   IonButton, IonIcon, IonSpinner,
-  IonContent, IonChip, IonLabel, IonMenu, IonSplitPane, MenuController, LoadingController, ModalController, AlertController
+  IonContent, IonChip, IonLabel, IonMenu, IonSplitPane, MenuController, LoadingController, ModalController,
+  IonFab, IonFabButton
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
-  saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
+  saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward, chevronDown,
   chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
-  listOutline, list, flaskOutline, videocamOutline, timeOutline, personCircleOutline
+  listOutline, list, flaskOutline, videocamOutline, timeOutline, personCircleOutline, speedometerOutline,
+  albumsOutline, codeSlashOutline, sparklesOutline
 } from 'ionicons/icons';
 import { StoryService } from '../../services/story.service';
 import { CodexService } from '../../services/codex.service';
@@ -34,7 +36,8 @@ import { VideoModalComponent } from '../../../ui/components/video-modal.componen
 import { ImageViewerModalComponent } from '../../../shared/components/image-viewer-modal/image-viewer-modal.component';
 import { ImageVideoService, ImageClickEvent } from '../../../shared/services/image-video.service';
 import { VideoService } from '../../../shared/services/video.service';
-import { AppHeaderComponent, HeaderAction, BurgerMenuItem } from '../../../ui/components/app-header.component';
+import { AppHeaderComponent, HeaderAction, BurgerMenuGroup } from '../../../ui/components/app-header.component';
+import { GenerationStatusComponent } from '../../../ui/components/generation-status.component';
 import { VersionTooltipComponent } from '../../../ui/components/version-tooltip.component';
 import { HeaderNavigationService } from '../../../shared/services/header-navigation.service';
 import { SettingsService } from '../../../core/services/settings.service';
@@ -46,6 +49,8 @@ import { DatabaseService } from '../../../core/services/database.service';
 import { SnapshotTimelineComponent } from '../snapshot-timeline/snapshot-timeline.component';
 import { SceneNavigationService } from '../../services/scene-navigation.service';
 import { StoryEditorStateService } from '../../services/story-editor-state.service';
+import { MobileDebugService } from '../../../core/services/mobile-debug.service';
+import { DialogService } from '../../../core/services/dialog.service';
 
 @Component({
   selector: 'app-story-editor',
@@ -53,10 +58,10 @@ import { StoryEditorStateService } from '../../services/story-editor-state.servi
   imports: [
     CommonModule, FormsModule,
     IonContent, IonChip, IonLabel, IonButton, IonIcon, IonSpinner,
-    IonMenu, IonSplitPane,
+    IonMenu, IonSplitPane, IonFab, IonFabButton,
     StoryStructureComponent, SlashCommandDropdownComponent, ImageUploadDialogComponent,
-    VideoModalComponent, ImageViewerModalComponent, AppHeaderComponent, StoryStatsComponent, VersionTooltipComponent,
-    StoryMediaGalleryComponent, BeatNavigationPanelComponent
+    VideoModalComponent, ImageViewerModalComponent, AppHeaderComponent, GenerationStatusComponent,
+    StoryStatsComponent, VersionTooltipComponent, StoryMediaGalleryComponent, BeatNavigationPanelComponent
   ],
   templateUrl: './story-editor.component.html',
   styleUrls: ['./story-editor.component.scss'],
@@ -79,12 +84,13 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   private imageVideoService = inject(ImageVideoService);
   private videoService = inject(VideoService);
   private loadingController = inject(LoadingController);
-  private alertController = inject(AlertController);
   private databaseService = inject(DatabaseService);
   private modalController = inject(ModalController);
   private sceneNav = inject(SceneNavigationService);
   private editorState = inject(StoryEditorStateService);
   private codexService = inject(CodexService);
+  private mobileDebug = inject(MobileDebugService);
+  private dialogService = inject(DialogService);
   private lastSyncTime: Date | undefined;
 
   @ViewChild('headerTitle', { static: true }) headerTitle!: TemplateRef<unknown>;
@@ -95,10 +101,12 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   @ViewChild(BeatNavigationPanelComponent) beatNavPanel!: BeatNavigationPanelComponent;
   private editorView: EditorView | null = null;
   private mutationObserver: MutationObserver | null = null;
+  private mutationObserverDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Template-compatible properties (synced from services)
   wordCount = 0;
   currentTextColor = '#e0e0e0';
+  currentDirectSpeechColor: string | null = null; // null = derive from text color
   story: Story = {
     id: '',
     title: '',
@@ -113,12 +121,13 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   leftActions: HeaderAction[] = [];
   rightActions: HeaderAction[] = [];
-  burgerMenuItems: BurgerMenuItem[] = [];
+  burgerMenuGroups: BurgerMenuGroup[] = [];
 
   // Slash command functionality
   showSlashDropdown = false;
   slashDropdownPosition = { top: 0, left: 0 };
   slashCursorPosition = 0;
+  private wasTriggeredByFab = false;
 
   // Image dialog functionality
   showImageDialog = false;
@@ -181,12 +190,29 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   private hideVideoButtonTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // Timer tracking for waitForStorySynced cleanup
+  private syncCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private syncHardTimeout: ReturnType<typeof setTimeout> | null = null;
+  private syncStatusSubscription: Subscription | null = null;
+
+  // Bound event handlers for proper cleanup (prevents memory leaks)
+  private boundHandleTouchStart = this.handleTouchStart.bind(this);
+  private boundHandleTouchEnd = this.handleTouchEnd.bind(this);
+  private boundHandleViewportResize = this.handleViewportResize.bind(this);
+  private boundHandleKeyboardShow = this.handleKeyboardShow.bind(this);
+  private boundHandleKeyboardHide = this.handleKeyboardHide.bind(this);
+  private boundHandleVisualViewportResize = this.handleVisualViewportResize.bind(this);
+  private boundHandleEditorClick: (() => void) | null = null;
+  private boundHandleEditorFocus: (() => void) | null = null;
+  private boundHandleEditorInput: (() => void) | null = null;
+
   constructor() {
     addIcons({
       arrowBack, bookOutline, book, settingsOutline, statsChartOutline, statsChart,
-      saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward,
+      saveOutline, checkmarkCircleOutline, menuOutline, chevronBack, chevronForward, chevronDown,
       chatbubblesOutline, bugOutline, menu, close, images, documentTextOutline, heart, search,
-      listOutline, list, flaskOutline, videocamOutline, timeOutline, personCircleOutline
+      listOutline, list, flaskOutline, videocamOutline, timeOutline, personCircleOutline, speedometerOutline,
+      albumsOutline, codeSlashOutline, sparklesOutline
     });
   }
 
@@ -194,11 +220,13 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Setup header actions first
     this.setupHeaderActions();
 
-    // Subscribe to settings changes for text color
+    // Subscribe to settings changes for text color and direct speech color
     this.subscription.add(
       this.settingsService.settings$.subscribe(settings => {
         this.currentTextColor = settings.appearance?.textColor || '#e0e0e0';
+        this.currentDirectSpeechColor = settings.appearance?.directSpeechColor ?? null;
         this.applyTextColorToProseMirror();
+        this.applyDirectSpeechColor();
         this.cdr.markForCheck();
       })
     );
@@ -255,9 +283,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
             // CRITICAL: Set activeStoryId BEFORE loading so selective sync knows to sync this story
             // Without this, the sync filter won't sync the story document (only metadata index)
+            // NOTE: This is async to ensure sync operations complete sequentially
             this.addDebugLog(`Setting activeStoryId: ${storyId}`);
             console.info(`[StoryEditor] Setting activeStoryId to ${storyId} for selective sync`);
-            this.databaseService.setActiveStoryId(storyId);
+            await this.databaseService.setActiveStoryId(storyId);
 
             const currentActiveId = this.databaseService.getActiveStoryId();
             this.addDebugLog(`Active story ID confirmed: ${currentActiveId}`);
@@ -357,6 +386,8 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
           }
           this.editorState.updateSceneContent(content);
           this.editorState.recordUserActivity();
+          // Trigger debounced save
+          this.saveSubject.next();
         }
       })
     );
@@ -404,6 +435,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       this.mutationObserver.disconnect();
       this.mutationObserver = null;
     }
+    if (this.mutationObserverDebounceTimeout) {
+      clearTimeout(this.mutationObserverDebounceTimeout);
+      this.mutationObserverDebounceTimeout = null;
+    }
 
     // Cleanup image click handlers
     if (this.editorContainer?.nativeElement) {
@@ -423,10 +458,30 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     this.videoButton.imageElement = null;
     this.videoButton.imageId = null;
 
+    // Clean up waitForStorySynced timers
+    if (this.syncCheckInterval) {
+      clearInterval(this.syncCheckInterval);
+      this.syncCheckInterval = null;
+    }
+    if (this.syncHardTimeout) {
+      clearTimeout(this.syncHardTimeout);
+      this.syncHardTimeout = null;
+    }
+    if (this.syncStatusSubscription) {
+      this.syncStatusSubscription.unsubscribe();
+      this.syncStatusSubscription = null;
+    }
+
     this.subscription.unsubscribe();
 
     // Remove touch gesture listeners
     this.removeTouchGestures();
+
+    // Remove mobile keyboard handling listeners
+    this.removeMobileKeyboardHandling();
+
+    // Remove editor container listeners
+    this.removeEditorContainerListeners();
 
     // Remove keyboard adjustments
     this.removeKeyboardAdjustments();
@@ -509,7 +564,11 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
   async goBack(): Promise<void> {
     // Delete-on-exit strategy for empty, untitled drafts
     if (this.isDefaultEmptyDraft()) {
-      const shouldDelete = confirm('This draft has no title or content. Delete it?');
+      const shouldDelete = await this.dialogService.confirmDestructive({
+        header: 'Empty Draft',
+        message: 'This draft has no title or content. Delete it?',
+        confirmText: 'Delete'
+      });
       if (shouldDelete) {
         try {
           await this.storyService.deleteStory(this.story.id);
@@ -592,82 +651,133 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       }
     ];
 
-    // Burger menu items with custom actions for this component
-    this.burgerMenuItems = [
+    // Burger menu items organized into groups with consistent category colors
+    this.burgerMenuGroups = [
+      // Primary actions (blue)
       {
-        icon: 'document-text-outline',
-        label: 'PDF Export',
-        action: () => this.exportToPDF(),
-        color: 'primary'
-      },
-      {
-        icon: 'time-outline',
-        label: 'Version History',
-        action: () => this.openSnapshotTimeline(),
-        color: 'secondary'
-      },
-      {
-        icon: 'bug-outline',
-        label: 'Debug Modus',
-        action: () => this.toggleDebugMode(),
-        color: 'warning'
-      },
-      {
-        icon: 'search',
-        label: 'Story Inspector',
-        action: () => this.goToInspector()
-      },
-      {
-        icon: 'flask-outline',
-        label: 'Story Research',
-        action: () => this.goToStoryResearch()
-      },
-      {
-        icon: 'book-outline',
-        label: 'Codex',
-        action: () => this.goToCodex()
-      },
-      {
-        icon: 'settings-outline',
-        label: 'Story Settings',
-        action: () => this.goToSettings()
-      },
-      {
-        icon: 'chatbubbles-outline',
-        label: 'Scene Chat',
-        action: () => this.goToSceneChat()
-      },
-      {
-        icon: 'person-circle-outline',
-        label: 'Character Chat',
-        action: () => this.goToCharacterChat(),
-        color: 'tertiary'
-      },
-      {
-        icon: 'stats-chart',
-        label: 'AI Logs',
-        action: () => this.headerNavService.goToAILogger()
-      },
-      {
-        icon: 'images',
-        label: 'Image Generation',
-        action: () => this.headerNavService.goToImageGeneration()
-      },
-      {
-        icon: 'images',
-        label: 'Media Gallery',
-        action: () => this.openMediaGallery(),
-        color: 'secondary'
-      },
-      {
-        icon: 'list-outline',
-        label: 'Outline Overview',
-        action: () => this.router.navigate(['/stories/outline', this.story.id], {
-          queryParams: {
-            chapterId: this.activeChapterId,
-            sceneId: this.activeSceneId
+        items: [
+          {
+            icon: 'document-text-outline',
+            label: 'PDF Export',
+            action: () => this.exportToPDF(),
+            color: 'primary'
+          },
+          {
+            icon: 'time-outline',
+            label: 'Version History',
+            action: () => this.openSnapshotTimeline(),
+            color: 'primary'
           }
-        })
+        ]
+      },
+      // Navigation group (teal)
+      {
+        label: 'Navigation',
+        items: [
+          {
+            icon: 'list-outline',
+            label: 'Outline Overview',
+            action: () => this.router.navigate(['/stories/outline', this.story.id], {
+              queryParams: {
+                chapterId: this.activeChapterId,
+                sceneId: this.activeSceneId
+              }
+            }),
+            color: 'secondary'
+          },
+          {
+            icon: 'search',
+            label: 'Story Inspector',
+            action: () => this.goToInspector(),
+            color: 'secondary'
+          },
+          {
+            icon: 'flask-outline',
+            label: 'Story Research',
+            action: () => this.goToStoryResearch(),
+            color: 'secondary'
+          },
+          {
+            icon: 'book-outline',
+            label: 'Codex',
+            action: () => this.goToCodex(),
+            color: 'secondary'
+          }
+        ]
+      },
+      // Writing Tools group (purple)
+      {
+        label: 'Writing',
+        items: [
+          {
+            icon: 'chatbubbles-outline',
+            label: 'Scene Chat',
+            action: () => this.goToSceneChat(),
+            color: 'tertiary'
+          },
+          {
+            icon: 'person-circle-outline',
+            label: 'Character Chat',
+            action: () => this.goToCharacterChat(),
+            color: 'tertiary'
+          }
+        ]
+      },
+      // Media group (green)
+      {
+        label: 'Media',
+        items: [
+          {
+            icon: 'images',
+            label: 'Image Generation',
+            action: () => this.headerNavService.goToImageGeneration(),
+            color: 'success'
+          },
+          {
+            icon: 'albums-outline',
+            label: 'Media Gallery',
+            action: () => this.openMediaGallery(),
+            color: 'success'
+          }
+        ]
+      },
+      // Settings group (gray)
+      {
+        label: 'Settings',
+        items: [
+          {
+            icon: 'settings-outline',
+            label: 'Story Settings',
+            action: () => this.goToSettings()
+          }
+        ]
+      },
+      // Developer Tools (collapsible, yellow)
+      {
+        label: 'Developer Tools',
+        icon: 'code-slash-outline',
+        collapsible: true,
+        isExpanded: false,
+        items: [
+          {
+            icon: 'bug-outline',
+            label: 'Debug Modus',
+            action: () => this.toggleDebugMode(),
+            color: 'warning'
+          },
+          {
+            icon: 'speedometer-outline',
+            label: 'Memory Monitor',
+            action: () => this.toggleMemoryOverlay(),
+            color: 'warning'
+          },
+          {
+            icon: 'stats-chart',
+            label: 'AI Logs',
+            action: () => this.headerNavService.goToAILogger(),
+            color: 'warning'
+          }
+        ]
       }
     ];
   }
@@ -710,18 +820,20 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     console.info(`[StoryEditor] Waiting for story ${storyId} to sync...`);
 
     return new Promise((resolve) => {
-      let syncSubscription: Subscription | null = null;
-      let checkInterval: ReturnType<typeof setInterval> | null = null;
       let checkCount = 0;
 
       const cleanup = () => {
-        if (syncSubscription) {
-          syncSubscription.unsubscribe();
-          syncSubscription = null;
+        if (this.syncStatusSubscription) {
+          this.syncStatusSubscription.unsubscribe();
+          this.syncStatusSubscription = null;
         }
-        if (checkInterval) {
-          clearInterval(checkInterval);
-          checkInterval = null;
+        if (this.syncCheckInterval) {
+          clearInterval(this.syncCheckInterval);
+          this.syncCheckInterval = null;
+        }
+        if (this.syncHardTimeout) {
+          clearTimeout(this.syncHardTimeout);
+          this.syncHardTimeout = null;
         }
       };
 
@@ -762,12 +874,12 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       void checkStoryExists();
 
       // Then check every 500ms
-      checkInterval = setInterval(() => {
+      this.syncCheckInterval = setInterval(() => {
         void checkStoryExists();
       }, 500);
 
       // Subscribe to sync status to check when sync completes
-      syncSubscription = this.databaseService.syncStatus$.subscribe(status => {
+      this.syncStatusSubscription = this.databaseService.syncStatus$.subscribe(status => {
         if (checkCount === 1) { // Only log sync status once
           this.addDebugLog(`Sync status: ${status.isSync ? 'syncing' : 'idle'}, online: ${status.isOnline}`);
         }
@@ -783,7 +895,7 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       });
 
       // Hard timeout
-      setTimeout(() => {
+      this.syncHardTimeout = setTimeout(() => {
         cleanup();
         this.addDebugLog(`❌ Hard timeout reached`);
         console.warn(`[StoryEditor] Hard timeout reached for story ${storyId}`);
@@ -919,13 +1031,15 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   private setupTouchGestures(): void {
     // Enable touch gestures for beat navigation panel
-    document.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
-    document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+    // Use pre-bound handlers to ensure proper cleanup
+    document.addEventListener('touchstart', this.boundHandleTouchStart, { passive: true });
+    document.addEventListener('touchend', this.boundHandleTouchEnd, { passive: true });
   }
 
   private removeTouchGestures(): void {
-    document.removeEventListener('touchstart', this.handleTouchStart.bind(this));
-    document.removeEventListener('touchend', this.handleTouchEnd.bind(this));
+    // Use same pre-bound handlers for proper removal
+    document.removeEventListener('touchstart', this.boundHandleTouchStart);
+    document.removeEventListener('touchend', this.boundHandleTouchEnd);
   }
 
   private handleTouchStart(event: TouchEvent): void {
@@ -1032,26 +1146,32 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     this.originalViewportHeight = window.innerHeight;
 
     // Listen for viewport resize events (indicates keyboard show/hide)
-    window.addEventListener('resize', () => {
-      this.handleViewportResize();
-    });
+    // Use pre-bound handlers to ensure proper cleanup
+    window.addEventListener('resize', this.boundHandleViewportResize);
 
     // iOS specific keyboard handling
     if (this.isIOS()) {
-      window.addEventListener('focusin', () => {
-        this.handleKeyboardShow();
-      });
-
-      window.addEventListener('focusout', () => {
-        this.handleKeyboardHide();
-      });
+      window.addEventListener('focusin', this.boundHandleKeyboardShow);
+      window.addEventListener('focusout', this.boundHandleKeyboardHide);
     }
 
     // Modern browsers: Visual Viewport API
-    if ('visualViewport' in window) {
-      window.visualViewport?.addEventListener('resize', () => {
-        this.handleVisualViewportResize();
-      });
+    if ('visualViewport' in window && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', this.boundHandleVisualViewportResize);
+    }
+  }
+
+  private removeMobileKeyboardHandling(): void {
+    // Remove all keyboard-related event listeners using pre-bound handlers
+    window.removeEventListener('resize', this.boundHandleViewportResize);
+
+    if (this.isIOS()) {
+      window.removeEventListener('focusin', this.boundHandleKeyboardShow);
+      window.removeEventListener('focusout', this.boundHandleKeyboardHide);
+    }
+
+    if ('visualViewport' in window && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.boundHandleVisualViewportResize);
     }
   }
 
@@ -1232,24 +1352,45 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     window.addEventListener('scroll', this.handleWindowViewportChange, true);
 
     // Add click listener to hide dropdown when clicking in editor
-    this.editorContainer.nativeElement.addEventListener('click', () => {
+    // Store bound handlers for proper cleanup
+    this.boundHandleEditorClick = () => {
       if (this.showSlashDropdown) {
         setTimeout(() => this.hideSlashDropdown(), 100);
       }
-    });
+    };
+    this.editorContainer.nativeElement.addEventListener('click', this.boundHandleEditorClick);
 
     // Add mobile keyboard handling to editor
     if (this.isMobileDevice()) {
-      this.editorContainer.nativeElement.addEventListener('focus', () => {
+      this.boundHandleEditorFocus = () => {
         setTimeout(() => this.scrollToActiveFocus(), 300);
-      }, true);
+      };
+      this.editorContainer.nativeElement.addEventListener('focus', this.boundHandleEditorFocus, true);
 
-      this.editorContainer.nativeElement.addEventListener('input', () => {
+      this.boundHandleEditorInput = () => {
         if (this.keyboardVisible) {
           setTimeout(() => this.scrollToActiveFocus(), 100);
         }
-      });
+      };
+      this.editorContainer.nativeElement.addEventListener('input', this.boundHandleEditorInput);
     }
+  }
+
+  private removeEditorContainerListeners(): void {
+    if (this.editorContainer?.nativeElement) {
+      if (this.boundHandleEditorClick) {
+        this.editorContainer.nativeElement.removeEventListener('click', this.boundHandleEditorClick);
+      }
+      if (this.boundHandleEditorFocus) {
+        this.editorContainer.nativeElement.removeEventListener('focus', this.boundHandleEditorFocus, true);
+      }
+      if (this.boundHandleEditorInput) {
+        this.editorContainer.nativeElement.removeEventListener('input', this.boundHandleEditorInput);
+      }
+    }
+    this.boundHandleEditorClick = null;
+    this.boundHandleEditorFocus = null;
+    this.boundHandleEditorInput = null;
   }
 
   private updateEditorContent(skipScroll = false): void {
@@ -1407,20 +1548,24 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
 
   hideSlashDropdown(): void {
     this.showSlashDropdown = false;
+    this.wasTriggeredByFab = false;
   }
 
   onSlashCommandSelected(result: SlashCommandResult): void {
     if (!this.activeScene || !this.editorView) return;
 
-    // Hide dropdown immediately
+    // Determine if we should replace slash (only when triggered by typing '/')
+    const replaceSlash = !this.wasTriggeredByFab;
+
+    // Hide dropdown immediately (also resets wasTriggeredByFab)
     this.hideSlashDropdown();
 
     switch (result.action) {
       case SlashCommandAction.INSERT_BEAT:
-        this.proseMirrorService.insertBeatAI(this.slashCursorPosition, true, 'story');
+        this.proseMirrorService.insertBeatAI(this.slashCursorPosition, replaceSlash, 'story');
         break;
       case SlashCommandAction.INSERT_SCENE_BEAT:
-        this.proseMirrorService.insertBeatAI(this.slashCursorPosition, true, 'scene');
+        this.proseMirrorService.insertBeatAI(this.slashCursorPosition, replaceSlash, 'scene');
         break;
       case SlashCommandAction.INSERT_IMAGE:
         this.showImageDialog = true;
@@ -1434,6 +1579,41 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       setTimeout(() => {
         this.proseMirrorService.focus();
       }, 100);
+    }
+  }
+
+  /**
+   * Determines if the beat input FAB should be visible
+   */
+  get showBeatFab(): boolean {
+    return this.activeScene !== null &&
+           !this.isLoadingStory &&
+           !this.showSlashDropdown &&
+           !this.showImageDialog &&
+           !this.showImageViewer &&
+           !this.showVideoModal &&
+           !this.showStoryStats &&
+           !this.showMediaGallery &&
+           !this.showBeatNavPanel;
+  }
+
+  /**
+   * Handle FAB click to show beat insertion dropdown.
+   * Gets current cursor position from editor or defaults to end of document.
+   */
+  onBeatFabClick(): void {
+    if (!this.editorView) return;
+
+    const { state } = this.editorView;
+    // Use current cursor position, or end of document if no selection
+    const position = state.selection?.from ?? state.doc.content.size;
+
+    this.slashCursorPosition = position;
+    this.wasTriggeredByFab = true;
+    this.showSlashDropdownAtCursor();
+
+    if (!this.isMobileDevice()) {
+      this.proseMirrorService.focus();
     }
   }
 
@@ -1726,6 +1906,10 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       this.proseMirrorService.toggleDebugMode(this.debugModeEnabled);
     }
 
+  }
+
+  toggleMemoryOverlay(): void {
+    this.mobileDebug.toggleMemoryOverlay();
   }
 
   showStoryStatsModal(): void {
@@ -2139,14 +2323,11 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     } catch (error) {
       console.error('PDF export failed:', error);
 
-      // Show user-friendly error message using Ionic AlertController
-      const errorAlert = await this.alertController.create({
+      // Show user-friendly error message using DialogService
+      await this.dialogService.showError({
         header: 'PDF Export Failed',
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
-        buttons: ['OK'],
-        cssClass: 'pdf-export-error-alert'
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
       });
-      await errorAlert.present();
     } finally {
       // Always dismiss loading modal
       if (loading) {
@@ -2164,6 +2345,55 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
       // Setup MutationObserver to watch for dynamically added Beat AI components
       this.setupMutationObserver();
     }, 100);
+  }
+
+  /**
+   * Apply the direct speech (dialogue) highlight color.
+   * If custom color is set, use it; otherwise derive from text color.
+   */
+  private applyDirectSpeechColor(): void {
+    const effectiveColor = this.getEffectiveDirectSpeechColor();
+
+    // Apply to document root so it's available globally via CSS variable
+    document.documentElement.style.setProperty('--cw-direct-speech-color', effectiveColor);
+  }
+
+  /**
+   * Get the effective direct speech color (custom or derived from text color)
+   */
+  private getEffectiveDirectSpeechColor(): string {
+    if (this.currentDirectSpeechColor) {
+      return this.currentDirectSpeechColor;
+    }
+    // Derive from text color with a slight purple/violet shift
+    return this.deriveDirectSpeechColor(this.currentTextColor);
+  }
+
+  /**
+   * Derive a direct speech color from the text color by shifting it toward purple/violet.
+   * Creates a subtle but noticeable difference for dialogue highlighting.
+   */
+  private deriveDirectSpeechColor(textColor: string): string {
+    // Validate hex color format
+    if (!textColor || !textColor.match(/^#[0-9a-fA-F]{6}$/)) {
+      return '#7c3aed'; // Return fallback purple for invalid input
+    }
+
+    // Parse hex color
+    const hex = textColor.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    // Shift toward purple: reduce green, increase blue slightly
+    // This creates a subtle purple/violet tint
+    const newR = Math.min(255, Math.round(r * 0.85 + 40)); // Add some red for warmth
+    const newG = Math.max(0, Math.round(g * 0.7)); // Reduce green
+    const newB = Math.min(255, Math.round(b * 0.85 + 60)); // Add more blue
+
+    // Convert back to hex
+    const toHex = (n: number) => n.toString(16).padStart(2, '0');
+    return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
   }
 
   private applyTextColorToAllElements(): void {
@@ -2191,10 +2421,6 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     beatAIContainers.forEach((container) => {
       // Set CSS custom property
       (container as HTMLElement).style.setProperty('--beat-ai-text-color', this.currentTextColor);
-
-      // Debug: Check if the variable is actually set
-      const computedStyle = window.getComputedStyle(container as HTMLElement);
-      computedStyle.getPropertyValue('--beat-ai-text-color');
     });
   }
 
@@ -2202,50 +2428,76 @@ export class StoryEditorComponent implements OnInit, OnDestroy {
     // Disconnect existing observer if any
     if (this.mutationObserver) {
       this.mutationObserver.disconnect();
+      this.mutationObserver = null;
+    }
+    // Clear any pending debounce timeout
+    if (this.mutationObserverDebounceTimeout) {
+      clearTimeout(this.mutationObserverDebounceTimeout);
+      this.mutationObserverDebounceTimeout = null;
     }
 
-    // Create new observer to watch for Beat AI components being added
-    this.mutationObserver = new MutationObserver((mutations) => {
-      let shouldApplyStyles = false;
+    try {
+      const targetNode = document.querySelector('.content-editor');
+      if (!targetNode) {
+        console.warn('[StoryEditor] Content editor not found, skipping mutation observer setup');
+        return;
+      }
 
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const element = node as Element;
+      // Create new observer to watch for Beat AI components being added
+      // MEMORY OPTIMIZATION: Use longer debounce and requestIdleCallback for mobile
+      this.mutationObserver = new MutationObserver((mutations) => {
+        // Quick check: only process if we find beat-ai-container class
+        let shouldApplyStyles = false;
 
-              // Check if the added node is a Beat AI container or contains one
-              if (element.classList?.contains('beat-ai-container') ||
-                  element.querySelector?.('.beat-ai-container')) {
-                shouldApplyStyles = true;
-              }
-
-              // Also check for ProseMirror elements that might be Beat AI related
-              if (element.classList?.contains('ProseMirror') ||
-                  element.querySelector?.('.ProseMirror')) {
-                shouldApplyStyles = true;
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+            for (const node of mutation.addedNodes) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node as Element;
+                // Only check for beat-ai-container, skip ProseMirror check to reduce overhead
+                if (element.classList?.contains('beat-ai-container') ||
+                    element.querySelector?.('.beat-ai-container')) {
+                  shouldApplyStyles = true;
+                  break;
+                }
               }
             }
-          });
+            if (shouldApplyStyles) break;
+          }
+        }
+
+        if (shouldApplyStyles) {
+          // Debounce with longer delay (500ms) and use requestIdleCallback when available
+          if (this.mutationObserverDebounceTimeout) {
+            clearTimeout(this.mutationObserverDebounceTimeout);
+          }
+          this.mutationObserverDebounceTimeout = setTimeout(() => {
+            this.mutationObserverDebounceTimeout = null;
+            // Guard against component destruction during timeout
+            if (!this.mutationObserver) return;
+            // Use requestIdleCallback if available for smoother mobile experience
+            if ('requestIdleCallback' in window) {
+              (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void })
+                .requestIdleCallback(() => this.applyTextColorToBeatAIElements(), { timeout: 1000 });
+            } else {
+              this.applyTextColorToBeatAIElements();
+            }
+          }, 500);
         }
       });
 
-      if (shouldApplyStyles) {
-        // Apply styles to newly added Beat AI elements
-        // Use longer delay to ensure Angular components are fully initialized
-        setTimeout(() => {
-          this.applyTextColorToBeatAIElements();
-        }, 200);
+      // Start observing the editor container and its subtree
+      this.mutationObserver.observe(targetNode, {
+        childList: true,
+        subtree: true
+      });
+    } catch (error) {
+      console.error('[StoryEditor] Failed to setup mutation observer:', error);
+      if (this.mutationObserver) {
+        this.mutationObserver.disconnect();
+        this.mutationObserver = null;
       }
-    });
-
-    // Start observing the editor container and its subtree
-    const targetNode = document.querySelector('.content-editor') || document.body;
-    this.mutationObserver.observe(targetNode, {
-      childList: true,
-      subtree: true
-    });
-
+    }
   }
 
   getCoverImageUrl(): string | null {

@@ -2,7 +2,7 @@
   <ion-toolbar>
     <ion-title>Create Scene from Outline</ion-title>
     <ion-buttons slot="end">
-      <ion-button fill="clear" (click)="dismiss()" [disabled]="generating">
+      <ion-button fill="clear" (click)="dismiss()">
         <ion-icon name="close-outline" slot="icon-only"></ion-icon>
       </ion-button>
     </ion-buttons>
@@ -29,7 +29,7 @@
   <div class="controls">
     <ion-item>
       <ion-label>Target word count: {{ wordCount }}</ion-label>
-      <ion-range min="200" max="25000" step="100" [(ngModel)]="wordCount"></ion-range>
+      <ion-range min="200" max="5000" step="100" [(ngModel)]="wordCount"></ion-range>
     </ion-item>
 
     <ion-item>
@@ -54,22 +54,14 @@
   </div>
 
   <div class="error" *ngIf="error">{{ error }}</div>
-
-  <div class="generating" *ngIf="generating">
-    <ion-spinner name="dots"></ion-spinner>
-    <div>Generating... Segments: {{ progressSegments }} | Words: {{ progressWords }}</div>
-  </div>
 </ion-content>
 
 <ion-footer>
   <ion-toolbar>
     <ion-buttons slot="end">
-      <ion-button *ngIf="!generating" color="primary" (click)="create()">
+      <ion-button color="primary" (click)="create()">
         <ion-icon name="sparkles-outline" slot="start"></ion-icon>
         Create Scene
-      </ion-button>
-      <ion-button *ngIf="generating" color="medium" fill="outline" (click)="cancel()">
-        Cancel
       </ion-button>
     </ion-buttons>
   </ion-toolbar>

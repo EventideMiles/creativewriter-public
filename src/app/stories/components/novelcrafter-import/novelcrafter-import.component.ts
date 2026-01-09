@@ -1,18 +1,25 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { IonButton, IonIcon } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { cloudUploadOutline, refreshOutline, checkmarkCircle, bookOutline, listOutline } from 'ionicons/icons';
 import { NovelCrafterImportService, NovelCrafterImportResult } from '../../../shared/services/novelcrafter-import.service';
 
 @Component({
   selector: 'app-novelcrafter-import',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, IonButton, IonIcon],
   templateUrl: './novelcrafter-import.component.html',
   styleUrls: ['./novelcrafter-import.component.scss']
 })
-export class NovelCrafterImportComponent {
+export class NovelCrafterImportComponent implements OnInit {
   private router = inject(Router);
   private importService = inject(NovelCrafterImportService);
+
+  ngOnInit(): void {
+    addIcons({ cloudUploadOutline, refreshOutline, checkmarkCircle, bookOutline, listOutline });
+  }
 
   isDragOver = signal(false);
   isFolderDragOver = signal(false);

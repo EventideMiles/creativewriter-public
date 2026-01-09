@@ -72,7 +72,8 @@ export interface AIRequestLog {
 export class AIRequestLoggerService {
   private logsSubject = new BehaviorSubject<AIRequestLog[]>([]);
   public logs$ = this.logsSubject.asObservable();
-  private maxLogs = 50; // Keep last 50 logs to avoid storage quota issues
+  // Reduced from 50 to 10 - each log contains full prompt+response (50KB+ each)
+  private maxLogs = 10;
 
   constructor() {
     // Load logs from localStorage on init

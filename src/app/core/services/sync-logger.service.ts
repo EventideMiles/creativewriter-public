@@ -23,7 +23,8 @@ export interface SyncLog {
 export class SyncLoggerService {
   private readonly deviceService = inject(DeviceService);
   private readonly STORAGE_KEY = 'creative-writer-sync-logs';
-  private readonly MAX_LOGS = 100;
+  // Reduced from 100 to 20 to prevent memory accumulation on mobile
+  private readonly MAX_LOGS = 20;
 
   private logsSubject = new BehaviorSubject<SyncLog[]>([]);
   public logs$: Observable<SyncLog[]> = this.logsSubject.asObservable();
