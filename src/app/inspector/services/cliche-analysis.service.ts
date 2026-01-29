@@ -5,6 +5,7 @@ import { ClaudeApiService } from '../../core/services/claude-api.service';
 import { GoogleGeminiApiService } from '../../core/services/google-gemini-api.service';
 import { OllamaApiService, OllamaResponse, OllamaChatResponse } from '../../core/services/ollama-api.service';
 import { firstValueFrom } from 'rxjs';
+import { OpenAICompatibleApiService } from '../../core/services/openai-compatible-api.service';
 import { ClicheFinding, SceneClicheResult, ClicheFindingType } from '../models/cliche-analysis.interface';
 
 @Injectable({ providedIn: 'root' })
@@ -14,6 +15,7 @@ export class ClicheAnalysisService {
   private claude = inject(ClaudeApiService);
   private gemini = inject(GoogleGeminiApiService);
   private ollama = inject(OllamaApiService);
+  private openAICompatible = inject(OpenAICompatibleApiService);
 
   async analyzeScene(params: {
     modelId?: string; // format: provider:model
@@ -85,6 +87,16 @@ export class ClicheAnalysisService {
         } else if (maybeChat.message && typeof maybeChat.message.content === 'string') {
           content = maybeChat.message.content;
         } else { content = ''; }
+      } else if (provider === 'openaicompatible') {
+        const res = await firstValueFrom(
+          this.openAICompatible.generateText(prompt, {
+            model,
+            maxTokens: 4000,
+            temperature: 0.1,
+            topP: 0.9
+          })
+        );
+        content = res.choices?.[0]?.message?.content || '';
       } else {
         return {
           sceneId,
