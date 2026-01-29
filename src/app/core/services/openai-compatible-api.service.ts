@@ -90,7 +90,7 @@ export class OpenAICompatibleApiService {
         .join('\n\n');
     }
 
-    const url = `${settings.openAICompatible.baseUrl}/v1/chat/completions`;
+    const url = this.normalizeApiPath(settings.openAICompatible.baseUrl, '/chat/completions');
 
     // Log the request
     const logId = this.aiLogger.logRequest({
@@ -237,7 +237,7 @@ export class OpenAICompatibleApiService {
         .join('\n\n');
     }
 
-    const url = `${settings.openAICompatible.baseUrl}/v1/chat/completions`;
+    const url = this.normalizeApiPath(settings.openAICompatible.baseUrl, '/chat/completions');
 
     // Log the request
     const logId = this.aiLogger.logRequest({
@@ -402,7 +402,7 @@ export class OpenAICompatibleApiService {
       return throwError(() => new Error('OpenAI-Compatible base URL is not configured'));
     }
 
-    const url = `${settings.openAICompatible.baseUrl}/v1/models`;
+    const url = this.normalizeApiPath(settings.openAICompatible.baseUrl, '/models');
     const headers = settings.openAICompatible.apiKey
       ? { 'Authorization': `Bearer ${settings.openAICompatible.apiKey}` }
       : undefined;
@@ -423,7 +423,7 @@ export class OpenAICompatibleApiService {
       return throwError(() => new Error('OpenAI-Compatible base URL is not configured'));
     }
 
-    const url = `${settings.openAICompatible.baseUrl}/v1/models`;
+    const url = this.normalizeApiPath(settings.openAICompatible.baseUrl, '/models');
     const headers = settings.openAICompatible.apiKey
       ? { 'Authorization': `Bearer ${settings.openAICompatible.apiKey}` }
       : undefined;
@@ -453,6 +453,19 @@ export class OpenAICompatibleApiService {
         this.requestMetadata.delete(requestId);
       }
     }
+  }
+
+  private normalizeApiPath(baseUrl: string, endpoint: string): string {
+    // Remove trailing slashes from baseUrl
+    const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+    // Detect if baseUrl already ends with a version pattern (e.g., /v1, /api/v1, /api/v1.0)
+    const versionPattern = /\/(api\/)?v\d+(\.\d+)?$/i;
+    if (versionPattern.test(cleanBaseUrl)) {
+      // Version already included in baseUrl, just append endpoint
+      return `${cleanBaseUrl}${endpoint}`;
+    }
+    // No version pattern detected, prepend /v1
+    return `${cleanBaseUrl}/v1${endpoint}`;
   }
 
   private generateRequestId(): string {
