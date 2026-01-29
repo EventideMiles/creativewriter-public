@@ -128,7 +128,8 @@ export class OpenAICompatibleApiService {
 
     return this.http.post<OpenAICompatibleResponse>(url, request, {
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(settings.openAICompatible.apiKey && { 'Authorization': `Bearer ${settings.openAICompatible.apiKey}` })
       }
     }).pipe(
       takeUntil(abortSubject),
@@ -289,11 +290,16 @@ export class OpenAICompatibleApiService {
       });
 
       // Use fetch for streaming
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (settings.openAICompatible.apiKey) {
+        headers['Authorization'] = `Bearer ${settings.openAICompatible.apiKey}`;
+      }
+
       fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: JSON.stringify(request),
         signal: abortController.signal
       }).then(async response => {
@@ -397,8 +403,11 @@ export class OpenAICompatibleApiService {
     }
 
     const url = `${settings.openAICompatible.baseUrl}/v1/models`;
+    const headers = settings.openAICompatible.apiKey
+      ? { 'Authorization': `Bearer ${settings.openAICompatible.apiKey}` }
+      : undefined;
 
-    return this.http.get<OpenAICompatibleModelsResponse>(url)
+    return this.http.get<OpenAICompatibleModelsResponse>(url, headers ? { headers } : {})
       .pipe(
         catchError(error => {
           console.error('Failed to load OpenAI-Compatible models:', error);
@@ -415,8 +424,11 @@ export class OpenAICompatibleApiService {
     }
 
     const url = `${settings.openAICompatible.baseUrl}/v1/models`;
+    const headers = settings.openAICompatible.apiKey
+      ? { 'Authorization': `Bearer ${settings.openAICompatible.apiKey}` }
+      : undefined;
 
-    return this.http.get(url)
+    return this.http.get(url, headers ? { headers } : {})
       .pipe(
         map(() => true),
         tap(() => console.log('OpenAI-Compatible connection test successful')),

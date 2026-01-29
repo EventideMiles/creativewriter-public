@@ -535,6 +535,19 @@
         </ion-input>
       </ion-item>
 
+      <ion-item [class.disabled]="!settings.openAICompatible.enabled">
+        <ion-input
+          type="password"
+          [(ngModel)]="settings.openAICompatible.apiKey"
+          (ngModelChange)="onApiKeyChange('openAICompatible')"
+          placeholder="Optional API key"
+          [disabled]="!settings.openAICompatible.enabled"
+          label="API Key (Optional)"
+          labelPlacement="stacked"
+          helperText="Required for remote OpenAI-compatible servers like Nano-GPT. Leave empty for local servers.">
+        </ion-input>
+      </ion-item>
+
       <div class="connection-test" [class.disabled]="!settings.openAICompatible.enabled">
         <ion-button
           size="small"

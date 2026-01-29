@@ -111,7 +111,7 @@ export class ApiSettingsComponent implements OnDestroy {
     this.settingsChange.emit();
   }
 
-  onApiKeyChange(provider: 'openRouter' | 'replicate' | 'googleGemini' | 'claude'): void {
+  onApiKeyChange(provider: 'openRouter' | 'replicate' | 'googleGemini' | 'claude' | 'openAICompatible'): void {
     this.settingsChange.emit();
 
     // Auto-load models when API key is entered and provider is enabled
@@ -123,6 +123,8 @@ export class ApiSettingsComponent implements OnDestroy {
       this.subscriptions.add(this.modelService.loadGeminiModels().subscribe());
     } else if (provider === 'claude' && this.settings.claude.enabled && this.settings.claude.apiKey) {
       this.subscriptions.add(this.modelService.loadClaudeModels().subscribe());
+    } else if (provider === 'openAICompatible' && this.settings.openAICompatible.enabled && this.settings.openAICompatible.baseUrl) {
+      this.subscriptions.add(this.modelService.loadOpenAICompatibleModels().subscribe());
     }
   }
 
