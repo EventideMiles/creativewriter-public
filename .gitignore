@@ -62,3 +62,16 @@ data/couchdb-data/shards/80000000-ffffffff/_global_changes.1762243547.couch
 data/couchdb-data/shards/80000000-ffffffff/_replicator.1762243545.couch
 data/couchdb-data/shards/80000000-ffffffff/_users.1762243544.couch
 data/log/snapshot-service/snapshots.log
+
+# Local logs from continue
+logs/
+
+# Data files from local testing
+data/
+
+# Docker override file for my local development
+docker-compose-localbuild.override.yml
+
+# Roo code agent files
+AGENTS.md
+.roo/
